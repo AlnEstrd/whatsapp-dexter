@@ -200,7 +200,7 @@ def test_off_topic_warns_twice_then_escalates_without_agent_tokens(make_client, 
 
     for i in range(3):
         twilio_post(c, tw_msg("dame una receta de enchiladas suizas por favor", sid=f"S{i}"))
-    b = bodies(send)
+    b = bodies(send)[1:]                             # [0] is the new-chat intro
     assert "Aviso 1 de 2" in b[0] and "Aviso 2 de 2" in b[1]
     assert b[2] == sessions.text("offtopic_escalate", "es")
     assert store.in_handoff(USER)
