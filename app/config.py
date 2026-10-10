@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     idle_warn_minutes: float = 10     # "are you still there?" after this long without activity
     idle_close_minutes: float = 5     # ...then close this long after the warning (0 = never)
     restart_notice: bool = True       # tell recent users when a restart wiped their chat
+    # Close as soon as the user signals they're done ("sería todo, gracias"): wider keyword list
+    # + the agent's end_conversation tool. false = goodbye keywords only (idle closes the rest).
+    close_on_intent: bool = True
 
     # --- Off-topic guard (app/guard.py) --------------------------------------
     guard_enabled: bool = True

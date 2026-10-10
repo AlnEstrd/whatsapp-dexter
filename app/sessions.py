@@ -6,7 +6,8 @@ disk (SESSIONS_FILE) so that after a restart we can tell recent users their
 chat was lost, instead of the bot silently "forgetting" them.
 
 A session is *open* from the user's first message until it is closed by:
-    user   - says goodbye (adiós, bye, terminar, ...)
+    user   - says goodbye: a whole-message closer (adiós, sería todo, that's all, ...)
+             or, with CLOSE_ON_INTENT, the agent's end_conversation tool
     bot    - idle: IDLE_WARN_MINUTES without activity -> warning,
              then IDLE_CLOSE_MINUTES more -> closed
     admin  - ``close`` in the Slack thread (or POST /admin/close)
@@ -19,6 +20,7 @@ import logging
 import os
 import re
 import time
+import unicodedata
 import uuid
 from typing import Any, Optional
 
@@ -35,10 +37,53 @@ CLOSE_WORDS = {
     "gracias adios", "gracias adiós", "gracias bye", "thanks bye", "ok gracias adios",
 }
 
+# CLOSE_ON_INTENT: extra whole-message closers (matched after normalize()). Ambiguous replies
+# ("gracias", "ok", "perfecto", "no", "no gracias", 👍) are deliberately absent: they go to the
+# agent, which sees the history and decides whether to call end_conversation.
+_CLOSE_BASES = {
+    "seria todo", "es todo", "eso es todo", "eso seria todo", "seria todo por ahora",
+    "es todo por ahora", "seria todo por hoy", "es todo por hoy", "nada mas", "nada mas por ahora",
+    "ya quedo", "ya quede", "con eso", "con eso es todo", "con eso queda", "hasta luego",
+    "nos vemos", "hasta pronto", "thats all", "thats it", "thats all for now", "im done",
+    "im all set", "all set", "nothing else", "adios", "bye", "goodbye", "chao", "chau",
+}
+_CLOSE_PREFIXES = ("", "gracias ", "muchas gracias ", "ok ", "no ", "thanks ", "ok thanks ")
+_CLOSE_SUFFIXES = ("", " gracias", " muchas gracias", " mil gracias", " thanks", " thank you",
+                   " thanks a lot")
+_CLOSE_EXTRA = {"listo gracias", "listo muchas gracias", "ok listo gracias", "im good thanks",
+                "im good thank you", "no thanks", "no thank you"}
+
+
+# Phrases that mark a longer message as a goodbye (sounds_like_closing); no command words like
+# "salir"/"cerrar"/"terminar", which also show up in normal questions.
+_CLOSE_HINTS = {"seria todo", "eso es todo", "es todo por hoy", "es todo por ahora", "ya quedo",
+                "nada mas por ahora", "nada mas gracias", "con eso es todo", "thats all",
+                "nothing else", "im done", "im all set", "adios", "bye", "goodbye", "chao",
+                "hasta luego", "hasta pronto", "nos vemos"}
+
+
+def normalize(msg_text: str) -> str:
+    """Lowercase, no accents, no punctuation/emoji, single spaces ("That's all 🙏" -> "thats all")."""
+    t = unicodedata.normalize("NFKD", (msg_text or "").lower())
+    t = "".join(c for c in t if not unicodedata.combining(c))
+    t = re.sub(r"['’`´]", "", t)
+    t = re.sub(r"[^\w\s]|_", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+INTENT_CLOSE_WORDS = {normalize(p + b + x) for b in _CLOSE_BASES
+                      for p in _CLOSE_PREFIXES for x in _CLOSE_SUFFIXES} \
+    | _CLOSE_EXTRA | {normalize(w) for w in CLOSE_WORDS}
+
+_REENGAGE = {
+    "es": "Cuando quieras, escribe *hola* para empezar de nuevo.",
+    "en": "Type *hi* anytime to start again.",
+}
+
 TEXT = {
     "close_user": {
-        "es": "¡Gracias por platicar! 👋 Cerré la conversación. Cuando quieras, escribe *hola* para empezar de nuevo.",
-        "en": "Thanks for chatting! 👋 I've closed the conversation. Type *hi* anytime to start again.",
+        "es": "¡Gracias por platicar! 👋 Cerré la conversación. " + _REENGAGE["es"],
+        "en": "Thanks for chatting! 👋 I've closed the conversation. " + _REENGAGE["en"],
     },
     "close_bot": {
         "es": "Cerré la conversación por inactividad. Si quieres retomarla, escribe *hola* y empezamos de nuevo.",
@@ -80,10 +125,28 @@ def text(key: str, lang: Optional[str], **kw: Any) -> str:
     return TEXT[key][lang if lang in ("es", "en") else "es"].format(**kw)
 
 
-def is_close_request(msg_text: str) -> bool:
+def is_close_request(msg_text: str, widened: bool = False) -> bool:
+    """Whole-message goodbye. ``widened`` (CLOSE_ON_INTENT) adds the common closers above."""
     t = re.sub(r"[!¡.?¿,]", "", (msg_text or "").strip().lower())
     t = re.sub(r"\s+", " ", t)
-    return t in CLOSE_WORDS
+    if t in CLOSE_WORDS:
+        return True
+    return widened and normalize(msg_text) in INTENT_CLOSE_WORDS
+
+
+def sounds_like_closing(msg_text: str) -> bool:
+    """A closer anywhere in a longer message ("no, eso sería todo por hoy, gracias Dexter").
+    Used only to keep such messages away from the off-topic guard; the agent decides."""
+    t = f" {normalize(msg_text)} "
+    return any(f" {b} " in t for b in _CLOSE_HINTS)
+
+
+def farewell_text(farewell: Optional[str], lang: Optional[str]) -> str:
+    """Agent farewell + the standard re-engage line (the default close_user text if none)."""
+    f = re.sub(r"\s+", " ", farewell or "").strip()[:200]
+    if not f:
+        return text("close_user", lang)
+    return f"{f} {_REENGAGE[lang if lang in ('es', 'en') else 'es']}"
 
 
 def now() -> float:
@@ -193,12 +256,14 @@ def bump_offtopic(user_id: str) -> int:
     return s["offtopic"]
 
 
-def mark_closed(user_id: str, by: str) -> Optional[dict[str, Any]]:
+def mark_closed(user_id: str, by: str, reason: Optional[str] = None) -> Optional[dict[str, Any]]:
     s = _sessions.get(user_id)
     if not s or s.get("state") != "open":
         return None
     s.update(state="closed", closed_by=by, closed_at=now(), offtopic=0, context=False,
              quiz=False, warned=False)
+    if reason:
+        s["closed_reason"] = reason
     save()
     return s
 

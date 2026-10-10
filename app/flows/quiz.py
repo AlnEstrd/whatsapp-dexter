@@ -254,6 +254,11 @@ def last_result(user_id: str) -> Optional[Result]:
     return _results.get(user_id)
 
 
+def is_exit(text: str) -> bool:
+    """Typed words that stop the quiz (and only the quiz)."""
+    return (text or "").strip().lower().strip("!.¡¿?") in EXIT_WORDS
+
+
 def reset() -> None:  # tests
     _states.clear()
     _results.clear()
@@ -302,7 +307,7 @@ def answer(user_id: str, text: str, reply_id: Optional[str] = None) -> list[Outg
     st = _states.get(user_id)
     if st is None:
         return []
-    if (text or "").strip().lower().strip("!.¡¿?") in EXIT_WORDS and not reply_id:
+    if is_exit(text) and not reply_id:
         _states.pop(user_id, None)
         return [Outgoing(text=T["cancelled"][st.lang])]
     choice = _parse(st, text, reply_id)

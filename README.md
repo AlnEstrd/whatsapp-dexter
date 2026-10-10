@@ -323,7 +323,7 @@ app/
   docs/                PDF generation (reportlab): slides.py, topic.py, assessment.py, common/theme
   store.py             In-memory history, handoff state, webhook dedup, Slack thread map
   config.py            Settings loaded from .env
-tests/                 pytest suite (160 tests; no network, HTTP mocked with respx)
+tests/                 pytest suite (227 tests; no network, HTTP mocked with respx)
 ```
 
 ## Talk companion flows ("Gobernanza de IA")
@@ -391,10 +391,23 @@ open("s8.pdf", "wb").write(docs.make_deck("8").data)           # one slide
 
 | Situation | What the user gets | Config |
 |---|---|---|
-| User says goodbye (`adiós`, `bye`, `terminar`, `salir`…; inside the quiz `salir` only exits the quiz) | Closing message; memory wiped; next message starts fresh with the menu | — |
+| User says goodbye or signals they're done (see [Ending a conversation](#ending-a-conversation)) | One farewell + "escribe *hola*"; memory wiped; next message starts fresh with the menu | `CLOSE_ON_INTENT=true` |
 | No activity | "¿Sigues ahí?" warning, then a closing message | `IDLE_WARN_MINUTES=10`, `IDLE_CLOSE_MINUTES=5` (chats with a human in charge are skipped) |
 | Alan closes from Slack (`close` or 🔒 on the parent) or `POST /admin/close` | "Alan cerró esta conversación…" | — |
 | Server restart wiped an active chat (agent history or a half-done quiz) | Apology from Alan saying the history was lost — sent on startup to chats active in the last 23 h, or before the reply to their next message | `RESTART_NOTICE=true`, `SESSIONS_FILE` |
 | Message off the talk's topic | A cheap classifier (`GUARD_MODEL`, Haiku) runs first; off-topic gets a static warning "Aviso 1 de 2 / 2 de 2" with no main-agent call; the next one hands the chat to Alan | `GUARD_ENABLED`, `OFFTOPIC_MAX_WARNINGS=2` |
 
 The session registry (`data/sessions.json`) and the Slack thread map live on the `app_data` Docker volume, so they survive redeploys. Messages of ≤ 3 words skip the classifier (follow-ups like "¿y en ventas?"). The guard fails open: if the classifier errors, the main agent answers.
+
+### Ending a conversation
+
+The bot closes as soon as the user is done, instead of waiting for the idle timeout. Every close goes through one routine (`close_chat` in `app/main.py`, reason `user_keyword | user_intent | idle | admin`): send the closing message, wipe agent memory and quiz state, clear the idle timers, persist `data/sessions.json`, and post a silent note in the Slack thread (`🔒 Closed by user: "<what they wrote>"`). The next message starts fresh with the menu.
+
+1. **Keyword fast path (zero tokens).** Runs before the off-topic guard and the agent. The *whole* message is normalised (lowercase, no accents, punctuation/emoji stripped) and must match a closer: the classic `adiós`, `bye`, `hasta luego`, `nos vemos`, `terminar`…, plus `sería todo`, `es todo`, `eso es todo`, `nada más`, `ya quedó`, `listo, gracias`, `con eso`, `that's all`, `that's it`, `I'm good, thanks`, `no thanks`, each optionally with `gracias` / `thanks` around it (`Sería todo, gracias`, `Nada más 🙏`). Anything longer goes to the agent. The user gets the standard closing message.
+2. **Agent tool `end_conversation`.** For everything else ("perfecto, con esto ya tengo lo que necesitaba"), the agent decides from the history. When it calls the tool, its own text for that turn is discarded and the user gets one message: the tool's `farewell` + the re-engage line (`¡Un gusto! Que tengas excelente día. 👋 Cuando quieras, escribe *hola* para empezar de nuevo.`). No further model call happens in that turn.
+3. **Ambiguous replies go to the agent.** A bare `gracias`, `ok`, `perfecto`, `no`, `no, gracias` or 👍 never closes by keyword. The agent answers briefly or asks "¿Algo más en lo que te pueda ayudar?". If it just asked that and the user says `no` / `no, gracias`, it calls `end_conversation`. Messages containing a closer ("no, eso sería todo por hoy, gracias") skip the off-topic classifier, so a goodbye is never counted as off-topic.
+4. **Quiz.** Typing `salir` (or `exit`, `cancelar`, `terminar`, `menú`) only stops the quiz, as before. Any other closer (`es todo`, `adiós`) mid-quiz stops the quiz and closes the chat. A bare `no` is treated as a quiz answer (invalid input), not a close.
+5. **Human handoff.** While Alan is in charge, nothing closes automatically: the message is mirrored to Slack and Alan closes with `close` / 🔒.
+6. **Idle backstop.** `IDLE_WARN_MINUTES` / `IDLE_CLOSE_MINUTES` still close quiet chats. A chat that is already closed never gets the "¿Sigues ahí?" warning.
+
+`CLOSE_ON_INTENT=false` restores the previous behaviour exactly: only the classic goodbye words close (never inside the quiz), the agent has no `end_conversation` tool, and other chats close on idle.

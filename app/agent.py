@@ -87,6 +87,15 @@ user redact them.
 reply with one short line; the questions are sent automatically after your reply.
 """
 
+# Appended when CLOSE_ON_INTENT is on (see end_conversation below).
+CLOSE_INSTRUCTIONS = """\
+- When the user signals they're done ("sería todo", "es todo, gracias", "that's all"), call \
+end_conversation instead of writing the goodbye yourself; the system sends your farewell and closes \
+the chat. A bare "gracias"/"ok" usually just acknowledges an answer: reply briefly, or ask "¿Algo más \
+en lo que te pueda ayudar?". After you've fully answered, asking that is fine. If you asked it and the \
+user answers "no" / "no, gracias", call end_conversation.
+"""
+
 TOOL_DEFINITIONS = [
     {
         "name": "search_sources",
@@ -208,9 +217,32 @@ TOOL_DEFINITIONS = [
     },
 ]
 
+END_CONVERSATION_TOOL = {
+    "name": "end_conversation",
+    "description": (
+        "Close this chat. Call this when the user signals they are done and don't need anything else "
+        "(e.g. 'sería todo', 'es todo', 'ya quedó', 'nada más, gracias', 'that's all', 'I'm good, "
+        "thanks'), or answers 'no' / 'no, gracias' right after you asked whether they need anything "
+        "else. Do NOT call it for a bare 'gracias'/'ok' that may just acknowledge an answer, or when "
+        "the same message also asks something new. If unsure, ask '¿Algo más en lo que te pueda "
+        "ayudar?' instead. Your text for this turn is discarded: put the goodbye in `farewell`."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "farewell": {
+                "type": "string",
+                "description": ("One short, warm goodbye sentence in the user's language, e.g. '¡Un "
+                                "gusto! Que tengas excelente día. 👋'. Don't tell them how to come "
+                                "back (no 'escribe hola'); the system adds that."),
+            },
+        },
+    },
+}
+
 MAX_AGENT_STEPS = 5  # hard cap on tool-use round trips per incoming message
 
-# user_id -> {"action": "quiz" | "human", ...} requested by a tool this turn
+# user_id -> {"action": "quiz" | "human" | "report" | "close", ...} requested by a tool this turn
 _pending: dict[str, dict[str, Any]] = {}
 
 
@@ -270,6 +302,9 @@ def run_tool(user_id: str, name: str, tool_input: dict) -> str:
             return "This user hasn't completed the assessment yet; offer start_assessment."
         _pending[user_id] = {"action": "report"}
         return "The report PDF is sent right after your reply. Reply with one short line only."
+    if name == "end_conversation" and get_settings().close_on_intent:
+        _pending[user_id] = {"action": "close", "farewell": str(tool_input.get("farewell") or "")}
+        return "The chat is closed right after this turn with your farewell."
     if name == "talk_to_alan":
         _pending[user_id] = {"action": "human", "reason": tool_input.get("reason", "")}
         return ("Alan will be notified right after your reply and will answer in this chat. "
@@ -277,9 +312,16 @@ def run_tool(user_id: str, name: str, tool_input: dict) -> str:
     return f"error: unknown tool '{name}'"
 
 
+def tool_definitions() -> list[dict]:
+    if get_settings().close_on_intent:
+        return [*TOOL_DEFINITIONS, END_CONVERSATION_TOOL]
+    return TOOL_DEFINITIONS
+
+
 def system_blocks() -> list[dict]:
+    instructions = INSTRUCTIONS + (CLOSE_INSTRUCTIONS if get_settings().close_on_intent else "")
     return [
-        {"type": "text", "text": INSTRUCTIONS},
+        {"type": "text", "text": instructions},
         {"type": "text", "text": "<voice>\n" + knowledge.voice_text() + "\n</voice>"},
         {"type": "text", "text": "Core documents:\n\n" + knowledge.core_text(),
          "cache_control": {"type": "ephemeral"}},
@@ -339,7 +381,7 @@ class Agent:
                 model=self._model,
                 max_tokens=800,
                 system=system_blocks(),
-                tools=TOOL_DEFINITIONS,
+                tools=tool_definitions(),
                 messages=messages,
             )
 
@@ -362,6 +404,8 @@ class Agent:
                     "content": run_tool(wa_id, block.name, block.input),
                 })
             store.append_message(wa_id, "user", tool_results)
+            if _pending.get(wa_id, {}).get("action") == "close":
+                return ""  # end_conversation ends the turn; main.py sends the farewell
 
         return ("No pude terminar esa respuesta. ¿Puedes reformular la pregunta? "
                 "/ I couldn't finish that answer — could you rephrase?")

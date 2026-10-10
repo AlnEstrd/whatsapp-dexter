@@ -440,6 +440,12 @@ async def _run_agent(channel: Channel, msg: InboundMessage, text: str,
     sessions.touch_bot(msg.user_id, context=True)
     action = pop_action(msg.user_id)
     documents = pop_documents(msg.user_id)
+    if action and action["action"] == "close":
+        # end_conversation: the agent's own text is dropped, the farewell is the only message
+        for doc in documents:
+            await send_file(channel, msg, doc)
+        await close_chat(msg.user_id, "user_intent", farewell=action.get("farewell"), user_text=text)
+        return True
     if reply or not (action or documents):
         await send_bubbles(channel, msg, reply or FALLBACK_REPLY)
     for doc in documents:
@@ -492,7 +498,7 @@ async def _route_flows(channel: Channel, msg: InboundMessage, is_new: bool) -> b
         await _off_topic(channel, msg, lang)
     else:
         ok = await _run_agent(channel, msg, msg.text)
-        if ok and is_new and not store.in_handoff(uid) and not quiz.active(uid):
+        if ok and is_new and sessions.is_open(uid) and not store.in_handoff(uid) and not quiz.active(uid):
             await send_out(channel, msg, menu.welcome(lang, msg.profile_name))
     return True
 
@@ -532,24 +538,44 @@ async def _notify(user_id: str, text: str) -> bool:
     return True
 
 
-async def close_chat(user_id: str, by: str, slack_cleanup: bool = True) -> bool:
-    """Close a conversation (by = "user" | "bot" | "admin"): closing message to the
-    user, then wipe agent memory, quiz, transcript and handoff. Next message starts fresh."""
+# reason -> who closed it (closing message key, Slack label)
+CLOSE_REASONS = {"user_keyword": "user", "user_intent": "user", "idle": "bot", "admin": "admin"}
+
+
+async def close_chat(user_id: str, reason: str, slack_cleanup: bool = True, *,
+                     farewell: Optional[str] = None, user_text: Optional[str] = None) -> bool:
+    """The one close routine (reason = "user_keyword" | "user_intent" | "idle" | "admin"):
+    closing message to the user, then wipe agent memory, quiz, transcript, handoff and idle
+    timers. The next message starts fresh. ``farewell``: the agent's goodbye (user_intent)."""
+    by = CLOSE_REASONS[reason]
     if not sessions.is_open(user_id) and by != "admin":
         return False
     lang = _lang_of(user_id)
-    await _notify(user_id, sessions.text(f"close_{by}", lang))
-    sessions.mark_closed(user_id, by)
+    if reason == "user_intent":
+        closing = sessions.farewell_text(to_whatsapp(farewell or ""), lang)
+    else:
+        closing = sessions.text(f"close_{by}", lang)
+    await _notify(user_id, closing)
+    sessions.mark_closed(user_id, by, reason)
     quiz._states.pop(user_id, None)
     pop_action(user_id)
     pop_documents(user_id)
     store.reset(user_id)
     store.end_handoff(user_id)
-    if slack_cleanup and slack_bridge.enabled() and store.get_thread(user_id):
-        label = {"user": "the customer", "bot": "the bot (inactivity)", "admin": "admin"}[by]
-        await slack_bridge.close_thread(user_id, f"🔒 Conversation closed by {label}.")
-    elif not slack_bridge.enabled():
-        await notify_slack(f":lock: Conversation with {user_id} closed by {by}.")
+    quote = ""
+    if by == "user" and user_text and get_settings().close_on_intent:
+        quote = user_text.strip().replace("\n", " ")
+        quote = quote if len(quote) <= 80 else quote[:79] + "…"
+    try:
+        if slack_cleanup and slack_bridge.enabled() and store.get_thread(user_id):
+            label = {"user": "the customer", "bot": "the bot (inactivity)", "admin": "admin"}[by]
+            note = f'🔒 Closed by user: "{quote}"' if quote else f"🔒 Conversation closed by {label}."
+            await slack_bridge.close_thread(user_id, note)
+        elif not slack_bridge.enabled():
+            await notify_slack(f":lock: Conversation with {user_id} closed by {by}"
+                               + (f': "{quote}"' if quote else "."))
+    except Exception:  # noqa: BLE001
+        logger.exception("Slack close note failed for %s", user_id)  # never blocks the close
     store.clear_transcript(user_id)
     return True
 
@@ -597,12 +623,14 @@ async def check_idle() -> None:
     s = get_settings()
     skip = {uid for uid in sessions.all_sessions() if store.in_handoff(uid)}
     for uid, action in sessions.idle_actions(s.idle_warn_minutes * 60, s.idle_close_minutes * 60, skip):
+        if not sessions.is_open(uid):
+            continue  # closed (e.g. the user said goodbye) while this loop was awaiting
         if action == "warn":
             m = max(1, round(s.idle_close_minutes))
             if await _notify(uid, sessions.text("idle_warn", _lang_of(uid), m=m)):
                 sessions.mark_warned(uid)
         else:
-            await close_chat(uid, "bot")
+            await close_chat(uid, "idle")
 
 
 async def lifecycle_watcher() -> None:  # started from the app lifespan
@@ -662,9 +690,17 @@ async def handle_inbound(channel: Channel, msg: InboundMessage) -> None:
     is_new = not store.transcript(msg.user_id)
     store.log_turn(msg.user_id, "user", msg.text or f"({msg.msg_type})")
 
-    if msg.text and msg.media is None and sessions.is_close_request(msg.text) \
-            and not quiz.active(msg.user_id):
-        await close_chat(msg.user_id, "user")
+    # Goodbye keywords: before the guard and the agent (zero tokens). In the quiz, its own exit
+    # words (salir, ...) only stop the quiz; with CLOSE_ON_INTENT other closers close the chat.
+    intent = get_settings().close_on_intent
+    if msg.text and msg.media is None and not (intent and msg.reply_id) \
+            and sessions.is_close_request(msg.text, widened=intent) \
+            and (not quiz.active(msg.user_id) or (intent and not quiz.is_exit(msg.text))):
+        if intent:
+            lang = menu.detect_lang(msg.text, store.get_lang(msg.user_id))
+            store.set_lang(msg.user_id, lang)
+            sessions.set_lang(msg.user_id, lang)
+        await close_chat(msg.user_id, "user_keyword", user_text=msg.text)
         return
 
     if not msg.text and msg.media is None:
