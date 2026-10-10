@@ -58,8 +58,8 @@ TEXT = {
     },
     # First message of a new chat that is already a question: introduce, no menu, then answer.
     "intro": {
-        "es": "👋 Hola{name}, soy Dexter, jefe de Estrada Lab. Te ayudo con la plática *Gobernanza de IA* de Alan Estrada.",
-        "en": "👋 Hi{name}, I'm Dexter, lab chief at Estrada Lab. I can help with Alan Estrada's talk *AI Governance*.",
+        "es": "👋 Hola{name}, soy Dexter, jefe de Estrada Lab. Estoy aquí para resolver tus dudas sobre lo más nuevo del lab.",
+        "en": "👋 Hi{name}, I'm Dexter, lab chief at Estrada Lab. I'm here to answer your questions about what's new at the lab.",
     },
     # ...and after that first answer: offer the menu, don't show it.
     "offer": {
