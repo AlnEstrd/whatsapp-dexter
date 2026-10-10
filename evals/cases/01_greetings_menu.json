@@ -126,5 +126,32 @@
       ],
       "language": "es"
     }
+  },
+  {
+    "id": "about-alan-ai-only",
+    "lang": "es",
+    "prior": [
+      "hola"
+    ],
+    "message": "Quisiera conocer la trayectoria de AI de Alan",
+    "mock": {
+      "agent": [
+        {
+          "text": "Alan es AI Ambassador en EPAM Systems, donde ha implementado un ciclo de desarrollo asistido por IA (AI-SDLC) en varias empresas globales."
+        }
+      ]
+    },
+    "expect": {
+      "route": "agent",
+      "must_contain": [
+        "IA"
+      ],
+      "must_not_contain": [
+        "UDLAP",
+        "Universidad",
+        "35 personas"
+      ],
+      "language": "es"
+    }
   }
 ]
