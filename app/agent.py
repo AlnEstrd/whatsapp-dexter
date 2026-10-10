@@ -14,7 +14,7 @@ from typing import Any, Optional
 
 from anthropic import AsyncAnthropic
 
-from . import docs, knowledge, store
+from . import docs, knowledge, limits, store
 from .config import get_settings
 from .docs.slides import resolve as slides_resolve
 from .flows import quiz
@@ -87,13 +87,11 @@ user redact them.
 reply with one short line; the questions are sent automatically after your reply.
 """
 
-# Appended when CLOSE_ON_INTENT is on (see end_conversation below).
-CLOSE_INSTRUCTIONS = """\
-- When the user signals they're done ("sería todo", "es todo, gracias", "that's all"), call \
-end_conversation instead of writing the goodbye yourself; the system sends your farewell and closes \
-the chat. A bare "gracias"/"ok" usually just acknowledges an answer: reply briefly, or ask "¿Algo más \
-en lo que te pueda ayudar?". After you've fully answered, asking that is fine. If you asked it and the \
-user answers "no" / "no, gracias", call end_conversation.
+CLOSE_RULE = """- If the user clearly signals they are done with the conversation ("sería todo", "ya terminé, \
+gracias por todo", "that's everything, bye"), call end_conversation instead of writing the goodbye \
+yourself; put a short goodbye in its farewell. A bare "gracias" / "thanks" / "ok" is NOT a goodbye: \
+reply briefly, or ask "¿Algo más en lo que te pueda ayudar?". After you've fully answered, asking \
+that is fine. If you asked it and the user answers "no" / "no, gracias", call end_conversation.
 """
 
 TOOL_DEFINITIONS = [
@@ -240,15 +238,26 @@ END_CONVERSATION_TOOL = {
     },
 }
 
+
+def tool_definitions() -> list[dict]:
+    if get_settings().close_on_intent:
+        return [*TOOL_DEFINITIONS, END_CONVERSATION_TOOL]
+    return TOOL_DEFINITIONS
+
+
 MAX_AGENT_STEPS = 5  # hard cap on tool-use round trips per incoming message
 
-# user_id -> {"action": "quiz" | "human" | "report" | "close", ...} requested by a tool this turn
+# user_id -> {"action": "quiz" | "human", ...} requested by a tool this turn
 _pending: dict[str, dict[str, Any]] = {}
 
 
 # user_id -> PDFs queued by tools this turn; main.py sends them after the text reply.
 _docs: dict[str, list[docs.Doc]] = {}
 MAX_DOCS_PER_TURN = 3
+
+
+# user_id -> tool names called in the current turn (logs + evals)
+tools_called: dict[str, list[str]] = {}
 
 
 def pop_action(user_id: str) -> Optional[dict[str, Any]]:
@@ -268,6 +277,7 @@ def _queue_doc(user_id: str, doc: docs.Doc) -> bool:
 
 
 def run_tool(user_id: str, name: str, tool_input: dict) -> str:
+    tools_called.setdefault(user_id, []).append(name)
     if name == "search_sources":
         return knowledge.search_sources(str(tool_input.get("query", "")))
     if name == "start_assessment":
@@ -304,7 +314,7 @@ def run_tool(user_id: str, name: str, tool_input: dict) -> str:
         return "The report PDF is sent right after your reply. Reply with one short line only."
     if name == "end_conversation" and get_settings().close_on_intent:
         _pending[user_id] = {"action": "close", "farewell": str(tool_input.get("farewell") or "")}
-        return "The chat is closed right after this turn with your farewell."
+        return "The chat is closed right after this turn with your farewell. Do not write any text."
     if name == "talk_to_alan":
         _pending[user_id] = {"action": "human", "reason": tool_input.get("reason", "")}
         return ("Alan will be notified right after your reply and will answer in this chat. "
@@ -312,16 +322,10 @@ def run_tool(user_id: str, name: str, tool_input: dict) -> str:
     return f"error: unknown tool '{name}'"
 
 
-def tool_definitions() -> list[dict]:
-    if get_settings().close_on_intent:
-        return [*TOOL_DEFINITIONS, END_CONVERSATION_TOOL]
-    return TOOL_DEFINITIONS
-
-
 def system_blocks() -> list[dict]:
-    instructions = INSTRUCTIONS + (CLOSE_INSTRUCTIONS if get_settings().close_on_intent else "")
+    rules = INSTRUCTIONS + (CLOSE_RULE if get_settings().close_on_intent else "")
     return [
-        {"type": "text", "text": instructions},
+        {"type": "text", "text": rules},
         {"type": "text", "text": "<voice>\n" + knowledge.voice_text() + "\n</voice>"},
         {"type": "text", "text": "Core documents:\n\n" + knowledge.core_text(),
          "cache_control": {"type": "ephemeral"}},
@@ -372,6 +376,7 @@ class Agent:
                 blocks += content_blocks(a)
             user_text = f"{_attachment_note(attachments)} {user_text or '(no message)'}".strip()
         store.append_message(wa_id, "user", user_text)
+        tools_called[wa_id] = []
 
         for _ in range(MAX_AGENT_STEPS):
             messages = _clean_history(store.get_history(wa_id))
@@ -384,6 +389,7 @@ class Agent:
                 tools=tool_definitions(),
                 messages=messages,
             )
+            await limits.record(wa_id, response, "agent")
 
             if response.stop_reason != "tool_use":
                 final_text = "".join(

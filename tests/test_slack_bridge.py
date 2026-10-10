@@ -379,16 +379,14 @@ def test_command_in_unlinked_thread_gets_notice(bot_client):
 
 
 @respx.mock
-def test_thread_links_survive_restart(make_client, tmp_path):
-    from app import slack_bridge
+def test_thread_links_survive_restart(make_client):
     respx.post(TWILIO_SEND).mock(return_value=httpx.Response(201))
     SlackMock()
-    c = make_client(SLACK_STATE_FILE=str(tmp_path / "state.json"), **BOT_ENV)
+    c = make_client(**BOT_ENV)
     twilio_post(c, tw_msg("humano", sid="SM1"))
     pts = parent_ts()
 
-    store.reset_threads()
-    store._handoff.clear()           # simulate a restart
-    assert slack_bridge.restore_state() == 1
+    store.reset_memory()             # simulate a restart (SQLite file kept)
+    assert store.load_all()["threads"] == 1
     assert store.user_for_thread(pts) == USER and store.get_mode(USER) == "human"
     assert store.handoff_target(USER) == "slack"

@@ -1,0 +1,81 @@
+[
+  {
+    "id": "handoff-humano",
+    "lang": "es",
+    "message": "humano",
+    "expect": {
+      "route": "handoff",
+      "must_contain": [
+        "Te paso con una persona"
+      ],
+      "state": {
+        "handoff": true
+      }
+    }
+  },
+  {
+    "id": "handoff-human-en",
+    "lang": "en",
+    "message": "human",
+    "expect": {
+      "route": "handoff",
+      "must_contain": [
+        "handing you to a human"
+      ],
+      "state": {
+        "handoff": true
+      }
+    }
+  },
+  {
+    "id": "handoff-menu-4",
+    "lang": "es",
+    "prior": [
+      "hola"
+    ],
+    "message": "4",
+    "expect": {
+      "route": "handoff",
+      "state": {
+        "handoff": true
+      }
+    }
+  },
+  {
+    "id": "handoff-hablar-con-alan",
+    "lang": "es",
+    "message": "hablar con Alan",
+    "expect": {
+      "route": "handoff",
+      "state": {
+        "handoff": true
+      }
+    }
+  },
+  {
+    "id": "handoff-agent-hire-alan",
+    "lang": "es",
+    "message": "Me gustaría contratar a Alan para una consultoría en mi empresa",
+    "mock": {
+      "agent": [
+        {
+          "tool": "talk_to_alan",
+          "input": {
+            "reason": "Quiere contratar una consultoría"
+          }
+        },
+        {
+          "text": "Le aviso a Alan; te responde por aquí."
+        }
+      ]
+    },
+    "expect": {
+      "route": "agent",
+      "tool_called": "talk_to_alan",
+      "state": {
+        "handoff": true
+      },
+      "language": "es"
+    }
+  }
+]

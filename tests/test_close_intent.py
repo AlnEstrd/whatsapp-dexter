@@ -56,7 +56,8 @@ class FakeLLM:
         last_bot = ""
         for m in reversed(msgs[:-1]):
             if m["role"] == "assistant":
-                last_bot = "".join(getattr(b, "text", "") for b in m["content"])
+                last_bot = "".join(b.get("text", "") if isinstance(b, dict) else getattr(b, "text", "")
+                                   for b in m["content"])
                 break
         return self.decide(user, last_bot)
 
@@ -104,14 +105,13 @@ def test_keyword_closer_closes_without_agent(make_client, send, closer, lang):
 @pytest.mark.parametrize("text", ["gracias", "ok", "perfecto", "no", "👍", "no gracias", "listo",
                                   "no cerrar", "gracias, y otra pregunta: ¿qué es ISO 42001?"])
 def test_ambiguous_messages_are_not_keyword_closers(text):
-    assert not sessions.is_close_request(text, widened=True)
+    assert not sessions.is_close_request(text) and not sessions.is_done_intent(text)
 
 
-def test_legacy_goodbyes_still_close_with_and_without_flag():
-    for widened in (True, False):
-        assert sessions.is_close_request("Adiós!", widened=widened)
-        assert sessions.is_close_request("bye", widened=widened)
-    assert not sessions.is_close_request("Sería todo, gracias", widened=False)
+def test_legacy_goodbyes_and_new_closers():
+    assert sessions.is_close_request("Adiós!") and sessions.is_close_request("bye")
+    assert not sessions.is_close_request("Sería todo, gracias")       # needs CLOSE_ON_INTENT
+    assert sessions.is_done_intent("Sería todo, gracias")
 
 
 # --------------------------------------------------------------------------- #

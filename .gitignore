@@ -10,3 +10,4 @@ data/
 .DS_Store
 Claude outputs/
 *.tgz
+evals/results/*.json

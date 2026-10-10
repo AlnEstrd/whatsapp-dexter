@@ -14,10 +14,11 @@ RUN chmod -R a+rX /srv/app \
  && useradd --system --no-create-home bot \
  && mkdir -p /srv/data && chown bot /srv/data
 USER bot
-# /srv/data is a volume (deploy/docker-compose.yml): session registry + Slack
-# thread map survive redeploys, so restarted chats can be detected and users told.
+# /srv/data is a volume (deploy/docker-compose.yml): data/bot.sqlite3 (conversations,
+# agent history, quiz progress, Slack threads, usage) survives redeploys.
 VOLUME ["/srv/data"]
 
 EXPOSE 8000
-# One worker on purpose: agent history + quiz state live in process memory (app/store.py).
+# One worker on purpose: state is cached in process memory and written through to one
+# SQLite connection (app/db.py); several workers would each hold a different cache.
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--proxy-headers", "--forwarded-allow-ips", "*"]

@@ -15,9 +15,11 @@ domains don't produce value -> if either scores <= 1 the level is capped at L1.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import json
+from dataclasses import asdict, dataclass, field
 from typing import Optional
 
+from .. import db
 from .types import Option, Outgoing
 
 # Each option: (title <= 24 chars, description <= 72 chars), scored 0..3 in order.
@@ -259,9 +261,46 @@ def is_exit(text: str) -> bool:
     return (text or "").strip().lower().strip("!.¡¿?") in EXIT_WORDS
 
 
-def reset() -> None:  # tests
+def reset() -> None:  # tests (memory only)
     _states.clear()
     _results.clear()
+
+
+# Persistence: progress and the last result are written through to SQLite
+# (quiz_state / quiz_results) so a restart mid-quiz just continues.
+def _save_state(user_id: str) -> None:
+    st = _states.get(user_id)
+    if st is None:
+        db.safe("delete quiz state", lambda: db.execute("DELETE FROM quiz_state WHERE user_id = ?", (user_id,)))
+        return
+    db.safe("save quiz state", lambda: db.execute(
+        "INSERT OR REPLACE INTO quiz_state (user_id, state_json, updated_at) VALUES (?, ?, ?)",
+        (user_id, db.dumps(asdict(st)), db.now())))
+
+
+def _save_result(user_id: str) -> None:
+    r = _results.get(user_id)
+    if r is not None:
+        db.safe("save quiz result", lambda: db.execute(
+            "INSERT OR REPLACE INTO quiz_results (user_id, result_json, updated_at) VALUES (?, ?, ?)",
+            (user_id, db.dumps(asdict(r)), db.now())))
+
+
+def discard(user_id: str) -> None:
+    """Stop an in-progress quiz without a reply (the result is kept)."""
+    if _states.pop(user_id, None) is not None:
+        _save_state(user_id)
+
+
+def load_all() -> int:
+    """Restore quizzes in progress and last results. Returns quizzes in progress."""
+    if not db.enabled():
+        return 0
+    for row in db.query("SELECT user_id, state_json FROM quiz_state"):
+        _states[row["user_id"]] = QuizState(**json.loads(row["state_json"]))
+    for row in db.query("SELECT user_id, result_json FROM quiz_results"):
+        _results[row["user_id"]] = Result(**json.loads(row["result_json"]))
+    return len(_states)
 
 
 def _question(st: QuizState) -> Outgoing:
@@ -278,6 +317,7 @@ def _question(st: QuizState) -> Outgoing:
 def start(user_id: str, lang: str = "es") -> list[Outgoing]:
     st = QuizState(lang=lang if lang in ("es", "en") else "es")
     _states[user_id] = st
+    _save_state(user_id)
     return [Outgoing(text=T["intro"][st.lang]), _question(st)]
 
 
@@ -308,7 +348,7 @@ def answer(user_id: str, text: str, reply_id: Optional[str] = None) -> list[Outg
     if st is None:
         return []
     if is_exit(text) and not reply_id:
-        _states.pop(user_id, None)
+        discard(user_id)
         return [Outgoing(text=T["cancelled"][st.lang])]
     choice = _parse(st, text, reply_id)
     if choice is None:
@@ -316,10 +356,13 @@ def answer(user_id: str, text: str, reply_id: Optional[str] = None) -> list[Outg
     st.answers.append(choice - 1)
     st.index += 1
     if st.index < len(QUESTIONS):
+        _save_state(user_id)
         return [_question(st)]
     _states.pop(user_id, None)
+    _save_state(user_id)
     result = score(st.answers, st.lang)
     _results[user_id] = result
+    _save_result(user_id)
     return [Outgoing(text=render(result)), Outgoing(text=T["outro"][st.lang])]
 
 
