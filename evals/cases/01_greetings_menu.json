@@ -1,0 +1,130 @@
+[
+  {
+    "id": "greet-es-hola",
+    "lang": "es",
+    "message": "hola",
+    "expect": {
+      "route": "menu",
+      "must_contain": [
+        "Dexter",
+        "¿Qué quieres hacer?"
+      ],
+      "language": "es"
+    }
+  },
+  {
+    "id": "greet-en-hi",
+    "lang": "en",
+    "message": "hi",
+    "expect": {
+      "route": "menu",
+      "must_contain": [
+        "What would you like to do?"
+      ],
+      "language": "en"
+    }
+  },
+  {
+    "id": "greet-en-hello",
+    "lang": "en",
+    "message": "Hello!",
+    "expect": {
+      "route": "menu",
+      "must_contain": [
+        "What would you like to do?"
+      ],
+      "language": "en"
+    }
+  },
+  {
+    "id": "greet-es-menu-word",
+    "lang": "es",
+    "prior": [
+      "¿Qué es la regla 10-20-70?"
+    ],
+    "message": "menú",
+    "expect": {
+      "route": "menu",
+      "must_contain": [
+        "Diagnóstico de madurez"
+      ],
+      "language": "es"
+    }
+  },
+  {
+    "id": "greet-es-buenas-tardes",
+    "lang": "es",
+    "message": "Buenas tardes",
+    "expect": {
+      "route": "menu",
+      "must_contain": [
+        "¿Qué quieres hacer?"
+      ],
+      "language": "es"
+    }
+  },
+  {
+    "id": "greet-qr",
+    "lang": "es",
+    "message": "qr",
+    "expect": {
+      "route": "menu",
+      "must_contain": [
+        "Gobernanza de IA"
+      ]
+    }
+  },
+  {
+    "id": "menu-1-talk-overview-es",
+    "lang": "es",
+    "prior": [
+      "hola"
+    ],
+    "message": "1",
+    "expect": {
+      "route": "menu",
+      "must_contain": [
+        "actividades",
+        "90 días"
+      ],
+      "language": "es"
+    }
+  },
+  {
+    "id": "menu-1-talk-overview-en",
+    "lang": "en",
+    "prior": [
+      "hi"
+    ],
+    "message": "1",
+    "expect": {
+      "route": "menu",
+      "must_contain": [
+        "In one line"
+      ],
+      "language": "en"
+    }
+  },
+  {
+    "id": "menu-3-about-alan",
+    "lang": "es",
+    "prior": [
+      "hola"
+    ],
+    "message": "3",
+    "mock": {
+      "agent": [
+        {
+          "text": "Alan Estrada es líder de ingeniería con base en México."
+        }
+      ]
+    },
+    "expect": {
+      "route": "agent",
+      "must_contain": [
+        "Alan"
+      ],
+      "language": "es"
+    }
+  }
+]

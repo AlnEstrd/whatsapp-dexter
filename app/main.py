@@ -8,6 +8,7 @@
     POST /admin/close            Close a conversation (user gets a closing message)
     POST /slack/events           Slack Events API (thread replies, take/bot)
     POST /admin/send             Bot-initiated message via WA_PROVIDER
+    GET  /admin/usage            Today's token usage + top users (X-Admin-Token)
     GET  /                       Health: enabled channels, provider, agent
 
 Inbound messages are answered on the channel they arrived on, so Twilio and
@@ -22,12 +23,13 @@ import contextlib
 import json
 import logging
 import re
+import time
 from typing import Optional
 
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, Response
 from pydantic import BaseModel
 
-from . import attachments, docs, guard, sessions, slack_bridge, store
+from . import attachments, db, docs, guard, limits, sessions, slack_bridge, store
 from .agent import get_agent, pop_action, pop_documents
 from .channels import (
     Channel,
@@ -49,15 +51,63 @@ from .resilience import with_retry
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("main")
 
+def restore_state() -> bool:
+    """Startup: open/migrate the DB, import the old JSON files once, load every
+    conversation back into memory and purge expired ones. Sessions whose history and
+    quiz came back are adopted by this process, so they get no restart apology.
+    Returns False when recovery failed (the apology path then still applies)."""
+    s = get_settings()
+    if not db.enabled():
+        logger.info("DB_PATH empty: state is memory-only (boot %s)", sessions.BOOT_ID)
+        return False
+    imported = imported_threads = 0
+    try:  # a broken legacy JSON file must not stop the SQLite restore
+        db.conn()
+        imported = sessions.import_legacy(s.sessions_file)
+        imported_threads = store.import_legacy_threads(s.slack_state_file)
+    except Exception:  # noqa: BLE001
+        logger.exception("Import of the legacy JSON state failed; continuing with the DB")
+    try:
+        n_sessions = sessions.load_all()
+        counts = store.load_all()
+        n_quiz = quiz.load_all()
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("State recovery from %s failed", s.db_path)
+        db._alert_once(f"recovery: {exc.__class__.__name__}")
+        return False
+    run_retention()
+    recovered = 0
+    for uid, sess in list(sessions.all_sessions().items()):
+        if sess.get("state") != "open" or sess.get("boot") == sessions.BOOT_ID:
+            continue
+        ctx_ok = not sess.get("context") or bool(store.has_history(uid) or quiz.last_result(uid))
+        quiz_ok = not sess.get("quiz") or quiz.active(uid)
+        if ctx_ok and quiz_ok:
+            sessions.mark_recovered(uid)
+            recovered += 1
+    logger.info("State restored (boot %s): %d sessions (%d recovered), %d histories, %d quizzes, "
+                "%d threads; imported %d sessions + %d threads from JSON", sessions.BOOT_ID, n_sessions,
+                recovered, counts["histories"], n_quiz, counts["threads"], imported, imported_threads)
+    return True
+
+
+def run_retention() -> int:
+    """Purge closed/idle conversations older than RETENTION_DAYS and old webhook ids."""
+    s = get_settings()
+    users = db.safe("retention", lambda: db.purge(s.retention_days, s.processed_retention_days), default=[])
+    for uid in users or []:
+        store.forget(uid)
+        sessions.forget(uid)
+    return len(users or [])
+
+
 @contextlib.asynccontextmanager
 async def lifespan(_app: FastAPI):
     tasks = []
+    restore_state()
     if slack_bridge.enabled():
-        slack_bridge.restore_state()
         await slack_bridge.load_bot_user_id()
         tasks.append(asyncio.create_task(slack_bridge.window_watcher()))
-    loaded = sessions.load(get_settings().sessions_file)
-    logger.info("Sessions loaded: %d (boot %s)", loaded, sessions.BOOT_ID)
     tasks.append(asyncio.create_task(lifecycle_watcher()))
     tasks.append(asyncio.create_task(recover_after_restart()))
     yield
@@ -133,9 +183,12 @@ async def _ingest(channel_name: str, request: Request, background_tasks: Backgro
         logger.info("Provider event %s/%s", event.channel, event.kind)
         background_tasks.add_task(alert_provider_event, event)
 
+    # Only real messages get here: Meta "statuses" (sent/delivered/read) never become
+    # InboundMessages (failed ones are surfaced as provider events above).
     allowed = get_settings().allowed_senders_list
     for msg in parsed.messages:
-        if store.seen_before(msg.message_id):
+        # Idempotency first: providers retry, and the same id must never be handled twice.
+        if await asyncio.to_thread(store.seen_before, msg.message_id, channel_name):
             logger.info("Duplicate delivery %s ignored", msg.message_id)
             continue
         if allowed and msg.user_id not in allowed:
@@ -365,19 +418,27 @@ async def _handle_media(channel: Channel, msg: InboundMessage) -> None:
     uid = msg.user_id
     lang = menu.detect_lang(msg.text, store.get_lang(uid)) if msg.text else (store.get_lang(uid) or "es")
     if quiz.active(uid):
+        _route(msg, "file_note")
         await send_reply(channel, msg, MEDIA_NOTE["quiz"][lang])
         return
     if not hasattr(channel, "download_media") or not msg.media:
+        _route(msg, "file_note")
         await send_reply(channel, msg, MEDIA_NOTE["channel"][lang])
+        return
+    blocked = limits.model_block(uid)
+    if blocked:
+        await _limit_notice(channel, msg, blocked)
         return
     try:
         async with typing(channel, msg):  # downloading/validating can take a few seconds
             att = await attachments.load(channel, msg.media)
     except attachments.Rejected as exc:
+        _route(msg, "file_note")
         await send_reply(channel, msg, MEDIA_NOTE[exc.reason][lang])
         return
     except Exception:  # noqa: BLE001
         logger.exception("Media download failed for %s", uid)
+        _route(msg, "file_note")
         await send_reply(channel, msg, MEDIA_NOTE["failed"][lang])
         return
     await _run_agent(channel, msg, msg.text, attachments=[att])
@@ -421,6 +482,11 @@ async def send_bubbles(channel: Channel, msg: InboundMessage, text: str) -> bool
 async def _run_agent(channel: Channel, msg: InboundMessage, text: str,
                      attachments: Optional[list] = None) -> bool:
     """Agent turn + any action a tool requested. False if the agent failed (handed off)."""
+    blocked = limits.model_block(msg.user_id)
+    if blocked:
+        await _limit_notice(channel, msg, blocked)
+        return True
+    _route(msg, "agent")
     try:
         # The Anthropic SDK already retries transient API errors (429/5xx), so
         # no outer retry here: re-running would duplicate history entries.
@@ -440,6 +506,12 @@ async def _run_agent(channel: Channel, msg: InboundMessage, text: str,
     sessions.touch_bot(msg.user_id, context=True)
     action = pop_action(msg.user_id)
     documents = pop_documents(msg.user_id)
+    if action and action["action"] == "close":
+        # end_conversation: the agent's own text is dropped, the farewell is the only message
+        for doc in documents:
+            await send_file(channel, msg, doc)
+        await close_chat(msg.user_id, "user_intent", farewell=action.get("farewell"), user_text=text)
+        return True
     if reply or not (action or documents):
         await send_bubbles(channel, msg, reply or FALLBACK_REPLY)
     for doc in documents:
@@ -463,36 +535,46 @@ async def _route_flows(channel: Channel, msg: InboundMessage, is_new: bool) -> b
     sessions.set_lang(uid, lang)
 
     if quiz.active(uid):
+        _route(msg, "quiz")
         await _quiz_step(channel, msg)
         return True
 
     choice = msg.reply_id if (msg.reply_id or "").startswith("menu:") else menu.typed_choice(msg.text)
     slide = menu.slide_request(msg.text)
     if slide:
+        _route(msg, "file_reply")
         await _send_deck(channel, msg, lang, *slide)
     elif choice == "menu:slides":
+        _route(msg, "file_reply")
         await _send_deck(channel, msg, lang)
     elif choice == "menu:report":
+        _route(msg, "file_reply")
         result = quiz.last_result(uid)
         if result is not None:
             await _send_assessment_pdf(channel, msg, result)
         else:
             await send_reply(channel, msg, NO_RESULT[lang])
     elif choice == "menu:quiz":
+        _route(msg, "quiz")
         await _start_quiz(channel, msg, lang)
     elif choice == "menu:talk":
+        _route(msg, "menu")
         await send_out(channel, msg, menu.talk_overview(lang))
     elif choice == "menu:about":
         await _run_agent(channel, msg, "¿Quién es Alan Estrada?" if lang == "es" else "Who is Alan Estrada?")
     elif choice == "menu:human":
+        _route(msg, "handoff")
         await _to_human(channel, msg, "User asked to talk to Alan")
     elif menu.is_greeting(msg.text):
+        _route(msg, "menu")
         await send_out(channel, msg, menu.welcome(lang, msg.profile_name))
+    elif (blocked := limits.model_block(uid)):
+        await _limit_notice(channel, msg, blocked)   # no guard / agent call; menu still works
     elif not await guard.on_topic(uid, msg.text):
         await _off_topic(channel, msg, lang)
     else:
         ok = await _run_agent(channel, msg, msg.text)
-        if ok and is_new and not store.in_handoff(uid) and not quiz.active(uid):
+        if ok and is_new and sessions.is_open(uid) and not store.in_handoff(uid) and not quiz.active(uid):
             await send_out(channel, msg, menu.welcome(lang, msg.profile_name))
     return True
 
@@ -532,24 +614,43 @@ async def _notify(user_id: str, text: str) -> bool:
     return True
 
 
-async def close_chat(user_id: str, by: str, slack_cleanup: bool = True) -> bool:
-    """Close a conversation (by = "user" | "bot" | "admin"): closing message to the
-    user, then wipe agent memory, quiz, transcript and handoff. Next message starts fresh."""
+# reason -> who closed it (closing message key, Slack label)
+CLOSE_REASONS = {"user_keyword": "user", "user_intent": "user", "idle": "bot", "admin": "admin"}
+
+
+async def close_chat(user_id: str, reason: str, slack_cleanup: bool = True, *,
+                     farewell: Optional[str] = None, user_text: Optional[str] = None) -> bool:
+    """The one close routine (reason = "user_keyword" | "user_intent" | "idle" | "admin"):
+    closing message to the user, then wipe agent memory, quiz, transcript, handoff and idle
+    timers. The next message starts fresh. ``farewell``: the agent's goodbye (user_intent)."""
+    by = CLOSE_REASONS[reason]
     if not sessions.is_open(user_id) and by != "admin":
         return False
     lang = _lang_of(user_id)
-    await _notify(user_id, sessions.text(f"close_{by}", lang))
-    sessions.mark_closed(user_id, by)
-    quiz._states.pop(user_id, None)
+    if reason == "user_intent":
+        closing = sessions.farewell_text(to_whatsapp(farewell or ""), lang)
+    else:
+        closing = sessions.text(f"close_{by}", lang)
+    await _notify(user_id, closing)
+    sessions.mark_closed(user_id, by, reason)
     pop_action(user_id)
     pop_documents(user_id)
-    store.reset(user_id)
+    store.wipe_conversation(user_id)  # agent history + quiz progress, one DB transaction
     store.end_handoff(user_id)
-    if slack_cleanup and slack_bridge.enabled() and store.get_thread(user_id):
-        label = {"user": "the customer", "bot": "the bot (inactivity)", "admin": "admin"}[by]
-        await slack_bridge.close_thread(user_id, f"🔒 Conversation closed by {label}.")
-    elif not slack_bridge.enabled():
-        await notify_slack(f":lock: Conversation with {user_id} closed by {by}.")
+    quote = ""
+    if by == "user" and user_text and get_settings().close_on_intent:
+        quote = user_text.strip().replace("\n", " ")
+        quote = quote if len(quote) <= 80 else quote[:79] + "…"
+    try:
+        if slack_cleanup and slack_bridge.enabled() and store.get_thread(user_id):
+            label = {"user": "the customer", "bot": "the bot (inactivity)", "admin": "admin"}[by]
+            note = f'🔒 Closed by user: "{quote}"' if quote else f"🔒 Conversation closed by {label}."
+            await slack_bridge.close_thread(user_id, note)
+        elif not slack_bridge.enabled():
+            await notify_slack(f":lock: Conversation with {user_id} closed by {by}"
+                               + (f': "{quote}"' if quote else "."))
+    except Exception:  # noqa: BLE001
+        logger.exception("Slack close note failed for %s", user_id)  # never blocks the close
     store.clear_transcript(user_id)
     return True
 
@@ -597,21 +698,30 @@ async def check_idle() -> None:
     s = get_settings()
     skip = {uid for uid in sessions.all_sessions() if store.in_handoff(uid)}
     for uid, action in sessions.idle_actions(s.idle_warn_minutes * 60, s.idle_close_minutes * 60, skip):
+        if not sessions.is_open(uid):
+            continue  # closed (e.g. the user said goodbye) while this loop was awaiting
         if action == "warn":
             m = max(1, round(s.idle_close_minutes))
             if await _notify(uid, sessions.text("idle_warn", _lang_of(uid), m=m)):
                 sessions.mark_warned(uid)
         else:
-            await close_chat(uid, "bot")
+            await close_chat(uid, "idle")
+
+
+RETENTION_INTERVAL = 24 * 3600  # purge once a day (and on startup)
 
 
 async def lifecycle_watcher() -> None:  # started from the app lifespan
+    last_purge = time.monotonic()
     while True:
         await asyncio.sleep(LIFECYCLE_INTERVAL)
         try:
             await check_idle()
         except Exception:  # noqa: BLE001
             logger.exception("Idle check failed")
+        if time.monotonic() - last_purge >= RETENTION_INTERVAL:
+            last_purge = time.monotonic()
+            await asyncio.to_thread(run_retention)
 
 
 async def _off_topic(channel: Channel, msg: InboundMessage, lang: str) -> None:
@@ -619,11 +729,44 @@ async def _off_topic(channel: Channel, msg: InboundMessage, lang: str) -> None:
     n = sessions.bump_offtopic(msg.user_id)
     mx = get_settings().offtopic_max_warnings
     if n <= mx:
+        _route(msg, "offtopic_warning")
         await send_reply(channel, msg, sessions.text("offtopic_warn", lang, n=n, max=mx))
         await _thread_note(msg, f"🚧 Off-topic warning {n}/{mx}.")
     else:
+        _route(msg, "handoff")
         await hand_off(msg, f"Off-topic after {mx} warnings")
         await send_reply(channel, msg, sessions.text("offtopic_escalate", lang))
+
+
+# Last route taken per user (also logged): menu | quiz | agent | close | handoff |
+# offtopic_warning | file_reply | file_note | limited | human | unsupported. Used by the evals.
+last_route: dict[str, str] = {}
+
+
+def _route(msg: InboundMessage, name: str) -> None:
+    last_route[msg.user_id] = name
+    logger.info("route %s -> %s", limits.mask(msg.user_id), name)
+
+
+async def _limit_notice(channel: Channel, msg: InboundMessage, kind: str) -> None:
+    """A limit was hit: one static message per window (no model call) + a silent Slack note."""
+    _route(msg, "limited")
+    if not limits.should_notify(msg.user_id, kind):
+        return
+    lang = menu.detect_lang(msg.text, store.get_lang(msg.user_id)) if msg.text else _lang_of(msg.user_id)
+    await send_reply(channel, msg, limits.text(kind, lang))
+    await _thread_note(msg, limits.note(kind))
+
+
+def _is_closer(msg: InboundMessage) -> bool:
+    """Goodbye keywords, checked before the guard and the agent (zero tokens). In the quiz its
+    own exit words (salir, ...) only stop the quiz; with CLOSE_ON_INTENT other closers close."""
+    if not msg.text or msg.media is not None:
+        return False
+    intent = get_settings().close_on_intent
+    if quiz.active(msg.user_id) and not (intent and not msg.reply_id and not quiz.is_exit(msg.text)):
+        return False
+    return sessions.is_close_request(msg.text) or (intent and sessions.is_done_intent(msg.text))
 
 
 async def handle_inbound(channel: Channel, msg: InboundMessage) -> None:
@@ -634,6 +777,7 @@ async def handle_inbound(channel: Channel, msg: InboundMessage) -> None:
 
     restart_notice = sessions.needs_restart_notice(msg.user_id)
     sessions.touch_user(msg.user_id, channel.name, msg.reply_to, msg.profile_name)
+    store.touch_contact(msg.user_id, channel.name, msg.reply_to, msg.profile_name)
 
     bridge = slack_bridge.enabled()
     if bridge:  # mirror every customer message, whatever the mode
@@ -654,6 +798,7 @@ async def handle_inbound(channel: Channel, msg: InboundMessage) -> None:
                 f"[in human handoff]: {msg.text or '(non-text)'}"
             )
         store.log_turn(msg.user_id, "user", msg.text or f"({msg.msg_type})")
+        _route(msg, "human")  # a person is in charge: never rate-limited
         return
 
     if restart_notice and get_settings().restart_notice:
@@ -662,18 +807,32 @@ async def handle_inbound(channel: Channel, msg: InboundMessage) -> None:
     is_new = not store.transcript(msg.user_id)
     store.log_turn(msg.user_id, "user", msg.text or f"({msg.msg_type})")
 
-    if msg.text and msg.media is None and sessions.is_close_request(msg.text) \
-            and not quiz.active(msg.user_id):
-        await close_chat(msg.user_id, "user")
+    if _is_closer(msg):
+        _route(msg, "close")
+        if get_settings().close_on_intent:
+            lang = menu.detect_lang(msg.text, store.get_lang(msg.user_id))
+            store.set_lang(msg.user_id, lang)
+            sessions.set_lang(msg.user_id, lang)
+        await close_chat(msg.user_id, "user_keyword", user_text=msg.text)
         return
 
     if not msg.text and msg.media is None:
+        _route(msg, "unsupported")
         await send_reply(channel, msg, "Por ahora solo entiendo texto, fotos y PDFs. / Text, photos and PDFs only for now.")
         return
 
     if msg.text and wants_human(msg.text):
+        _route(msg, "handoff")
         await hand_off(msg, "User asked for a human")
         await send_reply(channel, msg, HANDOFF_REPLY)
+        return
+
+    # Message caps (after "adiós" / "humano", which always work). Quiz answers don't count.
+    is_file = msg.media is not None and msg.msg_type in ("image", "document")
+    exempt = msg.media is None and quiz.active(msg.user_id)
+    kind = limits.check_inbound(msg.user_id, is_file=is_file, exempt=exempt)
+    if kind:
+        await _limit_notice(channel, msg, kind)
         return
 
     if msg.media is not None:
@@ -745,6 +904,13 @@ async def admin_release(body: ReleaseIn, x_admin_token: Optional[str] = Header(N
     return {"released": True}
 
 
+@app.get("/admin/usage")
+async def admin_usage(x_admin_token: Optional[str] = Header(None)) -> dict:
+    """Today's (America/Mexico_City) token usage and the top 10 users, numbers masked."""
+    _check_admin(x_admin_token)
+    return await asyncio.to_thread(limits.summary)
+
+
 @app.post("/admin/close")
 async def admin_close(body: ReleaseIn, x_admin_token: Optional[str] = Header(None)) -> dict:
     _check_admin(x_admin_token)
@@ -773,7 +939,7 @@ async def slack_events(request: Request, background_tasks: BackgroundTasks) -> R
                         media_type="application/json")
 
     retry = request.headers.get("X-Slack-Retry-Num")
-    if store.slack_event_seen(payload.get("event_id", "")):
+    if await asyncio.to_thread(store.slack_event_seen, payload.get("event_id", "")):
         logger.info("Duplicate Slack event %s ignored (retry=%s)", payload.get("event_id"), retry)
     elif payload.get("type") == "event_callback":
         background_tasks.add_task(slack_bridge.handle_slack_event, payload)

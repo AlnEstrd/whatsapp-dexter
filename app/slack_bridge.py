@@ -17,7 +17,8 @@ legacy Incoming Webhook (app/escalation.py) is used unchanged.
 Slack failures never break WhatsApp handling: everything here logs and
 carries on.
 
-POC caveat: thread state is in-memory (app/store.py) and single-process.
+Thread links and modes are persisted in SQLite (app/store.py -> slack_threads),
+so restarts keep existing threads working. Single process.
 """
 from __future__ import annotations
 
@@ -56,16 +57,14 @@ def enabled() -> bool:
     return get_settings().slack_threads_enabled
 
 
-def _persist() -> None:
-    store.save_threads(get_settings().slack_state_file)
+def _persist(user_id: str) -> None:
+    store.save_thread(user_id)
 
 
 def restore_state() -> int:
-    """Called at startup: reload thread links saved before a restart."""
-    n = store.load_threads(get_settings().slack_state_file)
-    if n:
-        logger.info("Restored %d Slack conversation thread(s)", n)
-    return n
+    """Called at startup (after store.load_all): one-time import of the JSON snapshot
+    older versions wrote (SLACK_STATE_FILE). Returns threads imported."""
+    return store.import_legacy_threads(get_settings().slack_state_file)
 
 
 def escape(text: str) -> str:
@@ -180,6 +179,7 @@ async def ensure_thread(msg: InboundMessage) -> Optional[dict]:
         if t and store.now() - t["last_customer_at"] <= idle:
             t.update(channel_name=msg.channel, reply_to=msg.reply_to,
                      profile_name=msg.profile_name or t.get("profile_name"))
+            _persist(msg.user_id)
             return t
 
         name = escape(msg.profile_name or (t or {}).get("profile_name") or "Unknown")
@@ -200,7 +200,6 @@ async def ensure_thread(msg: InboundMessage) -> Optional[dict]:
             "window_warned": False,
         }
         store.set_thread(msg.user_id, state)
-        _persist()
         if mode == "human":
             await _thread_post(msg.user_id, "✋ Still in human mode from a previous thread. "
                                             "Messages here go to the customer. Type `bot` to hand back.")
@@ -215,7 +214,6 @@ async def mirror_customer(msg: InboundMessage) -> None:
         return
     try:
         store.touch_customer(msg.user_id)
-        _persist()
         body = escape(msg.text) if msg.text else f"({msg.msg_type})"
         if msg.media:
             name = msg.media.get("filename")
@@ -252,7 +250,6 @@ async def escalate_in_thread(msg: InboundMessage, reason: str) -> bool:
             return False
         store.start_handoff(msg.user_id, "slack")
         store.set_mode(msg.user_id, "human")
-        _persist()
         text = f"🚨 {_owner_mention()} escalated: {escape(reason)}"
         if t.get("customer_msgs", 0) <= 1:  # thread just opened -> add context
             lines = [f"{role}: {txt}" for role, txt in store.transcript(msg.user_id)][-10:]
@@ -275,6 +272,7 @@ async def check_windows() -> None:
                 continue
             if store.now() - t["last_customer_at"] > WINDOW_WARN_AFTER:
                 t["window_warned"] = True
+                _persist(user_id)
                 await _thread_post(user_id, f"⏰ {_owner_mention()} the WhatsApp 24h window closes "
                                             "in <1h; after that only templates can be sent.")
         except Exception:  # noqa: BLE001
@@ -295,7 +293,6 @@ async def take_control(user_id: str, by: str) -> None:
         return  # already human; no duplicate confirmation
     store.start_handoff(user_id, "slack")
     store.set_mode(user_id, "human")
-    _persist()
     await _thread_post(user_id, f"✋ <@{by}> took control. Messages in this thread go to the "
                                 "customer. Type `bot` to hand back.")
 
@@ -304,7 +301,6 @@ async def release_control(user_id: str, note: bool = True) -> None:
     was_human = store.get_mode(user_id) == "human" or store.in_handoff(user_id)
     store.end_handoff(user_id)
     store.set_mode(user_id, "bot")
-    _persist()
     # The agent keeps its own history untouched; the Claude message format has
     # no system turns, so no context note is injected here.
     if note and was_human:
@@ -321,7 +317,6 @@ async def close_thread(user_id: str, note: str) -> None:
         return
     await _thread_post(user_id, note)
     store.close_thread(user_id)
-    _persist()
 
 
 async def close_conversation(user_id: str, by: str) -> None:
@@ -338,10 +333,9 @@ async def close_conversation(user_id: str, by: str) -> None:
     await _thread_post(user_id, f"🔒 Conversation closed by <@{by}>. Agent memory cleared; "
                                 "the next customer message opens a new thread.")
     store.end_handoff(user_id)
-    store.reset(user_id)             # agent (Claude) history
-    store.clear_transcript(user_id)  # plain-text transcript used for escalations
+    store.wipe_conversation(user_id)  # agent (Claude) history + quiz progress
+    store.clear_transcript(user_id)   # plain-text transcript used for escalations
     store.close_thread(user_id)
-    _persist()
 
 
 async def send_human_reply(user_id: str, text: str, slack_ts: str) -> None:

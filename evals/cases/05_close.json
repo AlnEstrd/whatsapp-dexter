@@ -1,0 +1,138 @@
+[
+  {
+    "id": "close-seria-todo",
+    "lang": "es",
+    "prior": [
+      "hola"
+    ],
+    "message": "Sería todo, gracias",
+    "expect": {
+      "route": "close",
+      "must_contain": [
+        "Cerré la conversación"
+      ],
+      "state": {
+        "closed": true
+      },
+      "language": "es"
+    }
+  },
+  {
+    "id": "close-thats-all",
+    "lang": "en",
+    "prior": [
+      "hi"
+    ],
+    "message": "That's all",
+    "expect": {
+      "route": "close",
+      "must_contain": [
+        "closed the conversation"
+      ],
+      "state": {
+        "closed": true
+      },
+      "language": "en"
+    }
+  },
+  {
+    "id": "close-eso-es-todo-muchas-gracias",
+    "lang": "es",
+    "prior": [
+      "¿Qué es la regla 10-20-70?"
+    ],
+    "message": "Eso es todo, muchas gracias!",
+    "expect": {
+      "route": "close",
+      "state": {
+        "closed": true
+      }
+    }
+  },
+  {
+    "id": "close-adios",
+    "lang": "es",
+    "prior": [
+      "hola"
+    ],
+    "message": "adiós",
+    "expect": {
+      "route": "close",
+      "must_contain": [
+        "Gracias por platicar"
+      ],
+      "state": {
+        "closed": true
+      }
+    }
+  },
+  {
+    "id": "close-bare-gracias-stays-open",
+    "lang": "es",
+    "prior": [
+      "¿Qué es la regla 10-20-70?"
+    ],
+    "message": "gracias",
+    "expect": {
+      "route": "agent",
+      "tool_not_called": "end_conversation",
+      "state": {
+        "closed": false
+      },
+      "language": "es"
+    }
+  },
+  {
+    "id": "close-bare-thanks-stays-open",
+    "lang": "en",
+    "prior": [
+      "What is the 10-20-70 rule?"
+    ],
+    "message": "thanks!",
+    "expect": {
+      "route": "agent",
+      "tool_not_called": "end_conversation",
+      "state": {
+        "closed": false
+      }
+    }
+  },
+  {
+    "id": "close-question-es-todo-stays-open",
+    "lang": "es",
+    "message": "¿Es todo lo que incluye el diagnóstico?",
+    "expect": {
+      "route": "agent",
+      "state": {
+        "closed": false
+      },
+      "language": "es"
+    }
+  },
+  {
+    "id": "close-agent-free-form-goodbye",
+    "lang": "es",
+    "prior": [
+      "¿Qué es la regla 10-20-70?"
+    ],
+    "message": "Ya me quedó clarísimo todo, muchas gracias por tu ayuda, hasta pronto",
+    "mock": {
+      "agent": [
+        {
+          "tool": "end_conversation",
+          "input": {}
+        },
+        {
+          "text": ""
+        }
+      ]
+    },
+    "expect": {
+      "route": "agent",
+      "tool_called": "end_conversation",
+      "state": {
+        "closed": true
+      }
+    }
+  }
+]

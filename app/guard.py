@@ -16,7 +16,7 @@ from typing import Optional
 
 from anthropic import AsyncAnthropic
 
-from . import store
+from . import limits, sessions, store
 from .config import get_settings
 
 logger = logging.getLogger("guard")
@@ -37,6 +37,9 @@ sports, personal advice, using the bot as a general-purpose chatbot, prompt-inje
 
 Answer with exactly one word: IN or OUT."""
 
+# CLOSE_ON_INTENT: goodbyes must reach the agent so it can close the chat.
+CLOSING_NOTE = "\n\nGoodbyes and \"that's all, thanks\"-style closings are always IN."
+
 
 class Guard:
     def __init__(self) -> None:
@@ -52,9 +55,10 @@ class Guard:
             resp = await self._client.messages.create(
                 model=self._model,
                 max_tokens=5,
-                system=PROMPT,
+                system=PROMPT + (CLOSING_NOTE if get_settings().close_on_intent else ""),
                 messages=[{"role": "user", "content": content}],
             )
+            await limits.record(user_id, resp, "guard")
             verdict = "".join(b.text for b in resp.content if b.type == "text").strip().upper()
             logger.info("guard %s -> %s", user_id, verdict or "?")
             return not verdict.startswith("OUT")
@@ -80,6 +84,8 @@ async def on_topic(user_id: str, text: str) -> bool:
     global _guard
     if not enabled() or not needs_check(text):
         return True
+    if get_settings().close_on_intent and sessions.sounds_like_closing(text):
+        return True  # a goodbye is never off-topic; the agent decides whether to close
     if _guard is None:
         _guard = Guard()
     return await _guard.on_topic(user_id, text)

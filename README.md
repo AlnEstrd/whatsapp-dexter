@@ -77,9 +77,9 @@ above is unchanged.
 
 Commands are plain words, no `/` (Slack treats `/…` as slash commands).
 Replies in a thread while the bot is in control are treated as internal notes
-(not sent). Thread links (and who has control) are saved to `.slack_threads.json`, so
-restarts and `--reload` keep existing threads working; the agent's own
-memory is not saved. A command typed in a thread that is no longer linked
+(not sent). Thread links (and who has control) are saved in SQLite
+(`slack_threads`, see **Persistence**), so restarts and `--reload` keep existing threads
+working, together with the agent's memory. A command typed in a thread that is no longer linked
 gets a ⚠️ note pointing you to the newest thread.
 
 **Slack app setup** (api.slack.com/apps → *Create New App* → From scratch)
@@ -279,7 +279,8 @@ annoying beyond that. To get a token that doesn't expire daily:
 
 ## 8. Where to go from here
 
-- **Persistence**: swap `app/store.py`'s in-memory dict for Redis/Postgres.
+- **Persistence**: state is in SQLite (see **Persistence**); move to Postgres only if you
+  ever need more than one worker or host.
 - **More tools**: add real business logic in `app/tools.py` following the
   `get_current_datetime` / `calculate` pattern (register in
   `TOOL_DEFINITIONS`, implement, wire into `run_tool`).
@@ -287,7 +288,8 @@ annoying beyond that. To get a token that doesn't expire daily:
   extend it for images/audio/documents if you need those.
 - **Production**: move off ngrok to a real host with a stable HTTPS
   endpoint, add signature verification on `/webhook`
-  (`X-Hub-Signature-256`), rate limiting, and structured logging/observability.
+  (`X-Hub-Signature-256`) and structured logging/observability (rate limiting and
+  cost caps are in place, see **Limits**).
 - **Migrate to the real API**: everything here is the *same* Cloud API
   you'd use in production — moving off the "test number" mainly means
   verifying a business and requesting a real phone number.
@@ -298,8 +300,10 @@ annoying beyond that. To get a token that doesn't expire daily:
 
 ```bash
 pip install -r requirements-dev.txt
-pytest
+pytest                      # unit + offline evals, no network
 ```
+
+Live evals against the real models are opt-in (see **Evals**).
 
 ---
 
@@ -386,6 +390,8 @@ app/
     meta.py            Meta Cloud API: signature check, parse (+ account events), send
     __init__.py        Registry: enabled channels, WA_PROVIDER default
   agent.py             Claude tool-use loop + EchoAgent (AGENT_MODE=echo)
+  db.py                SQLite: connection, migrations, dedupe ids, flags, retention purge
+  limits.py            Usage per user/day, rate + token caps, /admin/usage summary
   escalation.py        Slack escalation + provider event alerts (Incoming Webhook)
   slack_bridge.py      Slack app bridge: thread per conversation, take/bot, /slack/events
   handoff.py           Handoff router: Flex (Conversations + Interactions API) or Slack
@@ -393,9 +399,12 @@ app/
   resilience.py        Retry with exponential backoff
   tools.py             Tool definitions + implementations
   docs/                PDF generation (reportlab): slides.py, topic.py, assessment.py, common/theme
-  store.py             In-memory history, handoff state, webhook dedup, Slack thread map
+  store.py             History, language, handoff, transcript, webhook dedupe, Slack thread map
+                       (in memory, written through to SQLite)
   config.py            Settings loaded from .env
-tests/                 pytest suite (160 tests; no network, HTTP mocked with respx)
+evals/                 Eval set: cases/*.json + harness.py (offline in pytest, live opt-in)
+scripts/               transcript_to_case.py (real conversation -> draft eval case)
+tests/                 pytest suite (no network, HTTP mocked with respx)
 ```
 
 ## Talk companion flows ("Gobernanza de IA")
@@ -463,10 +472,129 @@ open("s8.pdf", "wb").write(docs.make_deck("8").data)           # one slide
 
 | Situation | What the user gets | Config |
 |---|---|---|
-| User says goodbye (`adiós`, `bye`, `terminar`, `salir`…; inside the quiz `salir` only exits the quiz) | Closing message; memory wiped; next message starts fresh with the menu | — |
+| User says goodbye or signals they're done (see [Ending a conversation](#ending-a-conversation)) | One farewell + "escribe *hola*"; memory wiped; next message starts fresh with the menu | `CLOSE_ON_INTENT=true` |
 | No activity | "¿Sigues ahí?" warning, then a closing message | `IDLE_WARN_MINUTES=10`, `IDLE_CLOSE_MINUTES=5` (chats with a human in charge are skipped) |
 | Alan closes from Slack (`close` or 🔒 on the parent) or `POST /admin/close` | "Alan cerró esta conversación…" | — |
-| Server restart wiped an active chat (agent history or a half-done quiz) | Apology from Alan saying the history was lost — sent on startup to chats active in the last 23 h, or before the reply to their next message | `RESTART_NOTICE=true`, `SESSIONS_FILE` |
+| Server restart | Nothing: history, quiz progress, mode and the Slack thread come back from SQLite and the chat simply continues | `DB_PATH` |
+| Server restart and a chat's state could **not** be recovered (DB unreadable, a failed write) | Apology from Alan saying the history was lost — sent on startup to chats active in the last 23 h, or before the reply to their next message | `RESTART_NOTICE=true` |
 | Message off the talk's topic | A cheap classifier (`GUARD_MODEL`, Haiku) runs first; off-topic gets a static warning "Aviso 1 de 2 / 2 de 2" with no main-agent call; the next one hands the chat to Alan | `GUARD_ENABLED`, `OFFTOPIC_MAX_WARNINGS=2` |
 
-The session registry (`data/sessions.json`) and the Slack thread map live on the `app_data` Docker volume, so they survive redeploys. Messages of ≤ 3 words skip the classifier (follow-ups like "¿y en ventas?"). The guard fails open: if the classifier errors, the main agent answers.
+All of this state lives in `data/bot.sqlite3` on the `app_data` Docker volume, so it survives redeploys. Messages of ≤ 3 words skip the classifier (follow-ups like "¿y en ventas?"). The guard fails open: if the classifier errors, the main agent answers.
+
+
+### Ending a conversation
+
+The bot closes as soon as the user is done, instead of waiting for the idle timeout. Every close goes through one routine (`close_chat` in `app/main.py`, reason `user_keyword | user_intent | idle | admin`): send the closing message, wipe agent memory and quiz progress, clear the idle timers, persist the session, and post a silent note in the Slack thread (`🔒 Closed by user: "<what they wrote>"`). The next message starts fresh with the menu.
+
+1. **Keyword fast path (zero tokens).** Runs before the usage caps, the off-topic guard and the agent. The *whole* message must be a closer (punctuation and common emoji stripped, an optional `gracias` / `thanks` / `ok` / `no` around it): the classic `adiós`, `bye`, `hasta luego`, `nos vemos`, `terminar`…, plus `sería todo`, `es todo`, `eso es todo`, `nada más`, `ya quedó`, `listo, gracias`, `con eso`, `that's all`, `that's it`, `I'm good, thanks`, `no thanks`. Questions ("¿es todo?") and longer messages go to the agent. The user gets the standard closing message.
+2. **Agent tool `end_conversation`.** For everything else ("perfecto, con esto ya tengo lo que necesitaba"), the agent decides from the history. When it calls the tool, its own text for that turn is discarded and the user gets one message: the tool's `farewell` + the re-engage line (`¡Un gusto! Que tengas excelente día. 👋 Cuando quieras, escribe *hola* para empezar de nuevo.`), or the standard closing message if `farewell` is empty. No further model call happens in that turn.
+3. **Ambiguous replies go to the agent.** A bare `gracias`, `ok`, `perfecto`, `no`, `no, gracias` or 👍 never closes by keyword. The agent answers briefly or asks "¿Algo más en lo que te pueda ayudar?"; if it just asked that and the user says `no` / `no, gracias`, it calls `end_conversation`. Messages that contain a closer ("no, eso sería todo por hoy, gracias") skip the off-topic classifier, so a goodbye is never counted as off-topic.
+4. **Quiz.** `salir` (or `exit`, `cancelar`, `terminar`, `menú`) only stops the quiz. Any other closer (`es todo`, `adiós`) mid-quiz stops the quiz and closes the chat. A bare `no` is a quiz answer (invalid input), not a close.
+5. **Human handoff.** While Alan is in charge nothing closes automatically: the message is mirrored to Slack and Alan closes with `close` / 🔒.
+6. **Idle backstop.** `IDLE_WARN_MINUTES` / `IDLE_CLOSE_MINUTES` still close quiet chats. A chat that is already closed never gets the "¿Sigues ahí?" warning.
+
+`CLOSE_ON_INTENT=false` restores the previous behaviour: only the classic goodbye words close (never inside the quiz), and the agent has no `end_conversation` tool.
+
+## Persistence
+
+Everything the bot needs to continue a chat is in **`data/bot.sqlite3`** (`DB_PATH`), on the
+`app_data` volume in Docker (`/srv/data`), so restarts and redeploys don't lose conversations.
+Stdlib `sqlite3`, WAL mode, one connection behind a lock (single uvicorn worker). The working
+copy stays in memory; every change is written through when it happens, and startup reads it
+all back. A DB error never breaks a WhatsApp reply: it is logged, Slack gets one alert, and the
+turn continues from memory.
+
+| Table | What | Notes |
+|---|---|---|
+| `conversations` | channel, reply_to, profile name, mode (`bot`/`slack`/`flex`), language, plain-text transcript | one row per user |
+| `messages` | agent history, exactly what is sent to the API | text only, never file bytes; capped at `HISTORY_MAX_MESSAGES` (40), trimmed oldest first without splitting a tool_use/tool_result pair |
+| `quiz_state`, `quiz_results` | quiz in progress, last result | a redeploy mid-quiz just continues |
+| `sessions` | lifecycle record (open/closed, idle warning, off-topic count, boot id) | |
+| `slack_threads` | thread per conversation, mode, last customer message | unique index on `thread_ts` |
+| `processed_messages` | Meta/Twilio message ids and Slack event ids (`meta:…`, `twilio:…`, `slack:…`) | dedupe, 7 days |
+| `usage` | requests, files, input/output/cache tokens per user per day | see **Limits** |
+| `flags` | one-time markers (limit notice sent today, budget alert sent) | |
+| `schema_version` | last migration applied | migrations are an ordered list in `app/db.py`; append, never edit |
+
+- **Closing** a conversation (user, idle, Slack `close`, `/admin/close`) deletes that user's history and quiz progress in one transaction.
+- **Retention**: on startup and once a day, conversations closed or idle for more than `RETENTION_DAYS` (30) are deleted from every table, plus processed ids older than 7 days (`PROCESSED_RETENTION_DAYS`) and old usage rows.
+- **Upgrade from the JSON files**: on the first start, if `data/sessions.json` / the Slack thread JSON (`SLACK_STATE_FILE`) exist and the tables are empty, they are imported and renamed to `*.imported`. Those chats had no saved history, so they still get the restart apology once.
+- **Restart apology**: only for open chats whose history or quiz could not be recovered. The code path and `RESTART_NOTICE` stay for that case.
+
+Backup (safe while the bot runs, thanks to WAL):
+
+```bash
+sqlite3 data/bot.sqlite3 ".backup data/bot-$(date +%F).sqlite3"           # local, with the sqlite3 CLI
+# On the droplet (the image has no sqlite3 CLI; Python's stdlib does the same):
+cd /opt/whatsapp-bot/deploy && docker compose exec app python -c \
+  "import sqlite3; sqlite3.connect('data/bot.sqlite3').backup(sqlite3.connect('data/backup.sqlite3'))"
+docker compose cp app:/srv/data/backup.sqlite3 ./bot-backup-$(date +%F).sqlite3
+```
+
+## Limits
+
+Usage of every model call (main agent and guard) is recorded per user per day
+(America/Mexico_City), including cache tokens. Caps (`LIMITS_ENABLED=true` by default):
+
+| Variable | Default | Counts | When hit |
+|---|---|---|---|
+| `USER_MSG_PER_MINUTE` | 6 | inbound messages per user, rolling minute | "Recibí muchos mensajes seguidos; dame un minuto 🙂", once per burst |
+| `USER_MSG_PER_DAY` | 120 | inbound messages per user per day | daily-limit note + offer to type *humano*, once a day |
+| `USER_FILES_PER_DAY` | 10 | inbound photos/PDFs per user per day | file isn't downloaded; note once a day |
+| `USER_TOKENS_PER_DAY` | 300000 | input+output tokens per user, all model calls | no more model calls for that user today; note once a day |
+| `DAILY_TOKEN_BUDGET` | 5000000 | input+output tokens, everyone | 80%: one top-level Slack alert mentioning `SLACK_ALERT_USER_ID`; 100%: model calls stop for everyone (another alert) |
+
+- Limit replies are static ES/EN text (no model call); the Slack thread gets a silent ⏳ note.
+- Order: `adiós` / `Sería todo` and `humano` always work; then the message caps; then menu, quiz and slides, which keep working when a **token** cap is hit (only the guard and the agent are blocked).
+- Quiz answers don't count against the message caps, and a chat in human-handoff mode is never limited (messages still mirror to Slack).
+- The per-minute window is in memory (a restart resets it); daily counts are in SQLite.
+- `LIMITS_ENABLED=false` behaves exactly as before (usage is still recorded).
+
+```bash
+curl -s "$URL/admin/usage" -H "X-Admin-Token: $ADMIN_TOKEN"
+# {"day": "2026-10-10", "totals": {"requests": 812, "tokens": 1430221, ...},
+#  "budget": {"daily_token_budget": 5000000, "used_pct": 28.6},
+#  "top_users": [{"user": "****5678", "tokens": 41210, ...}, ...]}   (numbers masked)
+```
+
+## Evals
+
+A repeatable set of cases (`evals/cases/*.json`, JSON so there is no new dependency) to check a
+prompt or model change before deploying. Each case runs through the real webhook path:
+
+```json
+{"id": "close-seria-todo", "lang": "es", "prior": ["hola"], "message": "Sería todo, gracias",
+ "expect": {"route": "close", "must_contain": ["Cerré la conversación"], "language": "es",
+            "state": {"closed": true}}}
+```
+
+- `route`: `menu | quiz | agent | close | handoff | offtopic_warning | file_reply` (a list means "any of"). `file_reply` = the bot answered with a file (slides, report); `file_note` = a static reply about a file the user sent.
+- `must_contain` / `must_not_contain`: case-insensitive substrings of the reply; `language`: `es` / `en`.
+- `tool_called` / `tool_not_called` (e.g. `end_conversation`, `start_assessment`, `send_slides`, `talk_to_alan`); `state`: `quiz_active`, `handoff`, `closed`, `file_sent`.
+- `media`: an inbound photo/PDF (`{"type": "image", "caption": "..."}`).
+- `mock` (offline only): the guard verdict (`"guard": "OUT"`, `"prior_guard"`) and the agent's scripted steps (`[{"tool": "send_slides", "input": {"slide": "8"}}, {"text": "Va."}]`).
+
+**Offline** (default, part of `pytest`): the Anthropic API is mocked with respx, so it checks
+routing, tool dispatch, state and the deterministic replies; text checks are skipped for
+model-written replies. No network.
+
+**Live** (real models, never part of the normal suite):
+
+```bash
+set -a; source .env; set +a                     # or export ANTHROPIC_API_KEY yourself
+RUN_LIVE_EVALS=1 pytest -m eval_live -s         # every expectation checked, table printed
+EVAL_CASES=talk-es-10-20-70,inject-en-dan RUN_LIVE_EVALS=1 pytest -m eval_live -s   # a subset
+```
+
+It prints `case / PASS|FAIL / reason` and writes `evals/results/<timestamp>.json` (git-ignored).
+
+**Add a case**: append an object to the matching file in `evals/cases/` (ids must be unique), or
+turn a real conversation into a draft:
+
+```bash
+python scripts/transcript_to_case.py --slack thread-export.json --thread 1700000000.000100
+python scripts/transcript_to_case.py --db data/bot.sqlite3 --user 523312345678 --turn 3 \
+    --out evals/cases/90_regressions.json
+```
+
+The draft keeps the bot's real reply under `observed`; anonymize it and fill in `expect`.

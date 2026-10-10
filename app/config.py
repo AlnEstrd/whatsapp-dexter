@@ -35,6 +35,23 @@ class Settings(BaseSettings):
     idle_warn_minutes: float = 10     # "are you still there?" after this long without activity
     idle_close_minutes: float = 5     # ...then close this long after the warning (0 = never)
     restart_notice: bool = True       # tell recent users when a restart wiped their chat
+    # A user's "that's all, thanks" (deterministic phrases + the agent's end_conversation tool)
+    # closes the chat like "adiós" does. Bare "gracias" never closes.
+    close_on_intent: bool = True
+
+    # --- Persistence (app/db.py) ---------------------------------------------
+    db_path: str = "data/bot.sqlite3"   # "" = memory only (state lost on restart)
+    history_max_messages: int = 40      # agent history kept per user (tool pairs never split)
+    retention_days: float = 30          # purge closed/idle conversations older than this
+    processed_retention_days: float = 7  # webhook dedupe ids kept this long
+
+    # --- Usage and cost caps (app/limits.py) --------------------------------
+    limits_enabled: bool = True         # false = no caps (usage is still recorded)
+    user_msg_per_minute: int = 6
+    user_msg_per_day: int = 120
+    user_files_per_day: int = 10
+    user_tokens_per_day: int = 300_000  # input + output, all model calls
+    daily_token_budget: int = 5_000_000  # all users; 80% -> Slack alert, 100% -> no model calls
 
     # --- Off-topic guard (app/guard.py) --------------------------------------
     guard_enabled: bool = True
