@@ -1,0 +1,6 @@
+# Backend-only hostname. The public entry point is
+# https://www.alanestrada.space/whatsapp-bot/api/* (Vercel rewrite -> here).
+origin.alanestrada.space {
+	encode gzip
+	reverse_proxy app:8000
+}

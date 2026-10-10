@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+.env.bak*
+_backup-*.tar.gz
+.pytest_cache/
+.slack_threads.json*
+data/
+.DS_Store
+Claude outputs/
+*.tgz

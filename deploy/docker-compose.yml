@@ -1,0 +1,32 @@
+services:
+  app:
+    build: ..
+    env_file: ../.env
+    environment:
+      # Public URL as Meta/Twilio/Slack see it (Vercel rewrite on the site).
+      PUBLIC_BASE_URL: https://www.alanestrada.space/whatsapp-bot/api
+      SESSIONS_FILE: data/sessions.json
+      SLACK_STATE_FILE: data/slack_threads.json
+    volumes:
+      - app_data:/srv/data
+    restart: unless-stopped
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  app_data:
+  caddy_data:
+  caddy_config:

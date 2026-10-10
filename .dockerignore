@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+_backup-*
+Claude outputs/
+.DS_Store
+deploy/
+run-local.sh
+data/

@@ -1,0 +1,5659 @@
+Estado del desarrollo de
+software asistido por IA
+2025
+
+Patrocinadores de platino
+
+Socio de investigación principal
+
+Patrocinadores de oro
+
+Socios de investigación
+
+Contenido
+3
+
+40
+
+Introducción
+
+Ingeniería de
+plataformas
+
+4
+
+Resumen ejecutivo
+5
+
+Hallazgos clave
+
+48
+
+El espejo de la
+IA: cómo refleja
+y amplifica las
+verdaderas
+capacidades de
+una organización
+
+6
+
+Adopción y uso
+de la IA
+
+58
+
+Agradecimientos
+
+15
+
+Análisis de la
+relación de la IA con
+los resultados clave
+
+99
+
+Autores
+60
+
+24
+
+Modelo de
+capacidades
+de IA de DORA
+
+Próximos pasos
+
+Contenido
+v. 2025.2.a
+
+2
+
+Introducción
+Introducción al informe de
+DORA del 2025
+Gracias por descargar el informe
+Estado del desarrollo de software
+asistido por IA del 2025. El
+programa de investigación de
+DORA lleva más de una década
+asociándose con la comunidad
+de desarrollo de software
+para investigar y compartir las
+prácticas que impulsan a las
+organizaciones tecnológicas de
+alto rendimiento. Mientras nuestro
+sector atraviesa otro período de
+rápida evolución (esta vez con la
+adopción generalizada de la IA),
+nuestro compromiso sigue siendo
+el mismo: ayudarte a ti y a tus
+equipos a seguir mejorando
+cada vez más.
+El presente informe es una
+versión especial resumida de
+nuestros hallazgos del 2025,
+diseñada para exponer las
+observaciones y las conclusiones
+clave más importantes de
+nuestra investigación. Este año,
+nuestro trabajo reveló una verdad
+fundamental: el papel principal
+
+de la IA en el desarrollo de
+software es el de amplificador.
+Acrecienta las fortalezas de
+las organizaciones de alto
+rendimiento y, con la misma
+intensidad, las disfunciones
+de las que tienen dificultades.
+Esperamos que estos hallazgos
+susciten nuevas conversaciones
+y sirvan como base en tus propios
+experimentos. Esta versión
+resumida es solo el punto de
+partida. En el informe completo,
+se ofrece un estudio mucho más
+profundo, que incluye nuestro
+análisis de datos completo, el
+nuevo modelo de capacidades
+de IA de DORA, un desglose
+detallado de los siete perfiles
+de equipos que identificamos
+y la metodología completa de
+nuestros hallazgos. Ten en cuenta
+que, por el momento, el informe
+completo y detallado solo está
+disponible en inglés.1
+
+1.
+
+State of AI-assisted Software Development: https://dora.dev/dora-report-2025
+
+2.
+
+“DORA”: https://dora.dev
+
+3.
+
+“Capability catalog”: https://dora.dev/capabilities
+
+4.
+
+“Publications by DORA”: https://dora.dev/publications
+
+5.
+
+“DORA Community”: https://dora.community
+
+3
+v. 2025.2.a
+
+Este informe es solo una parte de
+una conversación más amplia y
+continua, y te invitamos a seguir
+el recorrido con nosotros. Visita
+dora.dev2 para explorar todas las
+capacidades de DORA,3 acceder
+a nuestra biblioteca completa de
+guías y publicaciones,4 y mucho
+más.
+Lo más importante es que
+esta investigación se basa en
+tus experiencias. Queremos
+conocerlas a medida que aplicas
+estas observaciones. Comparte
+lo que aprendes, conéctate con
+colegas y encuentra inspiración
+uniéndote a la comunidad global
+de DORA en dora.community.5
+Gracias por formar parte de este
+recorrido.
+
+Resumen ejecutivo
+Conclusión principal:
+la IA es un amplificador
+En el 2025, la pregunta central
+para los líderes tecnológicos
+ya no es si deberían adoptar
+la IA, sino cómo obtener su
+valor. La investigación de DORA
+incluye más de 100 horas de
+datos cualitativos y respuestas
+de encuestas de casi 5,000
+profesionales tecnológicos de
+todo el mundo,1 y en ella se revela
+una verdad fundamental: el papel
+principal de la IA en el desarrollo
+de software es el de amplificador.
+Acrecienta las fortalezas de
+las organizaciones de alto
+
+rendimiento y las disfunciones de
+las que tienen dificultades.
+Los mayores retornos de la
+inversión en IA no provienen de
+las herramientas en sí, sino de un
+enfoque estratégico en el sistema
+organizacional subyacente: la
+calidad de la plataforma interna,
+la claridad de los flujos de trabajo
+y la alineación de los equipos.
+Sin esta base, la IA crea focos
+localizados de productividad
+que suelen perderse en el caos
+posterior.
+
+Resumen ejecutivo
+v. 2025.2.a
+
+4
+
+Hallazgos clave
+A partir de datos cualitativos y una encuesta global realizada entre el 13 de junio y el 21 de julio de 2025, en
+este informe se revelan numerosos hallazgos clave sobre el estado del desarrollo de software asistido por IA,
+incluidos los siguientes:
+La adopción de la IA se volvió
+casi universal. La mayoría de
+los encuestados (el 90%) la
+usa como parte de su trabajo
+y (más del 80%) considera que
+aumentó su productividad,
+pero una parte notable (el 30%)
+actualmente señala tener poca
+o nula confianza en el código
+generado por IA, lo que refleja
+una necesidad de habilidades
+de validación críticas.
+Obtén más información en el
+capítulo Adopción y uso de la IA.
+
+En la investigación de este
+año, se identifican siete
+perfiles de equipos distintos,
+desde los “armoniosos de alto
+rendimiento” hasta los equipos
+atrapados en un “cuello de
+botella heredado”. Estos perfiles
+ofrecen un nuevo marco de
+mejoras específicas.
+Obtén más información en
+el capítulo Comprende el
+rendimiento de la entrega
+de software.
+
+Para adoptar la IA con éxito, no
+basta solo con herramientas.
+En nuestro nuevo modelo de
+capacidades de IA de DORA,
+se identifican siete prácticas
+fundamentales, que incluyen
+una política de IA clara, un
+ecosistema de datos en buen
+estado y un enfoque centrado
+en el usuario, que tienen un
+efecto demostrado de amplificar
+las mejoras que brinda la IA al
+rendimiento organizacional.
+Obtén más información en el
+capítulo Modelo de capacidades
+de IA de DORA.
+La administración de flujos
+de valor (VSM), la práctica de
+visualizar, analizar y mejorar el
+flujo de trabajo desde la idea
+hasta el cliente, actúa como un
+multiplicador de fuerzas para
+la IA, lo que garantiza que las
+ganancias de productividad
+locales se traduzcan en mejoras
+medibles en el rendimiento del
+equipo y de los productos.
+Obtén más información en
+el capítulo Administración
+de flujos de valor.
+
+Panorama de las consecuencias de la IA
+Efecto estimado de adoptar la
+IA en los resultados clave, con
+intervalos creíbles del 89%
+
+Para los resultados en naranja,
+como el agotamiento, es deseable
+un efecto negativo.
+Figura 1: Panorama de las consecuencias
+de la IA
+
+5
+
+Resumen ejecutivo
+v. 2025.2.a
+
+La adopción de la IA ahora
+mejora la velocidad de la
+entrega de software, un cambio
+clave con respecto al año
+pasado, pero aún aumenta la
+inestabilidad de la entrega. Esta
+situación sugiere que, si bien
+los equipos se están adaptando
+a la rapidez, sus sistemas
+subyacentes aún no evolucionan
+para abordar de forma segura el
+desarrollo acelerado por IA.
+Obtén más información en el
+capítulo Análisis de la relación
+de la IA con los resultados clave.
+
+El 90% de las organizaciones
+adoptó la ingeniería de
+plataformas, por lo que contar
+con una plataforma interna de
+alta calidad es la base esencial
+para el éxito de la IA.
+
+Obtén más información
+en el capítulo Ingeniería
+de plataformas.
+
+Adopción y uso de la IA
+Dr. Kevin M. Storer
+Investigador de experiencia del usuario,
+Google Cloud
+
+Derek DeBellis
+Investigador de experiencia del usuario
+cuantitativa, Google Cloud
+
+Adopción y uso de la IA
+v. 2025.2.a
+
+6
+
+A medida que seguimos explorando las tendencias de
+adopción de la IA en la industria del desarrollo de software,
+su uso en este ámbito se expandió de manera significativa.
+Nuestro objetivo en este espacio en rápida evolución es
+elaborar una guía basada en pruebas para ayudar a la
+comunidad de desarrollo de software a abordar estos
+cambios. El informe de este año, “Estado del desarrollo de
+software asistido por IA”, representa nuestro análisis más
+detallado hasta la fecha sobre el desarrollo asistido por IA.
+
+Hallazgos
+En general, nuestros hallazgos
+sobre la adopción y el uso de la IA
+por parte de los desarrolladores
+de software apuntan a una
+amplia adopción y una profunda
+dependencia de la IA en una
+amplia gama de tareas, lo que
+benefició notablemente tanto la
+productividad individual como la
+calidad del código.
+
+Adopción
+
+Estado como usuario de la IA
+Estado como
+de la IA que usan la IA en el trabajo
+Porcentaje
+deusuario
+encuestados
+
+7
+
+Proporción de encuestados que usan IA en el trabajo
+100%
+
+Porcentaje de encuestados
+
+El noventa por ciento de los
+encuestados de este año señala
+que usa la IA en el trabajo, lo
+que representa un aumento del
+14.1% en comparación con la
+misma métrica del informe del
+año pasado. Esta prevalencia
+notablemente alta del uso de la
+IA en el trabajo sugiere que se
+convirtió en el estándar para el
+desarrollo de software.
+
+75%
+
+50%
+
+25%
+
+10%
+0%
+
+No
+
+Sí
+
+barras
+Las barras de error muestran el intervalo creíbleLas
+del
+89%.de error muestran el intervalo creíble del 89%.
+Figura 16: Estado como usuario de la IA
+
+Adopción y uso de la IA
+v. 2025.2.a
+
+90%
+
+“Por ahí por el año pasado, quedó claro que la IA generativa maduró hasta volverse
+realmente útil para muchas tareas. Ahora que es un hecho, todo el mundo tiene
+aplicaciones que podrían beneficiarse de la IA generativa de alguna manera. Hay
+mucha motivación por habilitar funciones nuevas que permitan ahorrar costos en
+determinados aspectos y reducir el tiempo necesario para crear ciertas soluciones.
+Nadie quiere quedarse atrás. (…) Con el tiempo, la IA generativa se integrará cada vez
+más en todo y, si no la usas de alguna manera, será difícil mantener el ritmo”.
+
+Adopción mensual de la IA por parte de los usuarios
+
+Tiempo
+Los usuarios de IA de nuestra
+muestra también varían en
+cuanto al tiempo que dedicaron
+a interactuar con la IA en su
+jornada laboral más reciente.
+Los encuestados señalaron que
+dedicaron una mediana de dos
+horas de su jornada laboral más
+reciente a interactuar con la IA, lo
+que representa aproximadamente
+un cuarto de una jornada laboral
+de ocho horas.
+
+Llama 2
+
+M365 Copilot
+
+Mar
+2023
+
+Jul
+2023
+
+Nov
+2023
+
+200
+
+100
+
+0
+
+Jul
+2024
+
+Mar
+2024
+
+Nov
+2024
+
+Jul
+2025
+
+Mar
+2025
+
+Mes de adopción de la IA
+
+Figura 17: Adopción mensual de la IA por parte de los usuarios
+
+Tiempo dedicado a usar la IA en la jornada laboral más reciente
+Tiempo dedicado a usar la IA en la jornada laboral más reciente
+Distribución del tiempo de interacción diario entre los usuarios de la IA
+Distribución del tiempo de interacción diario entre los usuarios de la IA
+
+Mediana = 2 h
+300
+
+200
+
+100
+
+0
+
+0
+
+4
+
+8
+
+Horas aproximadas de interacción con la IA
+
+12
+
+Figura 18: Tiempo dedicado a usar la IA en la jornada laboral más reciente
+
+Adopción y uso de la IA
+v. 2025.2.a
+
+Fecha de inicio mediana:
+Abr 2024
+Gemini 2.0
+
+GPT-4
+
+Nov
+2022
+
+Claude 3
+
+ChatGPT
+
+Jul
+2022
+
+300
+
+Gemini 1.0
+
+GitHub Copilot
+
+Cantidad de usuarios nuevos que comenzaron al mes, con eventos clave de la industria
+
+Cantidad de usuarios nuevos
+
+Nuestros encuestados señalaron
+diversos períodos de experiencia
+con el uso de herramientas
+de IA, con una mediana de 16
+meses y una media de 16.22.
+Como referencia, ChatGPT se
+lanzó en noviembre de 2022,1
+aproximadamente 31 meses
+antes del lanzamiento de nuestra
+encuesta. En nuestros datos,
+captamos tanto a los usuarios que
+adoptaron la tecnología de forma
+temprana como tardía en esta
+línea de tiempo, y observamos
+un aumento en la adopción
+entre fines del 2023 y mediados
+del 2024.
+
+Cantidad de usuarios nuevos que comenzaron al mes, con eventos clave de la
+Adopción mensual de la IA por parte de los usuarios
+industria
+
+Cantidad de encuestados
+
+Experiencia
+
+8
+
+Uso por reflejo
+Si bien el uso de la IA es casi
+universal en nuestra muestra, el
+uso por reflejo (utilizarla de forma
+predeterminada al enfrentarse a
+un problema) no lo es. Entre los
+usuarios de la IA, solo el 7% señala
+que “siempre” la utiliza cuando
+se enfrenta a un problema o una
+tarea, mientras que el 39% solo
+busca su ayuda “a veces”.
+Aun así, el 60% de los usuarios
+de la IA en nuestra encuesta la
+emplea “aproximadamente la
+mitad del tiempo” o más cuando
+se enfrenta a un problema o una
+tarea, lo que sugiere que la IA se
+convirtió en parte frecuente del
+proceso de desarrollo.
+
+Uso de la IA por reflejo
+Con qué frecuencia los usuarios recurren a la IA cuando se enfrentan a un
+problema o tarea
+
+Las barras de error muestran el intervalo creíble del 89%.
+Figura 19: Uso de la IA por reflejo
+
+“En los últimos 18 meses, Sabre hizo un seguimiento activo de la adopción
+de asistentes de IA generativa analizando el uso y realizando encuestas de
+satisfacción. La adopción aumentó al 74% entre los desarrolladores con
+diferentes antigüedades y experiencias, con un incremento notable en el
+uso de la IA en tareas de desarrollo principales.
+Este aumento se correlaciona con una mayor satisfacción del usuario. Un notable
+86% de los usuarios informó un aumento en la productividad. El aumento constante
+en la satisfacción y el ahorro de tiempo informado a lo largo del tiempo sugiere
+que los beneficios de las herramientas de IA generativa crecen a medida que los
+usuarios se vuelven más competentes.
+En nuestras estadísticas, también se reveló una lenta adopción de las funciones
+potenciadas por IA generativa más recientes, como el modo agente, con solo
+un 25% de usuarios que las aprovechan. En consecuencia, Sabre está mejorando
+los programas de capacitación y fomentando el intercambio de conocimientos
+entre pares para aumentar la interacción y garantizar que nuestros equipos sean
+competentes con las herramientas de IA”.
+Jacek Ostrowski, vicepresidente de Ingeniería de Plataformas, Sabre
+9
+
+Adopción y uso de la IA
+v. 2025.2.a
+
+Dependencia
+
+Dependencia general de la IA en el trabajo
+Dependencia de
+general
+de la IAde
+en dependencia
+el trabajo
+Distribución
+los niveles
+entre los usuarios de la IA
+
+Solo el 5% de los usuarios de la
+IA de nuestra muestra informó
+que no depende en absoluto de
+ella en el trabajo, mientras que el
+65% informó que depende de ella
+moderadamente (el 37%), mucho
+(el 20%) o en gran medida (el 8%).
+
+Tareas
+Al igual que en nuestro informe de
+DORA del 2024,2 el uso principal
+de las herramientas de IA entre
+los encuestados de este año es
+escribir código nuevo: el 71% de
+los encuestados escribe código
+con asistencia de la IA.
+
+Distribución de los niveles de dependencia entre los usuarios de la IA
+
+Muchísima
+
+Nivel de dependencia
+
+Descubrimos que los profesionales
+del desarrollo no solo usan
+herramientas de IA con frecuencia,
+sino que también dependen mucho
+de ellas en el trabajo.
+
+8%
+
+Mucha
+
+20%
+
+Moderada
+
+37%
+
+Un poco
+
+30%
+
+Nada
+
+5%
+
+0%
+
+10%
+
+20%
+
+30%
+
+40%
+
+Porcentaje de usuarios de la IA
+Las barras de error muestran el intervalo creíble del 89%.
+
+Las barras de error muestran el intervalo creíble del 89%.
+Figura 20: Dependencia general de la IA en el trabajo
+
+Una gran mayoría de
+los encuestados cuyas
+responsabilidades laborales
+implican esas tareas también usa
+la IA para analizar literatura (el
+68%), modificar código existente
+(el 66%), revisar texto (el 66%) y
+crear o editar imágenes (el 66%).
+
+Entre los encuestados cuyas
+responsabilidades laborales
+incluyen esas tareas, los usos
+menos comunes de la IA son
+analizar requisitos (el 49%),
+redactar comunicaciones internas
+(el 48%) y administrar calendarios
+(el 25%).
+
+Dependenciade
+de la
+tarea
+Dependencia
+laIAIAporpor
+tarea
+
+Porcentaje
+de personas
+querealizan
+realizan tareas
+la la
+IA IA
+Proporción
+de personas
+que
+tareascon
+con
+71%
+68%
+66%
+66%
+66%
+64%
+62%
+62%
+62%
+61%
+61%
+59%
+59%
+59%
+57%
+56%
+56%
+55%
+55%
+54%
+51%
+51%
+50%
+49%
+48%
+25%
+
+Escribir código nuevo
+Revisar literatura
+Crear o editar imágenes
+Modificar código existente
+Revisar texto de forma general
+Escribir documentación
+Crear casos de prueba
+Explicar conceptos
+Obtener ideas
+Redactar comunicaciones externas
+Analizar datos
+Depurar
+Crear o editar informes
+Comprender documentos técnicos
+Limpiar y organizar datos
+Crear especificaciones
+Revisar código
+Mantener código heredado
+Crear o editar videos
+Planificar y elaborar estrategias
+Tomar notas
+Analizar la seguridad
+Analizar el rendimiento
+Analizar requisitos
+Redactar comunicaciones internas
+Administrar calendarios
+
+0%
+
+(60%)
+(18%)
+(16%)
+(55%)
+(33%)
+(59%)
+(36%)
+(55%)
+(57%)
+(17%)
+(44%)
+(49%)
+(32%)
+(55%)
+(31%)
+(31%)
+(53%)
+(35%)
+(7%)
+(54%)
+(38%)
+(23%)
+(33%)
+(48%)
+(58%)
+(25%)
+
+25%
+
+50%
+
+75%
+
+Porcentaje que depende de la IA
+
+Las barras de error muestran el intervalo creíble del 89%.
+Las barras de error muestran el intervalo creíble del 89%.
+Entre paréntesis, se indica el porcentaje de todos los encuestados que realiza la tarea. Se excluye la categoría “Otras”.
+Entre paréntesis, se indica el porcentaje de todos los encuestados que realiza la tarea. Se excluye la categoría “Otras”.
+Figura 21: Dependencia de la IA por tarea
+
+Adopción y uso de la IA
+v. 2025.2.a
+
+10
+
+Plataformas
+
+Dónde interactúan las personas con la IA
+Dónde interactúan
+las personasque
+conusan
+la IA cada plataforma de interacción
+Porcentaje
+de encuestados
+
+Los chatbots de IA conversacional
+son el medio más común para
+interactuar con la IA, seguidos de
+la IA integrada en el IDE.
+Los encuestados señalan que
+interactúan con menos frecuencia
+con la IA como parte de cadenas
+de herramientas automatizadas y
+otras herramientas y plataformas
+de desarrollo, pero puede deberse
+a que son funciones menos
+visibles para los usuarios.
+
+Modo de uso de la IA
+Además de preguntarles
+a los encuestados dónde
+interactúan con la IA y para
+qué, les preguntamos con qué
+frecuencia lo hacen en cada
+uno de los siguientes “modos”:
+1) chat, cualquier tipo de
+interacción basada en texto paso
+a paso; 2) texto predictivo, como
+sugerencias para completar
+código con la tecla Tab;
+
+Proporción de encuestados que usan cada plataforma de interacción
+
+IA conversacional (chatbots)
+
+55%
+
+Entorno de desarrollo (IDE)
+
+41%
+
+Interfaces web externas
+
+31%
+
+Interfaces web internas
+
+22%
+
+Cadena de
+herramientas automatizada
+
+18%
+
+Otras herramientas y plataformas
+para desarrolladores
+
+18%
+0%
+
+10%
+
+20%
+
+30%
+
+40%
+
+50%
+
+Porcentaje de encuestados
+
+Las barras de error muestran
+creíble
+del 89%.
+Se excluye
+laexcluye
+categoría
+“Otras”.
+Las barrasel
+deintervalo
+error muestran
+el intervalo
+creíble
+del 89%. Se
+la categoría
+“Otras”.
+Figura 22: Dónde interactúan las personas con la IA
+
+3) colaboración, usar la IA para
+hacer cambios más amplios en
+una base de código, y 4) agente,
+permitir que la IA opere de forma
+relativamente desatendida y haga
+cambios sin supervisión directa.
+En congruencia con que los
+chatbots y las interacciones en IDE
+son las opciones más frecuentes
+entre nuestros encuestados, el
+chat textual y el texto predictivo
+son los modos de interacción
+
+con la IA más comunes. El uso
+de agentes de IA es menos
+común: la mayoría (el 61%) de los
+encuestados señaló que “nunca”
+interactuó con herramientas de IA
+en modo de agente. Este patrón
+de uso probablemente refleja la
+madurez relativa de estos modos
+de IA; la menor adopción de la IA
+de agentes es coherente con su
+surgimiento más reciente versus
+las funciones de chat y texto
+predictivo más establecidas.
+
+Frecuencia de los modos
+de interacción
+la IA de interacción con la IA
+Frecuencia
+de loscon
+modos
+Porcentaje de respuestas para cada modo de interacción
+Proporción de respuestas para cada modo de interacción
+
+Texto predictivo; por ejemplo, finalización de código
+
+19%
+
+17%
+
+14%
+
+5%
+
+7%
+
+22%
+
+16%
+
+Chat: Conversaciones asistidas por IA para tareas de programación
+
+10%
+
+19%
+
+19%
+
+8%
+
+10%
+
+25%
+
+9%
+
+Colaborativo: Usar la IA para realizar
+cambios de código amplios y coordinados
+
+38%
+
+20%
+
+13%
+
+6%
+
+7%
+
+12%
+
+5%
+
+Modo agente: La IA opera de forma autónoma en
+segundo plano y puede realizar cambios sin
+supervisión directa
+
+61%
+
+12%
+
+7%
+
+3%
+
+5%
+
+8%
+
+4%
+
+Figura 23: Frecuencia de los modos de interacción con la IA
+
+11
+
+a
+ás
+a
+a
+es
+ía
+m
+día
+nc
+an
+m
+an
+ld
+l
+l
+u
+o
+m
+a
+a
+a
+m
+N
+a
+e
+s
+e
+s
+ez
+or
+as
+ce
+ce
+as
+av
+ah
+al
+ve
+al
+ve
+n
+d
+s
+s
+s
+s
+U
+Ca
+na
+día
+na
+día
+gu
+gu
+a6
+a3
+Al
+Al
+1
+4
+De
+De
+
+Adopción y uso de la IA
+v. 2025.2.a
+
+Frecuencia de uso
+
+Productividad individual
+
+Efecto percibido en la productividad individual
+Evaluación de los encuestados sobre cómo la IA influye en su productividad
+
+Más del 80% de los encuestados
+de este año señala que la IA
+aumentó su productividad. Si
+bien más del 40% indica que
+su productividad aumentó solo
+“ligeramente”, menos del 10% de
+los encuestados percibe que la IA
+contribuye a disminuirla.
+
+Las barras de error muestran el intervalo creíble del 89%.
+Figura 24: Efecto percibido en la productividad individual
+
+Además de percibir mejoras en la
+productividad, la mayoría (el 59%)
+de los encuestados también nota
+que la IA influyó positivamente
+en la calidad del código. El 31%
+percibe que este aumento es
+solo “leve” y otro 30% no observa
+efectos positivos ni negativos.
+Sin embargo, solo el 10% de los
+encuestados percibe alguna
+merma en la calidad del código
+por usar la IA.
+
+Efecto percibido en la calidad del código
+Evaluación
+de
+los encuestados
+cómo
+la IA influye
+en la calidad del código
+Evaluación
+de los
+encuestados
+sobre cómo sobre
+la IA influye
+en la calidad
+del código
+Efecto percibido en la calidad del código
+
+Efecto percibido
+
+Calidad del código
+
+Mejoró muchísimo
+
+7%
+
+Mejoró
+moderadamente
+
+21%
+
+Mejoró un poco
+
+31%
+
+Sin efecto
+
+30%
+
+Empeoró un poco
+
+7%
+
+Empeoró
+moderadamente
+
+2%
+
+Empeoró muchísimo
+
+1%
+0%
+
+10%
+
+20%
+
+30%
+
+Porcentaje de encuestados
+Las 89%.
+barras de error muestran el intervalo creíble del 89%.
+Las barras de error muestran el intervalo creíble del
+Figura 25: Efecto percibido en la calidad del código
+
+“A veces, la IA escribe mejor código que yo para
+ciertas cosas, principalmente porque me parece que
+se entrenó muy bien. Como ya mencioné, el código
+es muy binario: funciona o no funciona. El código que
+escribe la IA suele ser suficientemente bueno para
+mi propósito. Además, suele aplicar estándares de
+programación que tal vez olvidé sin darme cuenta
+o que implican una refactorización que me da pereza
+realizar. Por ello, me parece que crea de forma más
+cohesiva”.
+
+Adopción y uso de la IA
+v. 2025.2.a
+
+12
+
+Confianza
+Al igual que en el informe de
+DORA del 2024,2 en los hallazgos
+de este año se revela un panorama
+matizado de la confianza de
+los usuarios en los resultados
+generados por IA. Una clara
+mayoría de los encuestados (el
+70%) expresa cierto grado de
+confianza en su calidad, incluido
+casi un cuarto de los encuestados
+(el 24%) que informa tener mucha
+o bastante confianza. Por último,
+el 30% de los encuestados adopta
+una postura más reservada, con
+poca (el 23%) o nula confianza (el
+7%) en la calidad de los resultados
+generados por IA.
+
+Estos datos destacan una
+idea clave: los altos niveles de
+adopción de la IA y los beneficios
+percibidos pueden coexistir con
+un enfoque medido y matizado de
+la confianza. Nuestros hallazgos
+sugieren que la confianza absoluta
+no es requisito para que los
+resultados generados por IA sean
+útiles. Este patrón se alinea con los
+comportamientos establecidos.
+En nuestras entrevistas, los
+desarrolladores compararon la
+situación con la desconfianza
+saludable que tienen con otros
+recursos populares, como las
+soluciones que se encuentran
+en Stack Overflow, donde la
+
+información se usa, pero no
+siempre se confía a ciegas en ella.
+La confiabilidad de la IA en el
+desarrollo de software sigue
+siendo un tema importante
+de debate y estudio, y ya
+identificamos cinco estrategias
+para ayudar a fomentar la
+confianza de los desarrolladores
+en la IA.3 Sin embargo, nuestros
+datos sugieren que los
+desarrolladores ya pueden estar
+teniendo en cuenta esta limitación
+de la IA en su trabajo.
+
+Confianza en la calidad de los resultados generados por IA
+Distribución de los niveles de confianza entre los encuestados
+
+Confianza en la calidad de los resultados generados por IA
+Distribución de los niveles de confianza entre los encuestados
+
+4%
+
+Nivel de confianza
+
+Muchísima
+
+Mucha
+
+20%
+
+Algo
+
+46%
+
+Un poco
+
+23%
+
+Nada
+
+7%
+0%
+
+10%
+
+20%
+
+30%
+
+Porcentaje de encuestados
+
+40%
+
+Las barras de error muestran el intervalo creíble del 89%.
+
+Las barras de error muestran el intervalo creíble del 89%.
+Figura 26: Confianza en la calidad de los resultados generados por IA
+
+13
+
+Adopción y uso de la IA
+v. 2025.2.a
+
+Reflexiones finales
+En conjunto, estos hallazgos
+sugieren que el uso de la IA en el
+desarrollo de software se volvió
+prácticamente universal. Los
+encuestados la utilizan en una
+amplia variedad de tareas de
+desarrollo, dependen de ella en
+sus flujos de trabajo y la consultan
+con frecuencia para abordar
+problemas.
+
+El año pasado, descubrimos
+que las presiones competitivas
+fueron un factor clave para
+adoptar la IA en el desarrollo de
+software.2 Muchos entrevistados
+lo expresaron como un “miedo
+a perder oportunidades” o a
+“quedarse atrás” en comparación
+con otros desarrolladores y
+empresas competidoras.
+
+Si bien los encuestados siguen
+manifestando preocupación
+por la confiabilidad del código
+generado por IA, reconocen
+ampliamente los beneficios de
+la IA en su productividad y en la
+calidad observada del código.
+Por lo tanto, a pesar de algunas
+imperfecciones, parece que el uso
+de la IA se convirtió rápidamente
+en una práctica estándar para la
+mayoría de las organizaciones
+que desarrollan software.
+
+Sin embargo, es discutible si la
+presión social es una motivación
+lógica para adoptar una nueva
+tecnología. Si bien nuestros datos
+muestran muchos resultados
+positivos de la adopción de la
+IA, también documentamos
+desventajas notables.
+Por este motivo, advertimos
+que no se deben interpretar
+estos hallazgos de la presencia
+universal de la IA como un
+llamado a adoptarla rápidamente
+sin considerar las necesidades
+específicas de la organización.
+Más bien, interpretamos estos
+hallazgos como un indicador claro
+de que todos los participantes
+del desarrollo de software, sean
+colaboradores individuales, jefes
+de equipos o líderes ejecutivos,
+deberían sopesar si la IA puede
+o debe aplicarse en su trabajo,
+así como en qué plataformas y
+modos.
+
+El contexto determinará si un
+enfoque conservador o permisivo
+es el adecuado, pero la adopción
+generalizada de la IA sugiere que las
+organizaciones ya no pueden pasar
+por alto los efectos de su uso.
+Entendemos que las decisiones
+sobre el grado en que la IA debe
+integrarse en el desarrollo de
+software son difíciles y se toman
+mejor a partir de los datos. Por lo
+tanto, en nuestro capítulo sobre
+el nuevo modelo de capacidades
+de IA de DORA, exploramos cómo
+las capacidades culturales y
+tecnológicas de las organizaciones
+influyen en los resultados de sus
+iniciativas de adopción de la IA
+para proporcionar información
+sobre las formas en que las
+organizaciones que eligen
+integrarla en sus procesos
+puedan hacerlo con éxito.
+
+1.
+
+Presentamos ChatGPT | OpenAI: https://openai.com/index/chatgpt
+
+2.
+
+Informe Accelerate State of DevOps del 2024: https://dora.dev/dora-report-2024
+
+3.
+
+Fomenta la confianza de los desarrolladores en la Inteligencia Artificial generativa: https://dora.dev/research/ai/trust-in-ai
+
+Adopción y uso de la IA
+v. 2025.2.a
+
+14
+
+Análisis de la relación
+de la IA con los
+resultados clave
+Derek DeBellis
+Investigador de experiencia del usuario
+cuantitativa, Google Cloud
+
+15
+
+Análisis de la relación de la IA con los resultados clave
+v. 2025.2.a
+
+La IA llegó al desarrollo de
+software para quedarse
+En solo tres años, la adopción y
+el uso de la IA experimentaron
+un cambio notable. En el 2022,
+habría resultado sorpresivo que
+un desarrollador usara la IA, pero
+hoy el 90% de los profesionales
+tecnológicos la utilizan en el
+trabajo. En el capítulo Adopción
+y uso de la IA, se muestra una
+adopción casi universal, y la
+tendencia se mantiene mucho
+más allá de nuestros datos.
+En la encuesta para
+desarrolladores de Stack Overflow
+del 2025, se reveló que el 84% de
+los desarrolladores usa o planea
+usar herramientas de IA en su
+proceso de desarrollo, un aumento
+significativo en comparación
+con el 76% del año anterior.1
+
+El uso diario también es común,
+ya que el 47% de los encuestados
+utiliza herramientas de IA todos
+los días. En la encuesta State
+of DevEx de Atlassian del 2025,
+también se refuerza la tendencia:
+casi todos los desarrolladores (el
+99%) ahorran tiempo gracias
+a las herramientas de IA.2
+La prisa individual se refleja en
+la estrategia corporativa. El 88%
+de los líderes empresariales
+señaló que acelerar la adopción
+de la IA es una prioridad, según
+un informe del 2025 de LinkedIn
+Corporate Communications.3 En
+una encuesta de McKinsey, el 78%
+de los encuestados indicó que en
+sus organizaciones se usa la IA
+con regularidad para al menos una
+
+función empresarial.4
+Esta prioridad también se refleja
+en la inversión: según el índice
+HAI AI de Stanford del 2025,
+la inversión corporativa global
+total en IA alcanzó los $252,300
+millones en el 2024, un aumento
+del 26% en comparación con el
+año anterior.5 Quizás nada ilustre
+esta nueva realidad de forma
+más clara que las habilidades
+que buscan las empresas entre
+sus candidatos: solo en el 2023,
+las ofertas de empleo en EE.UU.
+que mencionan habilidades de IA
+generativa crecieron un 323%.6
+
+Análisis de la relación de la IA con los resultados clave
+v. 2025.2.a
+
+16
+
+¿Cómo influye la adopción de la IA?
+Ante esta urgencia por adoptar
+la IA, es importante que las
+organizaciones comprendan
+si existe la misma urgencia por
+obtener sus beneficios. Que la
+adopción sea generalizada no
+implica automáticamente que el
+valor también lo sea. Debemos
+reconocer que la adopción puede
+ser caótica, impulsada tanto por
+la exageración y el miedo a perder
+oportunidades (FOMO) como por
+una estrategia fundamentada.
+La adopción también puede
+verse limitada y restringida por
+los sistemas organizacionales,
+como concluimos en nuestro
+informe de DORA del 2024, en
+el que se descubrió que la IA
+proporcionó muchos resultados
+prometedores, pero también
+aumentó la inestabilidad y
+disminuyó la velocidad de la
+entrega de software.7 En la
+misma investigación de DORA del
+2024, se encontró una reducción
+estimada del 1.5% en la velocidad
+de la entrega de software y un
+
+17
+
+aumento estimado del 7.2% en su
+inestabilidad por cada aumento
+del 25% en la adopción de la IA.
+Nuestra investigación no es la
+única en la que se destacan estas
+complejidades. Por ejemplo, en
+un estudio reciente de Model
+Evaluation & Threat Research
+(METR), se sugirió una gran
+discrepancia entre la percepción y
+la realidad: los desarrolladores que
+se vieron ralentizados un 19% por
+las herramientas de IA aún creían
+que estas habían aumentado un
+20% su eficiencia.8 De manera
+similar, en otras investigaciones
+externas, se comenzaron a indicar
+las posibles consecuencias de la
+IA en la cognición y el bienestar, lo
+que subraya aún más que, como
+industria, todavía estamos en las
+primeras etapas de comprender
+las verdaderas consecuencias de
+la adopción de la IA.9,10,11
+
+marco SPACE,12 mencionaron
+principalmente efectos positivos
+y pocos negativos.13 La mayoría
+de los encuestados en nuestro
+capítulo sobre la adopción y
+el uso de la IA también señaló
+que esta mejoró su código y
+productividad.
+Estos indicadores mixtos nos
+demuestran que se debe realizar
+más trabajo basado en pruebas
+para evaluar el verdadero efecto
+de la IA en el desarrollo de
+productos, especialmente dada
+la gran escala de inversión y
+adopción de la IA. Creemos que
+la comunidad de desarrolladores
+y los empleadores deberían
+establecer expectativas realistas,
+y obtener una perspectiva
+clara sobre el efecto real de
+la IA es el primer paso para
+manejar esas expectativas con
+responsabilidad.
+
+Sin embargo, cuando se les
+pidió a los desarrolladores que
+evaluaran la IA en cada área del
+
+Análisis de la relación de la IA con los resultados clave
+v. 2025.2.a
+
+Medición de la adopción de la IA
+Para comprender cómo difieren
+los resultados clave según la
+adopción de la IA, debemos
+poder medirla.
+Este año, diseñamos nuestra
+medición de la adopción de la IA
+con algunas reglas sencillas:
+Inclusión: Nuestra medida no
+debería estar sesgada hacia
+ningún puesto (ni, de hecho,
+producir sistemáticamente
+puntuaciones más altas o más
+bajas para cualquier aspecto
+que no sea la adopción de la IA).
+Por ejemplo, un desarrollador
+de software no debería recibir
+automáticamente una puntuación
+más alta solo por usar IA para
+programar. La medida debe captar
+una orientación general hacia
+la IA, sin importar el puesto de
+una persona o de cualquier otro
+factor además de la adopción
+significativa de la IA.
+Base en los datos: Como
+hacemos todos los años, dejamos
+que los datos hablen primero,
+incluso si tenemos hipótesis
+sólidas. Parte de este proceso
+incluye realizar un análisis factorial
+exploratorio,14 que está menos
+limitado por nuestras creencias
+previas.
+Base en la teoría: Nuestra
+conceptualización y medición
+de la adopción de la IA debe
+relacionarse con las nociones
+comúnmente aceptadas del uso de
+la IA y nuestro trabajo cualitativo.
+El resultado fue un factor
+compuesto por tres variables
+altamente interrelacionadas:
+
+Dependencia: En los últimos tres
+meses, ¿cuánto dependiste de la
+IA en el trabajo?
+Confianza: En los últimos tres
+meses, ¿cuánto confiaste en la
+calidad del resultado generado
+por IA en el trabajo?
+
+Elementos que
+componen
+el factor de
+adopción de la IA
+
+Uso por reflejo: En los últimos
+tres meses, cuando te enfrentaste
+a un problema o una tarea en
+el trabajo, ¿con qué frecuencia
+usaste la IA?
+
+Dependencia
+
+Adopción de
+la IA
+Uso por reflejo
+Figura 27: Elementos que
+componen el factor de
+adopción de la IA
+
+En el análisis, se reveló que estas
+tres preguntas de la encuesta se
+respondieron de manera muy similar.
+Esta situación es prueba de
+que existe un único constructo
+subyacente que hace que estas
+tres variables se muevan juntas.
+Creemos que este factor
+capta tres dimensiones
+conceptualmente entrelazadas:
+una dimensión conductual (uso),
+una dimensión de dependencia
+(qué tan profundamente la IA está
+integrada en el flujo de trabajo
+de una persona) y una dimensión
+actitudinal crítica (confianza), lo
+que se alinea con la literatura y
+nuestro trabajo cualitativo.15,16,17,18
+Es probable que esta relación
+se base en un ciclo de
+
+retroalimentación. La confianza
+es un requisito para el uso, pero el
+uso es el mecanismo para generar
+confianza, lo que crea un potente
+ciclo de retroalimentación: a medida
+que los usuarios comienzan a
+confiar lo suficiente en un sistema
+como para utilizarlo, su mayor uso
+genera una mayor dependencia y
+una confianza más profunda, y se
+produce un ciclo de adopción.
+De hecho, esa naturaleza cíclica
+hace que la combinación de
+estas variables sea un candidato
+perfecto para un factor, sobre
+todo porque nuestra encuesta es
+una instantánea, no un video de un
+proceso dinámico.19 La adopción
+es un proceso psicológico que
+implica actitudes, intenciones y
+acciones.
+
+Análisis de la relación de la IA con los resultados clave
+v. 2025.2.a
+
+Confianza
+
+18
+
+Cómo se relaciona esta medición con
+los resultados
+Ahora que establecimos una
+medida de adopción de la IA,
+podemos determinar si nuestros
+resultados difieren cuando
+comparamos diferentes niveles.20
+Esta es la forma básica:21
+Cuando se comparan dos
+personas que comparten los
+mismos rasgos, entorno y
+procesos, la persona con mayor
+adopción de la IA, en promedio,
+informará {cantidad} más o
+menos de {resultado}.22
+Por supuesto, casi ninguna
+persona, equipo u organización
+es promedio, pero explorar estos
+efectos promedio puede revelar
+patrones generales capaces de
+ayudar a contextualizar análisis
+más matizados en el capítulo
+sobre el modelo de capacidades
+de IA de DORA, en el que
+exploramos las condiciones
+en las que la adopción de la IA
+es más (y menos) beneficiosa.
+Cada año, intentamos seleccionar
+y construir resultados que
+creemos que representan los
+objetivos de quienes leen el
+informe. En resumen, queremos
+evaluar las prácticas en los
+términos que creemos que son
+importantes para los profesionales
+tecnológicos. Estos son los
+resultados que estudiamos
+este año:
+
+19
+
+Rendimiento de la
+organización
+Esta es una medida de alto nivel
+del éxito general de la organización
+basada en características como
+la rentabilidad, la participación
+de mercado y la satisfacción del
+cliente.
+
+Calidad del código
+Este factor capta la evaluación
+de un individuo sobre la calidad
+del código que subyace a la
+aplicación o el servicio principal
+en el que trabaja.
+
+Eficacia individual
+Rendimiento del equipo
+Este factor mide la eficacia
+y la fortaleza colaborativa
+percibidas del equipo inmediato
+de una persona.
+
+Este factor capta la eficacia
+autoevaluada de una persona y su
+sensación de logro en el trabajo.
+
+Trabajo valioso
+Rendimiento de los productos
+Este factor mide el éxito y la
+calidad de los productos o
+servicios que crea el equipo en
+función de características como
+ayudar a los usuarios a realizar
+tareas importantes y proteger
+la información, y métricas de
+rendimiento como la latencia.
+Velocidad de la entrega de
+software
+Este factor representa la
+velocidad y la eficiencia
+del proceso de entrega de
+software. Consulta el capítulo
+Comprende el rendimiento de
+la entrega de software para
+obtener más detalles.
+Inestabilidad en la entrega de
+software
+Este factor capta la calidad y
+confiabilidad del proceso de
+entrega de software. Consulta
+el capítulo Comprende el
+rendimiento de la entrega de
+software para obtener más
+detalles.
+
+Este factor mide la cantidad
+de tiempo autoevaluada que
+una persona dedica a realizar
+trabajos que considera valiosos
+y que valen la pena.
+
+Complicaciones
+Este factor mide el grado en
+que las complicaciones
+dificultan el trabajo de una
+persona. Por lo general, se
+considera que los niveles más
+bajos de complicaciones
+son un resultado positivo.
+
+Agotamiento
+Este factor mide los
+sentimientos de agotamiento
+y pesimismo relacionados con
+el trabajo. Por lo general, se
+considera que los niveles más
+bajos de agotamiento son un
+resultado positivo.
+
+Análisis de la relación de la IA con los resultados clave
+v. 2025.2.a
+
+Resultados de este año
+En la figura 28, se visualizan las relaciones que tiene la adopción de la IA con estos resultados.23
+Panorama de las consecuencias de la IA
+Efecto estimado de adoptar la IA en los resultados clave, con intervalos creíbles del 89%
+
+Para los resultados en naranja, como el agotamiento, es deseable un efecto negativo.
+Figura 28: Panorama de las consecuencias de la IA
+
+Estimamos que, entre dos
+personas que comparten los
+mismos rasgos, entorno y
+procesos, la persona con mayor
+adopción de la IA informará lo
+siguiente:24
+• Mayores niveles de eficacia
+individual
+• Mayores niveles de inestabilidad
+en la entrega de software
+• Mayores niveles de rendimiento
+de la organización
+• Mayor porcentaje de tiempo
+dedicado al trabajo valioso
+
+• Mayores niveles de calidad del
+código25
+• Mayores niveles de rendimiento
+de los productos
+• Mayores niveles de velocidad de
+la entrega de software
+• Mayores niveles de rendimiento
+del equipo
+• Niveles similares de
+agotamiento
+• Niveles similares de
+complicaciones
+
+En las siguientes secciones de
+este capítulo, intentaremos
+darle sentido a este patrón de
+resultados a través de hipótesis
+sobre sus causas subyacentes.
+Para elaborar estas hipótesis,
+seguiremos la literatura, nuestro
+trabajo cualitativo, nuestros
+expertos en la materia y lo que
+aprendimos de la comunidad
+de DORA. Consulta el capítulo
+Metodología para obtener más
+detalles.
+
+Análisis de la relación de la IA con los resultados clave
+v. 2025.2.a
+
+20
+
+“Si me ayuda o hace en 30
+minutos algo en lo que yo
+tardaría dos horas o más, es
+bueno, porque ahora puedo
+dedicar ese tiempo a otra cosa,
+a algo distinto. Si puedes
+hacer más, te ayuda a progresar
+más rápido en tu desarrollo
+profesional, ¿no? Porque también
+aprendes cosas nuevas más
+rápido”.
+
+Conclusión
+En diferentes niveles, la IA tiene
+un efecto positivo en la mayoría
+de los resultados, con algunas
+excepciones notables: no presenta
+una relación medible con el
+agotamiento y las complicaciones,
+y continúa su relación perjudicial
+con la estabilidad de la entrega de
+software.
+
+valiosos, y estamos empezando a
+hallar formas de que la adopción
+de la IA mejore el rendimiento de
+la entrega y el de los productos.
+
+incapacidad de algunos de esos
+sistemas para adaptarse al nuevo
+paradigma.
+Creemos que el valor de la IA no
+se obtendrá gracias a la tecnología
+en sí, sino que redefiniendo el
+sistema de trabajo en el que se
+encuentra. Exploramos este tema
+más a fondo en los capítulos
+Modelo de capacidades de IA de
+DORA y El espejo de la IA.
+
+Si comparamos algunos de los
+hallazgos del 2025 con los del
+año pasado, podemos notar
+que los modelos de lenguaje,
+las herramientas y los flujos
+de trabajo evolucionan junto
+con las personas y los sistemas
+organizacionales que interactúan
+con ellos. Las personas
+encontraron modos de usar la
+IA para redirigir sus esfuerzos
+a trabajos que consideran más
+
+Es importante tener en cuenta
+que la IA no mejoró todo para
+los profesionales tecnológicos.
+La persistencia de algunos
+problemas, como el aumento
+de la inestabilidad, los niveles
+invariables de complicaciones
+y el agotamiento, no es solo un
+error de la herramienta, sino que
+también refleja la incapacidad
+del sistema para adaptarse. La
+persistencia de estos efectos
+no sugiere tanto una falla de la
+IA, sino más bien la carga de
+llevar el peso de los sistemas
+organizacionales en los que está
+anidada y, posiblemente, una
+
+21
+
+Análisis de la relación de la IA con los resultados clave
+v. 2025.2.a
+
+Reorganización de
+prioridades de habilidades
+A medida que los desarrolladores
+se asocian cada vez más con la
+IA, se genera una conversación
+creciente sobre cómo esta
+colaboración podría cambiar la
+importancia relativa de diferentes
+habilidades. Queríamos examinar
+si la adopción de la IA influyó en las
+habilidades que los desarrolladores
+consideran más o menos
+importantes para hacer su trabajo.
+Nuestra hipótesis fue que las
+habilidades específicas de IA y
+las habilidades centradas en las
+personas podrían considerarse más
+importantes que las habilidades
+específicas de escritura de código.
+Les pedimos a los participantes
+que calificaran las siguientes ocho
+habilidades de mayor a menor
+importancia.
+1. Crear documentación técnica
+2. Resolver problemas
+3. Ingeniería de instrucciones
+4. Memorizar sintaxis de lenguajes
+de programación
+5. Leer y revisar código
+
+7. Comprender la base de código
+del equipo
+
+Conclusiones
+
+8. Escribir código
+
+En conjunto, estos hallazgos
+indican que la adopción de la IA no
+tuvo un efecto significativo en la
+forma en que los desarrolladores
+llevan su vida laboral. Seguiremos
+supervisando proactivamente este
+espacio para detectar cualquier
+cambio.
+
+No es sorprendente que la
+adopción de la IA haya influido
+en la importancia percibida de
+la ingeniería de instrucciones.
+También aumentó la importancia
+percibida de memorizar sintaxis de
+lenguajes de programación. Este
+hallazgo es interesante y merece
+un estudio más profundo, ya que
+se podría esperar que memorizar
+sintaxis sea una de las primeras
+habilidades relacionadas con el
+desarrollo que se perciben como
+obsoletas en la era de la IA.
+El hallazgo más sorprendente es
+que la adopción de la IA no influyó
+en la importancia percibida de
+ninguna otra habilidad.
+No estamos listos para sacar
+conclusiones de estos datos, ya
+que estos hallazgos tienen muchas
+explicaciones posibles. Podrían
+significar que los desarrolladores
+están adaptándose a los nuevos
+flujos de trabajo potenciados
+por IA o simplemente reflejar
+una creencia de que su
+experiencia única seguirá siendo
+indispensable.
+
+Mientras tanto, recomendamos
+que las organizaciones les den
+a los desarrolladores la libertad
+de enfocarse en el trabajo
+que consideren valioso. Sigan
+creando oportunidades para que
+los desarrolladores aprendan a
+aprovechar la IA, de modo que
+puedan delegar tareas tediosas
+y disponer de más tiempo en sus
+días para dedicarse a tareas que
+importan.
+Para evitar posibles disminuciones
+en la propiedad psicológica,
+recomendamos que los
+desarrolladores vean la IA como
+una herramienta creada para
+trabajar para ellos. Aunque esta
+tecnología se vuelve cada vez más
+autónoma, es importante que los
+desarrolladores se autoperciban
+como quienes están al volante.
+
+6. Trabajar en equipo y colaborar
+
+1.
+
+Usamos una medida bien establecida de orgullo auténtico. Jessica L. Tracy, Joey T. Cheng, Richard W. Robins y Kali H. Trzesniewski. “Authentic and
+hubristic pride: The affective core of self-esteem and narcissism”. Self and identity 8, núm. 2-3 (2009): 196-213.
+
+2.
+
+Michael F. Steger, Bryan J. Dik y Ryan D. Duffy. “Measuring Meaningful Work: The Work and Meaning Inventory (WAMI)”. Journal of Career
+Assessment, 2012, 20, núm. 3. 322-337.
+
+3.
+
+Dusana Alshatti Schmidt et al. “Integrating artificial intelligence in higher education: perceptions, challenges, and strategies for academic
+innovation”. Computers and Education Open, vol. 9 (2025): https://www.sciencedirect.com/science/article/pii/S2666557325000333
+
+4.
+
+John T. Cacioppo y Richard E. Petty. “The Need for Cognition”. Journal of Personality and Social Psychology, 1982, 42, núm. 1. 116-131.
+
+5.
+
+Elizabeth C. Pinel, Anson E. Long, Erin Q. Murdoch y Peter Helm. “A prisoner of one’s own mind: Identifying and understanding existential isolation”.
+Personality and Individual Differences 105 (2017): 54-63.
+
+6.
+
+Joann Peck y Suzanne B. Shu. “Psychological Ownership and Feelings of Possession”. The SAGE Handbook of Consumer Psychology, editado por
+Curtis P. Haugtvedt et al. (SAGE Publications, 2009), 331-350.
+
+Análisis de la relación de la IA con los resultados clave
+v. 2025.2.a
+
+22
+
+1.
+
+2025 Stack Overflow Developer Survey: https://survey.stackoverflow.co/2025
+
+2.
+
+“Atlassian research: AI adoption is rising, but friction persists”: https://www.atlassian.com/blog/developer/developer-experience-report-2025
+
+3.
+
+“AI Adoption Starts at the Top: 3x more C-suites on LinkedIn are adding AI literacy skills compared to two years ago”: https://news.linkedin.
+com/2025/ai-adoption-starts-at-the-top--3x-more-c-suites-on-linkedin-are-
+
+4.
+
+“The state of AI: How organizations are rewiring to capture value”: https://www.mckinsey.com/capabilities/quantumblack/our-insights/the-stateof-ai
+
+5.
+
+The 2025 AI Index Report: https://hai.stanford.edu/ai-index/2025-ai-index-report, 247. Consultado en el 2024.
+
+6.
+
+Ibid, 228. Fuente: Datos de Lightcast.
+
+7.
+
+Informe Accelerate State of DevOps del 2024: https://dora.dev/dora-report-2024
+
+8.
+
+“Measuring the Impact of Early-2025 AI on Experienced Open-Source Developer Productivity”: https://metr.org/blog/2025-07-10-early-2025-aiexperienced-os-dev-study
+
+9.
+
+“ChatGPT May Be Eroding Critical Thinking Skills, According to a New MIT Study”: https://time.com/7295195/ai-chatgpt-google-learning-school
+
+10.
+
+Michael Gerlich. “AI Tools in Society: Impacts on Cognitive Offloading and the Future of Critical Thinking”. Societies, 2025, 15, núm. 1. Artículo 6:
+https://www.mdpi.com/2075-4698/15/1/6
+
+11.
+
+“The Impact of Generative AI on Critical Thinking: Self-Reported Reductions in Cognitive Effort and Confidence Effects From a Survey of
+Knowledge Workers”: https://www.microsoft.com/en-us/research/wp-content/uploads/2025/01/lee_2025_ai_critical_thinking_survey.pdf
+
+12.
+
+Nicole Forsgren, Margaret-Anne Storey y Chandra Maddila. “The SPACE of Developer Productivity: There’s more to it than you think”: https://queue.
+acm.org/detail.cfm?id=3454124
+
+13.
+
+“The SPACE of AI: Real-World Lessons on AI’s Impact on Developers”: https://arxiv.org/pdf/2508.00178
+
+14.
+
+Quantitative Developmental Systems Methodology Core, Penn State. “Intro - Basic Exploratory Factor Analysis”: https://quantdev.ssri.psu.edu/
+tutorials/intro-basic-exploratory-factor-analysis
+
+15.
+
+John D. Lee y Katrina A. See. “Trust in automation: Designing for appropriate reliance”. Human factors 46, núm. 1 (2004): 50-80.
+
+16.
+
+Erin Cody-Allen y Rajiv Kishore. “An extension of the UTAUT model with e-quality, trust, and satisfaction constructs”. En Proceedings of the 2006
+ACM SIGMIS CPR conference on computer personnel research: Forty four years of computer personnel research: achievements, challenges & the
+future, pp. 82-89. 2006.
+
+17.
+
+La dependencia suele considerarse una manifestación conductual de la confianza: “Trust in Automation: Integrating Empirical Evidence on Factors
+that Influence Trust”.
+
+18.
+
+J.J. Po-An Hsieh y Wei Wang, “Explaining Employees’ Extended Use of Complex Information Systems”, European Journal of Information Systems 16,
+núm. 3 (2007): 216-27.
+
+19.
+
+La adopción es dinámica, pero dado que tenemos una instantánea, tratamos estos fenómenos altamente codeterminantes como
+unidimensionales. Si tuviéramos datos de panel, podríamos ser más explícitos sobre el ciclo.
+
+20.
+
+El año pasado, hablamos en términos de “efectos”, pero este hablaremos en términos de comparaciones. Aunque intentamos crear las condiciones
+para hablar de causalidad, no queremos dar falsas garantías de que entendemos la estructura causal subyacente. En ocasiones, hablaremos en
+términos causales, pero, en última instancia, lo que haremos serán comparaciones. Este razonamiento se resume en Regression and Other Stories:
+“Sin embargo, en estricto rigor, es inapropiado etiquetar estos como ‘efectos’, al menos, no sin muchas suposiciones. (…) Lo que se observa es
+un patrón observacional. (…) Estos datos permiten realizar comparaciones entre personas. (…) La interpretación más segura de una regresión
+es como una comparación. (…) La regresión es una herramienta matemática para hacer predicciones. Los coeficientes de regresión a veces se
+pueden interpretar como efectos, pero siempre se pueden interpretar como comparaciones promedio”. Aki Vehtari, Andrew Gelman y Jennifer Hill,
+Regression and Other Stories (Cambridge University Press, 2020), 84-85.
+
+21.
+
+Siguiendo el formulario sugerido en Regression and Other Stories, 85.
+
+22.
+
+Técnicamente, es un peso beta estandarizado.
+
+23.
+
+Técnicamente, estos son pesos beta estandarizados, lo que equivale a la diferencia estimada de desviación estándar en el resultado asociado con
+un aumento de desviación estándar en la adopción de la IA.
+
+24.
+
+Nuestro conjunto de datos es limitado, por lo que no son estrictamente idénticos, pero sí en los aspectos que consideramos importantes para
+bloquear las vías de sesgo.
+
+25.
+
+Jared Bauer. “Does GitHub Copilot Improve Code Quality? Here’s What the Data Says”. The GitHub Blog. 18 de noviembre de 2024. Actualizado el 6
+de febrero de 2025: https://github.blog/news-insights/research/does-github-copilot-improve-code-quality-heres-what-the-data-says/
+
+26.
+
+El año pasado, esto se denominó “productividad”. La medida difiere ligeramente y “eficacia individual” es una etiqueta más precisa.
+
+27.
+
+André N. Meyer, Earl T. Barr, Christian Bird y Thomas Zimmermann. “Today was a good day: The daily life of software developers”. IEEE Transactions
+on Software Engineering, 2019, 47, núm. 5. (2019): 863-880.
+
+28.
+
+Eficacia del tiempo de enfoque del tiempo protegido asistido por computadora para el bienestar y la participación laboral de los trabajadores de la
+información.
+
+29.
+
+“Ironies of automation”: https://www.sciencedirect.com/science/article/abs/pii/0005109883900468
+
+30.
+
+Arnold B. Bakker, Evangelia Demerouti y Ana I. Sanz-Vergel, “Job Demands-Resources Theory: Ten Years Later”, Annual Review of Organizational
+Psychology and Organizational Behavior 10 (2023): 25-53.
+
+31.
+
+Informe Accelerate State of DevOps del 2024: https://dora.dev/dora-report-2024
+
+32.
+
+Gunnar Aronsson, Töres Theorell, Tom Grape, Anne Hammarström, Christer Hogstedt, Ina Marteinsdottir, Ingmar Skoog, Lil Träskman-Bendz y
+Charlotte Hall. “A systematic review including meta-analysis of work environment and burnout symptoms”. BMC Public Health, 2017, 17, núm. 1. 264.
+
+33.
+
+Work intensification: A systematic review of studies from 1989 to 2022.
+
+34.
+
+“Technical Performance | The 2025 AI Index Report | Stanford HAI”: https://hai.stanford.edu/ai-index/2025-ai-index-report/technical-performance
+
+35.
+
+El 2025 AI Index Report de Stanford HAI tiene muchos ejemplos comparativos del 2023 al 2024. Nature, “Is your AI benchmark lying to you?”:
+https://www.nature.com/articles/d41586-025-02462-5
+
+36.
+
+“Technical Performance | The 2025 AI Index Report | Stanford HAI”: https://hai.stanford.edu/ai-index/2025-ai-index-report/technical-performance
+
+37.
+
+En la tabla de clasificación general de Imarena (https://lmarena.ai/leaderboard), se muestran los modelos más recientes en la parte superior.
+
+23
+
+Análisis de la relación de la IA con los resultados clave
+v. 2025.2.a
+
+Modelo de
+capacidades de
+IA de DORA
+Dr. Kevin M. Storer
+Investigador de experiencia del usuario, Google Cloud
+
+Derek DeBellis
+Investigador de experiencia del usuario cuantitativa, Google Cloud
+
+Nathen Harvey
+Líder de DORA, Google Cloud
+
+Modelo de capacidades de IA de DORA
+v. 2025.2.a
+
+24
+
+DORA siempre se esfuerza no solo por describir el estado de la entrega de software, sino
+también por ayudar a las organizaciones a tomar decisiones basadas en datos para lidiar
+con un panorama cambiante de herramientas, técnicas y tecnologías de desarrollo. La IA
+está transformando significativamente el desarrollo de software. Si bien los avances rápidos
+abrieron muchas posibilidades entusiasmantes, también plantean nuevas preguntas sobre
+cómo podría evolucionar el desarrollo de software para aprovechar mejor este momento.
+Por ello, este año fuimos más allá de las preguntas sobre quiénes están adoptando la IA
+y cómo la están usando, para investigar las condiciones en las que los desarrolladores de
+software asistidos por IA obtienen los mejores resultados.
+Presentamos estos hallazgos como nuestro primer modelo de capacidades de IA de DORA.
+Se demostró que las siete capacidades de IA de este modelo inaugural amplifican los
+beneficios de adoptar la IA. En nuestra investigación, que abarca tanto los aspectos técnicos
+como culturales de una organización, se sugiere que invertir en el desarrollo de estas áreas
+puede ayudar a liberar el potencial de las herramientas de IA.
+Al igual que con el modelo principal de DORA,1 seguiremos validando, revisando y
+perfeccionando el modelo de capacidades de IA de DORA con más investigación. Nos
+entusiasma compartir futuras iteraciones con la comunidad de DORA.
+
+Capacidades de IA
+Para desarrollar este modelo,
+planteamos una amplia gama
+de capacidades que podrían
+contribuir a obtener mejores
+resultados para los equipos
+de desarrollo asistidos por IA,
+en función de 78 entrevistas
+en profundidad, opiniones
+fundamentadas de expertos
+líderes en la materia y la
+investigación previa de DORA.
+A través de un extenso debate
+y un proceso de priorización,
+seleccionamos un conjunto
+inicial de 15 capacidades
+candidatas para incluir en la
+encuesta de este año. De siete
+de estas capacidades de IA,
+hallamos pruebas sustanciales
+de que interactuaban con el
+uso de la IA. Es decir, cuando
+los equipos combinaron estas
+capacidades con la adopción de
+la IA, se amplificó la diferencia
+25
+
+que esta marcó en los resultados
+importantes.
+Estas siete capacidades
+el
+Postura claraforman
+y
+núcleo de nuestro
+nuevo sobre
+modelo:
+comunicada
+la IA
+
+Ecosistemas de
+datos en buen
+estado
+
+Enfoque centrado
+en el usuario
+
+Datos internos
+accesibles por la IA
+
+Plataformas internas
+de calidad
+
+Prácticas sólidas de
+control de versiones
+
+Modelo de capacidades de IA de DORA
+v. 2025.2.a
+
+Trabajar en lotes
+pequeños
+
+Postura clara y comunicada
+sobre la IA
+Una “postura clara y comunicada
+sobre la IA” se refiere a
+la comprensibilidad y el
+reconocimiento de la postura
+oficial de una organización sobre
+cómo se espera y se permite
+que sus desarrolladores usen
+herramientas de desarrollo
+asistido por IA. Nuestra medida de
+una postura clara y comunicada
+
+sobre la IA es un factor único,
+compuesto por cuatro indicadores
+individuales, que miden las
+percepciones de los encuestados
+sobre lo siguiente:
+1. el grado en que se espera que
+usen la IA en el trabajo
+2. el grado en que su organización
+apoya a los desarrolladores que
+experimentan con la IA
+3. el grado en que se aclara qué
+herramientas de IA están
+permitidas en el trabajo
+
+4. en qué medida la política de
+IA de su organización se aplica
+directamente a ellos
+De esta manera, una organización
+con una postura clara y
+comunicada sobre la IA es aquella
+que fomenta y espera su uso
+por parte de los desarrolladores,
+apoya la experimentación con
+la IA en el trabajo y explicita
+qué herramientas de IA están
+permitidas y la aplicabilidad de su
+política de IA para el personal.
+
+La política
+dey IA
+modera elsobre
+efecto
+demodera
+la IA ensulaefecto
+eficacia
+individual
+Una postura
+clara
+comunicada
+la IA
+en la
+eficacia individual
+
+Sin fundamento
+
+extremadamente bajo
+
+bajo
+
+Aumento pequeño
+
+Aumento medio
+
+promedio
+
+alto
+
+Aumento grande
+
+extremadamente alto
+
+Postura clara y comunicada sobre la IA
+Figura 31: Una postura clara y comunicada sobre la IA modera su efecto en la eficacia individual
+
+t
+
+La política de IA determina su efecto en el rendimiento de la organización
+
+Sin fundamento
+
+extremadamente bajo
+
+bajo
+
+Aumento pequeño
+
+promedio
+
+Aumento medio
+
+alto
+
+extremadamente alto
+
+Postura clara y comunicada sobre la IA
+Figura 32: Una postura clara y comunicada sobre la IA determina su efecto en el rendimiento de la organización
+
+Modelo de capacidades de IA de DORA
+v. 2025.2.a
+
+26
+
+Una postura
+clara
+comunicada
+la IA
+efecto
+en las complicaciones
+La política
+dey IA
+modera elsobre
+efecto
+demodera
+la IA ensulas
+complicaciones
+
+Sin fundamento
+
+extremadamente bajo
+
+bajo
+
+Disminución media
+
+promedio
+
+alto
+
+extremadamente alto
+
+Postura clara y comunicada sobre la IA
+Figura 33: Una postura clara y comunicada sobre la IA modera su efecto en las complicaciones
+
+Una La
+postura
+clara
+comunicada
+la IA
+en la velocidad de la entrega de software
+política
+deyIA
+modera elsobre
+efecto
+demodera
+la IA ensulaefecto
+velocidad
+
+Sin fundamento
+
+extremadamente bajo
+
+bajo
+
+Aumento pequeño
+
+promedio
+
+alto
+
+Aumento medio
+
+extremadamente alto
+
+Postura clara y comunicada sobre la IA
+Figura 34: Una postura clara y comunicada sobre la IA modera su efecto en la velocidad de la entrega de software
+
+Con un alto grado de certeza,
+descubrimos que los beneficios
+de adoptar la IA dependen de
+que las organizaciones tengan
+una postura clara y comunicada
+sobre ella. Cuando es así, ocurre lo
+siguiente:
+1. Se amplifica la influencia
+positiva de la IA en la eficacia
+individual.
+
+27
+
+2. Se amplifica la influencia
+positiva de la IA en el
+rendimiento organizativo
+informado.
+3. El efecto neutro de la IA en
+las complicaciones se vuelve
+positivo y las disminuye de
+forma demostrada.
+
+Modelo de capacidades de IA de DORA
+v. 2025.2.a
+
+Con un menor grado de certeza,
+también descubrimos que, en
+presencia de una postura clara y
+comunicada sobre la IA, ocurre lo
+siguiente:
+1. Se amplifica la influencia
+positiva de la IA en la velocidad
+de la entrega de software.
+
+En las entrevistas a fondo
+que realizamos este año, los
+desarrolladores expresaron de
+manera rutinaria y constante
+una falta de claridad y
+reconocimiento de la postura de
+sus organizaciones sobre el uso de
+la IA en el desarrollo de software.
+Es importante destacar que esta
+falta de claridad y reconocimiento
+probablemente se manifieste de
+dos formas en el actuar de los
+desarrolladores: 1) son demasiado
+cautelosos y usan la IA menos
+de lo que podrían por temor a
+exceder los parámetros de uso
+aceptable de la organización y 2)
+son demasiado permisivos y usan
+la IA de maneras indebidas que
+exceden los parámetros de uso
+aceptable de la organización.
+Ninguno de estos casos es
+óptimo.
+
+Por este motivo, ya compartimos
+estas estadísticas cualitativas,
+en las que concluimos que las
+organizaciones que tienen una
+postura clara y comunicada
+sobre las expectativas y la
+aceptabilidad de la IA en el
+desarrollo de software pueden
+ayudar a fomentar la confianza
+de los desarrolladores en la
+IA,2 aliviar las preocupaciones
+de los desarrolladores sobre
+la privacidad de los datos en
+los casos en que no están
+justificadas o se deben a
+malentendidos3 y escalar la
+adopción de herramientas de
+desarrollo asistido por IA en toda
+la organización.4
+Estos nuevos hallazgos de la
+encuesta confirman nuestra
+recomendación de invertir en
+dejar en claro la postura de una
+organización sobre el desarrollo
+asistido por IA y comunicársela a
+sus desarrolladores de software, y
+
+demuestran resultados positivos
+medibles de hacerlo para cada
+individuo, equipo y organización.
+Es importante destacar que
+esta capacidad de IA mide la
+claridad y el reconocimiento, no
+el contenido específico, de la
+postura de una organización sobre
+el uso de la IA en el desarrollo
+de software. Esto significa que
+las organizaciones y los equipos
+pueden tomar sus propias
+decisiones sobre qué postura
+de IA es apropiada para ellos,
+en función de sus necesidades
+únicas, según el sector, el puesto y
+la infraestructura de datos.
+Siempre y cuando la postura
+se articule con claridad y
+se comunique ampliamente
+a sus desarrolladores, las
+organizaciones pueden obtener
+mejores resultados positivos de su
+adopción de la IA en sus procesos
+de desarrollo de software.
+
+“¿Por qué no exploré [la IA]
+antes? En parte, por el estigma
+de no saber cómo reaccionarían
+los demás miembros de mi
+equipo y la administración (…)
+Nadie hablaba al respecto. No
+me preocupaba meterme en
+problemas por usarla.
+Sin embargo, tampoco
+tenía certeza de cuánto se
+fomentaría el uso de la IA ni
+de si la organización querría
+que siguiéramos utilizándola,
+así que no quería hacerlo en
+secreto. Tenemos una política
+de IA, pero se enfoca más en
+qué información podemos
+proporcionarle en términos de
+confidencialidad del cliente y
+cosas por el estilo, pero creo que,
+si se fomentara el uso de la IA,
+también podría utilizarla más en
+tareas más rutinarias”.
+Modelo de capacidades de IA de DORA
+v. 2025.2.a
+
+28
+
+De esta manera, una organización
+con un ecosistema de datos en
+buen estado puede entenderse
+como un entorno en el que los
+datos internos son de alta calidad,
+fácilmente accesibles y unificados.
+
+Ecosistemas de datos en
+buen estado
+“Ecosistemas de datos en buen
+estado” se refiere a la calidad
+general de los sistemas de datos
+internos de una organización. En
+nuestro análisis, el estado de los
+ecosistemas de datos se mide
+como factor único, compuesto
+por tres indicadores individuales,
+que miden las percepciones de los
+encuestados sobre lo siguiente:
+
+Con un alto grado de certeza,
+descubrimos que los beneficios
+de adoptar la IA dependen de
+que las organizaciones tengan
+ecosistemas de datos en buen
+estado. Cuando es así, se
+amplifica la influencia positiva
+de la IA en el rendimiento de la
+organización.
+
+1. la calidad general de las fuentes
+de datos internas
+2. la accesibilidad de las fuentes
+de datos internas
+
+Cuando las organizaciones
+invierten en crear y mantener
+ecosistemas de datos unificados,
+accesibles y de alta calidad,
+pueden obtener beneficios aún
+mayores para el rendimiento en
+comparación con solo adoptar
+la IA.
+
+Se suele decir que los modelos de
+IA son tan buenos como los datos
+con los que se entrenan.
+En este caso, parece que esta
+sabiduría convencional se aplica
+a nivel local y organizacional.
+
+3. el grado en que las fuentes de
+datos internas están aisladas o
+divididas entre sí
+
+El estado
+del ecosistema
+de datos
+el efectoelde
+la IA en
+de la organización
+El estado
+del ecosistema
+demodera
+datos modera
+efecto
+deellarendimiento
+IA en el rendimiento
+de la organización
+
+Sin fundamento
+
+extremadamente bajo
+
+Aumento pequeño
+
+bajo
+
+Aumento medio
+
+promedio
+
+alto
+
+Datosestado del ecosistema
+Figura 35: El estado del ecosistema de datos modera el efecto de la IA en el rendimiento de la organización
+
+29
+
+Modelo de capacidades de IA de DORA
+v. 2025.2.a
+
+Aumento grande
+
+extremadamente alto
+
+4. frecuencia con la que usan
+herramientas de IA para
+recuperar información interna
+de la empresa
+
+Datos internos accesibles
+por la IA
+“Datos internos accesibles por
+la IA” se refiere al grado en que
+las herramientas de IA están
+conectadas a fuentes de datos
+y sistemas organizacionales
+internos. Los datos internos
+accesibles por la IA se miden
+como factor único, compuesto por
+cuatro indicadores individuales,
+que miden lo siguiente de los
+encuestados:
+1. percepciones de que las
+herramientas de IA que se usan
+en el trabajo tienen acceso
+a información interna de la
+empresa
+2. percepciones de que las
+respuestas de las herramientas
+de IA usan información interna
+de la empresa como contexto
+3. frecuencia con la que se
+ingresa información interna de
+la empresa en instrucciones
+para herramientas de IA
+
+De esta manera, una organización
+con datos internos accesibles
+por la IA puede entenderse como
+una en la que los trabajadores
+observan que los datos internos
+están disponibles para sus
+sistemas de IA y usan este tipo de
+herramientas para acceder a ellos
+y procesarlos.
+Con un alto grado de certeza,
+descubrimos que los beneficios
+de adoptar la IA dependen de
+que las organizaciones tengan
+datos internos accesibles por la IA.
+Cuando es así, ocurre lo siguiente:
+1. Se amplifica la influencia
+positiva de la IA en la eficacia
+individual.
+2. Se amplifica la influencia
+positiva de la IA en la calidad
+del código.
+Si bien las herramientas de IA
+entrenadas con un conjunto
+general de conocimientos ayudan
+a los desarrolladores a sentirse
+
+más eficaces y a producir código
+de mayor calidad, este hallazgo
+sugiere que la IA puede influir aún
+más en esos objetivos cuando
+se le da acceso a fuentes de
+datos internas que permiten a los
+desarrolladores proporcionarles a
+sus herramientas de IA contexto
+específico de la empresa.
+Esto también sugiere que las
+organizaciones que invierten
+tiempo en conectar sus
+herramientas de IA a sus sistemas
+internos pueden observar mejores
+resultados que las organizaciones
+que dependen del conocimiento
+menos especializado
+proporcionado por modelos de
+base genéricos.
+En otras palabras, maximizar los
+beneficios de la eficacia individual
+y la calidad del código de la IA
+puede requerir una inversión
+más profunda que simplemente
+adquirir licencias de IA. En
+cierto modo, este hallazgo no es
+sorprendente: si la IA no puede
+acceder a los datos internos de la
+empresa, ¿qué tan útil puede ser
+realmente?
+
+Los datos internos accesibles por la IA moderan el efecto de la IA en la eficacia individual
+
+Los datos internos accesibles por la IA moderan el efecto de la IA en la eficacia individual
+
+extremadamente bajo
+
+Sin fundamento
+
+Aumento pequeño
+
+bajo
+
+promedio
+
+Aumento medio
+
+alto
+
+Aumento grande
+
+extremadamente alto
+
+Datos internos accesibles por la IA
+Figura 36: Los datos internos accesibles por la IA moderan el efecto de la IA en la eficacia individual
+
+Modelo de capacidades de IA de DORA
+v. 2025.2.a
+
+30
+
+Los datos
+internos
+accesibles
+por la IApor
+moderan
+el efecto el
+deefecto
+la IA ende
+la calidad
+código del código
+Los datos
+internos
+accesibles
+la IA moderan
+la IA endel
+la calidad
+
+extremadamente bajo
+
+bajo
+
+promedio
+
+alto
+
+Datos internos accesibles por la IA
+Figura 37: Los datos internos accesibles por la IA moderan el efecto de la IA en la calidad del código
+
+“No creo que muchos de mis clientes actuales estén en una etapa en la que puedan tener
+un sistema de IA eficaz (…). Ni siquiera están en una etapa en la que tienen sus datos
+organizados correctamente (…). Están dispersos por toda la empresa y no hay un sistema
+o formato estándar para almacenarlos. Si quieren usar la IA, también requerirán bastante
+trabajo de ingeniería de datos para que el sistema de IA generativa pueda consumirlos.
+Creo que muchas empresas ni siquiera están en la etapa en que pueden utilizar la IA de
+manera eficaz”.
+
+Prácticas sólidas de control
+de versiones
+Desde hace mucho tiempo, las
+prácticas sólidas de control de
+versiones son fundamentales
+para los equipos de desarrollo
+de software de alto rendimiento.
+Estas herramientas proporcionan
+una forma sistemática de
+administrar los cambios en
+el código y otros recursos
+digitales a lo largo del tiempo.
+En la era de la IA generativa, en la
+que el volumen y la velocidad de
+la generación de código aumentan
+drásticamente, se amplifica la
+importancia de estas prácticas.
+En nuestra investigación, se indica
+una poderosa sinergia entre los
+31
+
+hábitos consolidados de control
+de versiones y la adopción de la IA,
+lo que destaca que estas prácticas
+son cruciales para maximizar los
+beneficios de la IA y, al mismo
+tiempo, mitigar sus riesgos.
+Con un alto grado de certeza,
+descubrimos que los beneficios
+de adoptar la IA dependen
+de la frecuencia con la que
+los encuestados realizan
+confirmaciones de control de
+versiones. Específicamente, en
+presencia de confirmaciones
+frecuentes, se amplifica la
+influencia positiva de la IA
+en la eficacia individual.
+Además, descubrimos que los
+beneficios de adoptar la IA
+dependen de la frecuencia con
+la que los encuestados usan las
+funciones de “reversión” de sus
+sistemas de control de versiones
+Modelo de capacidades de IA de DORA
+
+v. 2025.2.a
+
+para deshacer o revertir cambios.
+Específicamente, en presencia de
+reversiones más frecuentes, se
+amplifica la influencia positiva de
+la IA en el rendimiento del equipo.
+Un aspecto clave del control
+de versiones maduro es su
+función como “red de seguridad
+psicológica”, que permite
+a los equipos de desarrollo
+experimentar e innovar con
+confianza, ya que saben que
+pueden volver fácilmente a un
+estado estable si algo sale mal.
+Uno de los ejemplos más tangibles
+es la dependencia de las funciones
+de reversión. La capacidad de
+deshacer cambios con rapidez
+y sin problemas no es solo una
+comodidad, sino un factor
+fundamental para la velocidad
+y la resiliencia.
+
+La velocidad con la que la IA
+puede producir código puede
+ayudar a los desarrolladores a
+sentirse más productivos. Sin
+embargo, como se analizó en el
+capítulo Análisis de la relación de
+la IA con los resultados clave, el
+uso de la IA también se asocia con
+un mayor grado de inestabilidad
+del software.
+
+Nuestra hipótesis es que esto
+se debe, en parte, a que es más
+difícil revisar lotes de código más
+grandes.
+
+poder deshacer rápidamente los
+cambios cuando se trabaja con
+lotes de código más grandes y la
+inestabilidad que pueden producir.
+
+Por lo tanto, si bien depender
+de las reversiones no reduce
+directamente la inestabilidad,
+sospechamos que su efecto
+positivo en el rendimiento de los
+equipos asistidos por IA puede
+relacionarse con la importancia de
+
+La frecuencia de confirmaciones del control de versiones modera el efecto de la IA en la eficacia individual
+
+La frecuencia de confirmaciones del control de versiones modera el efecto de la IA en la eficacia individual
+
+Aumento medio
+
+extremadamente bajo
+
+Aumento grande
+
+bajo
+
+promedio
+
+alto
+
+extremadamente alto
+
+Frecuencia de confirmaciones del control de versiones
+Figura 38: La frecuencia de confirmaciones del control de versiones modera el efecto de la IA en la eficacia individual
+
+La capacidad de revertir modera el efecto de la IA en el rendimiento del equipo
+
+La capacidad de revertir modera el efecto de la IA en el rendimiento del equipo
+
+Aumento pequeño Aumento medio
+
+Sin fundamento
+
+extremadamente bajo
+
+bajo
+
+promedio
+
+alto
+
+extremadamente alto
+
+Capacidad de reversión
+Figura 39: La capacidad de revertir modera el efecto de la IA en el rendimiento del equipo
+
+Modelo de capacidades de IA de DORA
+v. 2025.2.a
+
+32
+
+trabajo que se puede completar
+en un período más corto.
+
+Trabajar en lotes pequeños
+“Trabajar en lotes pequeños”6
+es una capacidad de DORA
+desde hace mucho tiempo, que
+se refiere al nivel en que los
+equipos desglosan los cambios
+en unidades manejables que
+se pueden probar y evaluar
+rápidamente. Trabajar en lotes
+pequeños se mide como factor
+único, compuesto por tres
+indicadores individuales que
+miden lo siguiente:
+1. la cantidad aproximada de
+líneas de código confirmadas
+en el cambio más reciente de la
+aplicación o el servicio principal
+de los encuestados
+2. la cantidad de cambios que
+suelen combinarse en una sola
+versión o implementación
+
+Con un alto grado de certeza,
+descubrimos que los beneficios
+de adoptar la IA dependen de
+que los equipos trabajen en lotes
+pequeños. Cuando es así, ocurre
+lo siguiente:
+1. Se amplifica la influencia
+positiva de la IA en el
+rendimiento de los productos.
+2. El efecto neutro de la IA en
+las complicaciones se vuelve
+positivo y las disminuye de
+forma demostrada.
+Por el contrario, también
+descubrimos que los beneficios
+de adoptar la IA en la eficacia
+individual se reducen ligeramente
+en los equipos que trabajan en
+lotes pequeños.
+
+Un equipo que obtiene una
+puntuación más alta en términos
+de trabajar en lotes pequeños
+es el que confirma menos líneas
+de código por cambio y menos
+cambios por versión, y asigna
+
+Aunque estos resultados son
+mixtos, creemos que, en general,
+indican que trabajar en lotes
+pequeños tiene un efecto neto
+positivo en los equipos asistidos
+por IA. La reducción observada
+en los aumentos informados en
+la eficacia individual por el uso de
+la IA cuando se trabaja en lotes
+pequeños respalda nuestra teoría
+subyacente de que la IA aumenta
+
+33
+
+Modelo de capacidades de IA de DORA
+
+3. cuánto tiempo un desarrollador
+en completar el trabajo
+asignado en una sola tarea
+
+v. 2025.2.a
+
+principalmente las percepciones
+de eficacia individual ayudando
+a los desarrolladores a generar
+rápidamente una gran cantidad de
+código.
+Para los equipos que priorizan
+trabajar en lotes pequeños,
+parece natural que las ganancias
+observadas en la eficacia
+individual sean algo menores.
+Más importante aún, sostenemos
+que la eficacia individual no
+debería ser un objetivo en sí
+mismo, sino un medio para
+aumentar el rendimiento de la
+organización, el equipo y los
+productos, y mejorar el bienestar
+de los desarrolladores.
+En este caso, trabajar en lotes
+pequeños aumenta el rendimiento
+informado de los productos,
+a la vez que disminuye las
+complicaciones percibidas por
+los equipos asistidos por IA.
+Creemos que estos beneficios
+superan cualquier daño potencial
+a la eficacia individual por trabajar
+en lotes pequeños, además de
+los beneficios de trabajar en lotes
+pequeños que se han demostrado
+durante mucho tiempo como
+parte de nuestro modelo principal
+de DORA.7
+
+El tamaño
+delmodera
+lote modera
+el efecto
+IA en el rendimiento
+de los productos
+El tamaño
+del lote
+el efecto
+de la IA de
+en la
+el rendimiento
+de los productos
+
+Sin fundamento
+
+muy grande
+
+grande
+
+Aumento pequeño
+
+promedio
+
+Aumento medio
+
+pequeño
+
+muy pequeño
+
+Tamaño del lote
+Figura 40: El tamaño del lote modera el efecto de la IA en el rendimiento de los productos
+
+El tamaño del lote modera el efecto de la IA en la eficacia individual
+
+El tamaño del lote modera el efecto de la IA en la eficacia individual
+Aumento pequeño
+Aumento grande
+
+muy grande
+
+grande
+
+Aumento medio
+
+promedio
+
+Sin fundamento
+
+pequeño
+
+muy pequeño
+
+Tamaño del lote
+Figura 41: El tamaño del lote modera el efecto de la IA en la eficacia individual
+
+El tamaño del lote modera el efecto de la IA en las complicaciones
+
+El tamaño del lote modera el efecto de la IA en las complicaciones
+
+Disminución pequeña
+
+Sin fundamento
+
+muy grande
+
+grande
+
+promedio
+
+Disminución media
+
+pequeño
+
+muy pequeño
+
+Tamaño del lote
+Figura 42: El tamaño del lote modera el efecto de la IA en las complicaciones
+
+Modelo de capacidades de IA de DORA
+v. 2025.2.a
+
+34
+
+Enfoque centrado en el
+usuario
+El “enfoque centrado en el
+usuario” también es una medida
+que se incluyó en iteraciones
+anteriores de nuestra encuesta
+anual. Se refiere al grado en
+que los equipos consideran las
+experiencias de los usuarios
+finales de su aplicación o servicio
+principal.
+El grado de enfoque centrado
+en el usuario de un encuestado
+se mide como factor único,
+compuesto por tres indicadores
+de la escala de Likert de siete
+puntos, que miden el nivel en que
+los encuestados están de acuerdo
+con lo siguiente:
+1. su enfoque es crear valor para
+los usuarios
+2. la experiencia de los usuarios
+es su prioridad principal
+3. enfocarse en los usuarios
+es clave para el éxito de la
+empresa
+
+De esta manera, un equipo que
+tiene un enfoque centrado en
+el usuario es aquel que prioriza
+la experiencia del usuario y
+comprende su conexión con el
+éxito empresarial.
+Con un alto grado de certeza,
+descubrimos que los efectos
+de adoptar la IA dependen
+de que los equipos tengan un
+enfoque centrado en el usuario.
+Específicamente, cuando se usa
+en equipos que adoptan este
+enfoque, se amplifica la influencia
+positiva de la IA en el rendimiento
+informado por el equipo.
+Es importante destacar que
+también descubrimos que,
+sin un enfoque centrado en el
+usuario, adoptar la IA perjudica
+el rendimiento del equipo.
+En conjunto, estos hallazgos
+demuestran que invertir en
+desarrollar un enfoque centrado
+en el usuario puede generar
+beneficios importantes para
+el rendimiento de los equipos
+asistidos por IA, y no hacerlo
+puede ser perjudicial. Sin un
+enfoque centrado en el usuario, es
+poco probable que adoptar la IA
+
+ayude a los equipos. Incluso puede
+perjudicarlos.
+Siempre hemos sostenido que un
+enfoque centrado en el usuario
+puede ayudar a los equipos a
+aclarar sus objetivos y orientarse
+hacia una estrategia compartida,
+en la que la experiencia del
+usuario sea el norte. Parece ser
+especialmente cierto para los
+equipos de desarrollo asistidos
+por IA, ya que reciben un beneficio
+aún mayor de esta cuando se
+centran en sus usuarios y se
+ven perjudicados por adoptarla
+cuando no es así.
+Estos hallazgos sugieren que las
+organizaciones que fomentan la
+adopción de la IA se beneficiarán
+de incorporar una comprensión
+profunda de sus usuarios finales,
+sus objetivos y sus comentarios
+en sus hojas de ruta y estrategias
+de productos. También ofrecen
+una advertencia importante: si no
+se prioriza un enfoque centrado
+en el usuario que satisfaga las
+necesidades de los usuarios
+finales, adoptar la IA puede
+perjudicar el rendimiento del
+equipo.
+
+“Definitivamente, es el motivo por el que llevo cinco años trabajando aquí:
+siento que hago algo significativo y que ayudo a personas comunes y
+corrientes. Seguiría siendo importante para mí aunque solo ayudara a una
+persona, pero, en este caso, beneficio a millones de usuarios (…). Cuando
+tengo un mal día, por ejemplo, si estoy de mal genio, pensar en este propósito
+me alegra el día y me motiva a trabajar. Básicamente, saber que ayudaré
+a 100,000 usuarios este año con solo desarrollar esta pequeña función”.
+35
+
+Modelo de capacidades de IA de DORA
+v. 2025.2.a
+
+El enfoque centrado en el usuario modera el efecto de la IA en el rendimiento del equipo
+El enfoque centrado en el usuario modera el efecto de la IA en el rendimiento del equipo
+Disminución media
+Disminución pequeña
+Disminución grande
+
+extremadamente bajo
+
+bajo
+
+Aumento pequeño
+
+Sin fundamento
+
+promedio
+
+alto
+
+extremadamente alto
+
+Enfoque centrado en el usuario
+Figura 43: El enfoque centrado en el usuario modera el efecto de la IA en el rendimiento del equipo
+
+“La revelación fue darnos cuenta de que los profesionales clínicos no necesitan
+más herramientas, sino menos ruido. Al principio, suponíamos que el valor
+provendría de ofrecerles funciones más avanzadas, pero descubrimos lo
+contrario: la simplicidad y la invisibilidad de la tecnología fueron las verdaderas
+innovaciones. Un modelo híbrido de IA y seres humanos ofreció más precisión,
+empatía y confianza versus la automatización por sí sola”.
+
+Modelo de capacidades de IA de DORA
+v. 2025.2.a
+
+36
+
+de la IA en el rendimiento de la
+organización.
+
+Plataformas internas de
+calidad
+Anteriormente, nuestra encuesta
+incluyó la comprensión de los
+beneficios de las plataformas
+internas de calidad. En nuestra
+encuesta, las “plataformas”
+se refieren a un conjunto de
+funciones que se comparten
+entre múltiples aplicaciones o
+servicios, con el objetivo de que
+estén ampliamente disponibles
+en toda la organización.
+La calidad de estas plataformas
+se mide como puntuación
+única, que indica cuántas de
+las 12 características tienen las
+plataformas internas según los
+encuestados.
+Con un alto grado de certeza,
+descubrimos que los efectos
+de adoptar la IA dependen de
+que las organizaciones tengan
+plataformas internas de calidad.
+Específicamente, cuando es así,
+se amplifica la influencia positiva
+
+Por el contrario, descubrimos que
+el efecto neutro de la IA en las
+complicaciones informadas por los
+encuestados se vuelve perjudicial.
+Es decir, los encuestados
+experimentan más complicaciones
+en las organizaciones con
+plataformas internas de calidad.
+A pesar de estos resultados
+mixtos, creemos que, en
+general, estos hallazgos indican
+que las plataformas internas
+de calidad tienen un efecto
+neto positivo para los equipos
+asistidos por IA. Si bien estas
+aumentan la eficacia individual
+proporcionando un conjunto
+uniforme de funciones en las
+cuales los equipos de desarrollo
+pueden basarse fácilmente, los
+estándares establecidos por estas
+plataformas también pueden
+dictar límites en torno a cómo
+se pueden usar las herramientas
+de desarrollo (por ejemplo,
+definiendo APIs solo internas
+con controles de seguridad más
+estrictos que sus contrapartes
+externas).
+
+De esta manera, las plataformas
+internas de calidad pueden
+cumplir su función tanto
+aumentando el acceso a las
+funciones deseadas como
+limitando el acceso a las no
+deseadas.
+Como aún no llegamos a un
+conjunto estandarizado de
+prácticas recomendadas para
+usar herramientas de desarrollo
+asistido por IA, suponemos que
+las plataformas internas de calidad
+pueden tener predominantemente
+este último efecto en este
+espacio: evitar el uso inapropiado.
+Esto podría explicar los aumentos
+en las complicaciones para
+quienes adoptaron la IA en mayor
+medida, lo que no necesariamente
+es una consecuencia negativa
+para la organización.
+Por este motivo, y debido a sus
+beneficios en el rendimiento de
+la organización, creemos que
+diseñar y mantener plataformas
+de desarrollo internas de calidad
+es una capacidad importante para
+que las organizaciones desarrollen
+software con éxito en un entorno
+asistido por IA.
+
+Las plataformas
+internas
+moderan
+el efecto
+de la IA de
+en el
+de la organización
+Las
+plataformas
+internas
+moderan
+el efecto
+larendimiento
+IA en el rendimiento
+de la organización
+
+Sin fundamento
+
+extremadamente bajo
+
+bajo
+
+Aumento medio
+Aumento pequeño
+
+promedio
+
+alto
+
+Puntuación de la plataforma escalada
+Figura 44: Las plataformas internas moderan el efecto de la IA en el rendimiento de la organización
+
+37
+
+Modelo de capacidades de IA de DORA
+v. 2025.2.a
+
+Aumento grande
+
+extremadamente alto
+
+Cómo poner en práctica el modelo de
+capacidades de IA de DORA
+
+Figura 45: Modelo de capacidades de IA de DORA
+
+Los hallazgos de este capítulo
+sugieren que aprovechar la IA
+en el desarrollo de software no
+es tan sencillo como adoptar
+nuevas herramientas, sino que
+las organizaciones deben cultivar
+un entorno técnico y cultural
+específico para obtener los
+mayores beneficios.
+
+Modelo de capacidades de IA de DORA
+v. 2025.2.a
+
+38
+
+Estos son algunos consejos prácticos basados en las siete capacidades de IA de DORA:
+Aclara y divulga tus políticas de IA
+
+Reduce el tamaño de los elementos de trabajo
+
+La ambigüedad en torno a la IA dificulta la
+adopción y crea riesgos. Establece y divulga
+una política clara sobre las herramientas y usos
+permitidos para generar confianza entre los
+desarrolladores. Esta claridad proporciona la
+seguridad psicológica necesaria para experimentar
+con eficacia, lo que reduce las complicaciones y
+amplifica el efecto positivo de la IA en la eficacia
+individual y el rendimiento de la organización.
+
+Si bien la IA puede aumentar la percepción de la
+eficacia individual generando grandes cantidades
+de código, nuestros hallazgos demuestran
+que esta no es necesariamente la métrica más
+importante. En cambio, enfócate en los resultados.
+Aplica la disciplina de trabajar en lotes pequeños,
+lo que mejora el rendimiento de los productos
+y reduce las complicaciones para los equipos
+asistidos por IA.
+
+Considera los datos como recurso estratégico
+Los beneficios de la IA en el rendimiento de la
+organización se amplifican significativamente con
+un ecosistema de datos en buen estado. Invierte en
+la calidad, accesibilidad y unificación de tus fuentes
+de datos internas. Cuando tus herramientas de IA
+pueden aprender de datos internos de alta calidad,
+aumenta su valor para tu organización.
+Conecta la IA a tu contexto interno
+Conecta tus herramientas de IA a tus sistemas
+internos para ir más allá de la asistencia genérica
+y desbloquear mejoras en la eficacia individual
+y la calidad del código. Esto significa ir más allá
+de simplemente adquirir licencias y, en cambio,
+invertir en el esfuerzo de ingeniería para darles
+a tus herramientas de IA acceso seguro a
+documentación interna, bases de código y otras
+fuentes de datos. Así, proporcionarás el contexto
+específico de la empresa necesario para que las
+herramientas sean lo más eficaces posible.
+Adopta y fortalece tus redes de seguridad
+La programación asistida por IA puede aumentar
+el volumen y la velocidad de los cambios, lo que
+también puede generar más inestabilidad. Tu
+sistema de control de versiones es una red de
+seguridad fundamental. Anima a los equipos
+a volverse muy competentes en el uso de las
+funciones de reversión, ya que esta práctica se
+asocia con un mejor rendimiento del equipo en un
+entorno asistido por IA.
+1.
+2.
+3.
+4.
+5.
+6.
+
+Centra las necesidades de los usuarios en la
+estrategia de productos
+Las personas pueden experimentar grandes
+aumentos en su eficacia personal cuando adoptan
+la IA, pero, si las necesidades de sus usuarios no
+son su prioridad, podrían moverse rápidamente
+en la dirección equivocada. Descubrimos que
+adoptar herramientas de desarrollo asistido por IA
+puede perjudicar a los equipos que no tienen un
+enfoque centrado en el usuario. Por el contrario,
+mantener las necesidades de los usuarios como
+el objetivo principal de un producto puede guiar
+a los desarrolladores asistidos por IA hacia los
+objetivos adecuados y tiene un efecto positivo
+excepcionalmente fuerte en el rendimiento de los
+equipos que usan IA.
+Invierte en tu plataforma interna
+Una plataforma interna de calidad es un factor
+clave para aumentar los efectos positivos de la
+IA en el rendimiento de la organización. Estas
+plataformas proporcionan las protecciones
+necesarias y las funciones compartidas que
+permiten que los beneficios de la IA se escalen de
+forma eficaz y segura en toda la organización.
+
+“DORA’s Research Program”: https://dora.dev/research
+“Fostering developers’ trust in generative artificial intelligence”: https://dora.dev/research/ai/trust-in-ai
+“Concerns beyond the accuracy of AI output”: https://dora.dev/research/ai/concerns-beyond-accuracy-of-ai-output
+“Helping developers adopt generative AI: Four practical strategies for organizations”: https://dora.dev/research/ai/adopt-gen-ai
+“Working in small batches”: https://dora.dev/capabilities/working-in-small-batches
+“DORA’s Research Program”: https://dora.dev/research
+
+39
+
+Modelo de capacidades de IA de DORA
+v. 2025.2.a
+
+Ingeniería de
+plataformas
+
+Ingeniería de plataformas
+v. 2025.2.a
+
+Eric Maxwell
+Líder de 10x Technology, Google Cloud
+
+Benjamin Good
+Líder de Ingeniería de Plataformas,
+Google Cloud
+
+40
+
+En nuestro informe del 2024, comenzamos a explorar los efectos de las plataformas internas
+en el rendimiento de la entrega de software1 y descubrimos que mejoran el rendimiento y la
+productividad de la organización. Sin embargo, los beneficios conllevan una desventaja: un
+aumento en la inestabilidad de la entrega de software y una disminución en la velocidad.
+La investigación de este año va más allá de confirmar el valor de la ingeniería de plataformas
+para explorar cómo operan y entregan valor las plataformas exitosas. En los datos, se revela
+que las plataformas no son solo un conjunto de herramientas, sino una experiencia integral
+que influye directamente en el rendimiento, el bienestar y la capacidad de una organización
+para aprovechar las tecnologías transformadoras. Descubrimos que los usuarios perciben
+sus plataformas como una sola entidad; su eficacia general importa más que la calidad de
+cualquier función individual.
+En este capítulo, se analizan los patrones clave que definen el estado de la ingeniería de
+plataformas, desde la adopción generalizada y las estructuras de equipos hasta su papel
+crucial como base estratégica para la innovación y la administración de riesgos.
+
+Nuestros hallazgos clave
+La adopción de plataformas es casi universal:
+un 90%.
+Los equipos dedicados a las plataformas son el
+modelo organizativo dominante, con un 76%,
+por lo que el desafío del liderazgo ya no es
+adoptar plataformas, sino administrar de forma
+eficaz un entorno de múltiples equipos.
+Una plataforma de alta calidad amplifica los
+efectos de adoptar la IA en el rendimiento de la
+organización. La influencia positiva de la IA en
+este ámbito es fuerte cuando la calidad de la
+plataforma es alta.
+
+41
+
+Las plataformas de alta calidad son un
+multiplicador de fuerzas que mejora
+el rendimiento y la productividad de la
+organización, y el bienestar del equipo.
+Una plataforma debe considerarse una entidad
+integral que les brinde una gran experiencia a
+los desarrolladores.
+Una plataforma funciona como motor
+para administrar el riesgo, lo que permite
+la velocidad y la experimentación que
+corresponden a un aumento pequeño pero
+tangible en la inestabilidad de la entrega de
+software: una compensación aceptable a
+cambio de un mayor rendimiento general.
+
+Ingeniería de plataformas
+v. 2025.2.a
+
+El panorama de las plataformas:
+omnipresentes, complejas y basadas
+en equipos
+La mayoría de las organizaciones
+ahora tiene una plataforma interna,
+lo que demuestra que ya no se
+debate sobre la necesidad de
+contar con una, sino sobre cómo
+se debe crear. En nuestros datos,
+se muestra que el 90% de las
+organizaciones adoptó al menos
+una plataforma y el 29% de las
+organizaciones usa actualmente un
+entorno con varias de ellas.
+En concordancia, el 76% de las
+organizaciones tiene al menos un
+equipo dedicado a la plataforma
+y más de una cuarta parte de
+todos los encuestados (29%)
+
+trabaja en una organización con
+múltiples equipos de plataforma.
+La prevalencia del uso de múltiples
+plataformas y de varios equipos
+dedicados a ellas no es tanto
+un indicio de herramientas
+redundantes, sino más bien un
+reflejo de que las organizaciones
+están dejando atrás un modelo
+universal. En cambio, están
+creando plataformas y equipos
+federados y especializados
+para atender dominios y pilas
+tecnológicas distintos.
+El desafío para los líderes pasó
+de simplemente “tener una
+
+plataforma” a “administrar
+una plataforma compleja de
+plataformas”. Al igual que las
+aplicaciones, las plataformas
+se beneficiarán de adoptar la
+capacidad de DORA de equipos
+con acoplamiento bajo2 para
+ayudar a abordar la complejidad.
+Para ello, se deben establecer
+estatutos e interfaces claros
+entre los equipos para garantizar
+que el ecosistema mejore
+colectivamente la experiencia de
+los desarrolladores en vez de crear
+nuevos silos organizacionales.
+
+Lo que importa es la experiencia
+general
+Les pedimos a los encuestados que
+calificaran el rendimiento de sus
+plataformas en ciertas funciones.
+Por ejemplo, “La plataforma
+me ayuda a crear y ejecutar
+aplicaciones y servicios seguros”.
+Encontramos una brecha en
+la experiencia. Las funciones
+técnicas principales, como
+“la plataforma ayuda con la
+confiabilidad y la seguridad”, se
+perciben bien atendidas, mientras
+que las de experiencia del usuario,
+incluidas “tomar medidas según
+los comentarios” y “qué tan bien
+se automatizan las tareas”, se
+quedan un poco atrás.
+
+Percepciones
+las funciones
+de la plataforma
+Percepciones
+de lasde
+funciones
+de la plataforma
+
+Presencia de cada característica de la plataforma
+Funciona como se espera
+Me ayuda a seguir los procesos requeridos
+Me ayuda a crear y ejecutar
+aplicaciones seguras
+Me ayuda a crear y ejecutar
+aplicaciones confiables
+Proporciona las herramientas y la
+información que necesito para trabajar
+de forma independiente
+La interfaz de usuario (IU) es
+clara y sencilla
+
+El equipo responde a los comentarios
+Es fácil de usar
+
+Automatiza las tareas que realizo
+
+0%
+
+50%
+
+75%
+
+100%
+
+Porcentaje de encuestados
+Totalmente
+
+Mucho
+
+Moderadamente
+
+En parte
+
+Nada
+
+Figura 46: Percepciones de las funciones de la plataforma
+
+Ingeniería de plataformas
+v. 2025.2.a
+
+25%
+
+42
+
+La impresión general que tiene un
+desarrollador de la plataforma, ya
+sea como socio útil o fuente de
+complicaciones, influye mucho
+en cómo califica cada función. La
+agrupación relativamente ajustada
+de las funciones muestra que
+los encuestados no perciben la
+plataforma como una lista de partes
+discretas, sino que la experimentan
+como una sola entidad.
+
+La brecha de experiencia
+probablemente refleja plataformas
+en las que primero se desarrollan
+los fundamentos técnicos.
+Estos datos muestran que,
+hasta que se aborde la
+experiencia del usuario, seguirá
+desaprovechándose el valor total
+de la plataforma.
+
+Adoptar la mentalidad de que
+la plataforma es un producto,
+lo que significa considerar las
+herramientas de desarrollo
+internas como productos y a los
+desarrolladores como clientes,
+ayuda a garantizar que el usuario
+siga siendo el foco, un hallazgo
+clave en el informe del 2024.
+
+La centralización en el usuario es la forma de evitar algunos de los errores comunes cuando
+se crean plataformas internas para desarrolladores, como los siguientes:
+• Crea una plataforma y los
+usuarios llegarán solos: Un
+equipo crea una plataforma
+según lo que considera que
+necesitan los desarrolladores,
+sin realizar investigaciones,
+entrevistas ni validaciones con
+los usuarios. Se enfoca por
+completo en la tecnología y la
+ingeniería, y supone que su valor
+será evidente por sí mismo.
+
+plataforma funciona como
+una máquina expendedora
+de infraestructura. No tiene
+visión ni hoja de ruta; su trabajo
+es completamente reactivo
+y está impulsado por una
+fila interminable de tickets
+de desarrolladores (como
+“Aprovisióname una base
+de datos” o “Configura una
+canalización de CI/CD”).
+
+• Por qué falla: Nadie termina
+usando la plataforma porque
+no resuelve problemas reales
+y abrumadores para los
+desarrolladores, o no se ajusta a
+sus flujos de trabajo existentes.
+
+• Por qué falla: Se genera un
+cuello de botella y se agrega
+trabajo repetitivo tanto para
+el equipo de plataforma como
+para los desarrolladores. El
+equipo dedica todo su tiempo
+a solicitudes puntuales y
+nunca tiene capacidad para
+crear funciones cohesivas de
+autoservicio.
+
+• Un enfoque de producto
+comienza con la empatía
+y el descubrimiento del
+desarrollador. El equipo
+de plataforma interactúa
+continuamente con sus usuarios
+para comprender sus mayores
+desafíos, lo que garantiza
+que cree una solución que las
+personas realmente querrán y
+usarán.
+• La trampa de las operaciones
+de tickets: El equipo de
+
+43
+
+• Un enfoque en el producto se
+centra en crear una plataforma
+de autoservicio con una hoja
+de ruta clara. El objetivo es
+eliminar las colas de tickets,
+ya que se les permite a los
+desarrolladores aprovisionar
+recursos por sí mismos a través
+de herramientas automatizadas
+y reutilizables, y rutas de
+referencia.
+
+Ingeniería de plataformas
+v. 2025.2.a
+
+• La plataforma de la torre
+de marfil: Un equipo
+central dicta la arquitectura
+y las herramientas de la
+plataforma desde arriba,
+imponiendo estándares
+estrictos sin colaboración ni
+bucles de retroalimentación.
+El equipo actúa como
+guardián de la tecnología y
+no como habilitador de los
+desarrolladores.
+• Por qué falla: Este enfoque
+puede hacer que los
+desarrolladores se sientan
+impotentes y, a menudo, se
+generan casos de shadow
+IT o soluciones alternativas
+extraoficiales para eludir las
+restricciones de la plataforma,
+lo que frustra su propósito.
+• Un gerente de producto para la
+plataforma busca activamente
+comentarios y trata a los
+desarrolladores como clientes.
+La plataforma está diseñada
+para ser habilitadora, no solo
+restrictiva, y ofrece rutas
+establecidas que son fáciles
+y deseables de usar, pero no
+necesariamente obligatorias.
+
+Matriz de correlación de las funciones de la plataforma
+
+cr
+ea
+
+La
+s
+
+a
+
+Ay
+ud
+a
+
+cr
+ea
+Ay
+ud
+a
+
+a
+
+ra
+
+pl
+ic
+ac
+io
+ne
+ra
+ta
+s
+p
+co
+lic
+re
+as
+nf
+ac
+ia
+io
+Ab
+es
+bl
+ne
+tá
+st
+es
+s
+n
+ra
+se
+bi
+e
+en
+gu
+la
+ra
+co
+au
+Se
+s
+m
+to
+co
+p
+m
+le
+m
+at
+jid
+po
+iz
+ad
+ad
+rt
+Br
+a
+as
+de
+co
+in
+da
+la
+m
+in
+o
+co
+fr
+es
+m
+ae
+P
+pe
+en
+st
+tr rop
+ra
+ta
+ru
+ab o
+b
+r
+rio
+ct
+a
+aj ci
+ur
+ar on
+s
+a
+Lo de a h clar
+e
+f
+o
+s
+or rr
+de e
+s
+so
+m am
+m qu
+a
+br
+is ip
+in ie
+e
+o
+Fá com s a de nta
+la
+s
+p
+s
+ci
+ct
+e
+ta
+e
+p
+ld
+nd a
+nt úa
+re
+ra
+e
+ar n
+i
+as
+us
+io en ent
+a
+s
+La
+fu e
+r
+n
+IU
+ci
+ón
+es
+se
+nc
+i ll
+a
+y
+li m
+pi
+a
+
+Matriz de correlación de las funciones de la plataforma
+
+0.46
+
+0.51
+
+0.51
+
+0.52
+
+0.47
+
+0.56
+
+0.40
+
+0.39
+
+0.45
+
+0.41
+
+Ayuda a crear aplicaciones confiables
+
+0.58
+
+0.60
+
+0.52
+
+0.54
+
+0.60
+
+0.54
+
+0.45
+
+0.49
+
+0.48
+
+Ayuda a crear aplicaciones seguras
+
+0.49
+
+0.49
+
+0.51
+
+0.61
+
+0.53
+
+0.47
+
+0.51
+
+0.44
+
+Las tareas están bien automatizadas
+
+0.49
+
+0.54
+
+0.62
+
+0.51
+
+0.50
+
+0.50
+
+0.43
+
+Abstrae la complejidad de la infraestructura
+
+0.51
+
+0.62
+
+0.49
+
+0.41
+
+0.50
+
+0.50
+
+Se comporta como esperaba
+
+0.63
+
+0.54
+
+0.54
+
+0.57
+
+0.47
+
+Brinda comentarios claros sobre las tareas
+
+0.62
+
+0.60
+
+0.66
+
+0.65
+
+Proporciona herramientas para trabajar de forma independiente
+
+0.47
+
+0.58
+
+0.51
+
+Los equipos actúan en función de mis comentarios
+
+0.51
+
+0.45
+
+Fácil de usar
+
+0.71
+
+Ayuda a seguir los
+procesos requeridos
+
+Figura 47: Matriz de correlación de las funciones de la plataforma
+
+Cuando se consideran las
+funciones y cómo se relacionan
+entre sí, todas están más o menos
+entrelazadas de manera uniforme,
+pero hay dos que se destacan de
+las demás.
+En primer lugar, la función
+más relacionada con una
+experiencia del usuario positiva es
+proporcionar comentarios claros
+sobre las tareas.
+Si la plataforma proporciona
+comentarios claros cuando
+una tarea tiene éxito o falla, los
+usuarios se sienten capaces de
+actuar, solucionar problemas y
+
+dar el siguiente paso, en vez de
+tener que analizar la situación y
+resolverla por su cuenta.
+
+significa que enfocarse en mejorar
+una sola función de forma aislada
+es una estrategia errada.
+
+En segundo lugar, la afirmación “La
+IU es sencilla y limpia” tiene una
+correlación más baja: si bien tener
+una IU limpia puede mejorar las
+percepciones, no necesariamente
+se traduce en una plataforma
+eficaz.
+
+Para mejorar la calidad percibida
+de la plataforma, los equipos
+deben tratarla como un producto
+interno integral y enfocarse en
+mejorar todo el recorrido del
+desarrollador. Si una plataforma
+es técnicamente excelente, pero
+no está centrada en el usuario
+(consulta el informe de DORA del
+2024),3 no puede considerarse
+exitosa.
+
+Aunque proporcionar comentarios
+claros y ofrecer una IU limpia
+se relacionan estrechamente
+con otras funciones, aún se
+encuentran entre las más bajas en
+términos de percepción, lo que
+
+Ingeniería de plataformas
+v. 2025.2.a
+
+44
+
+Un multiplicador de fuerzas para el
+rendimiento, el bienestar y el riesgo
+Una plataforma de alta calidad,
+según la definen nuestras
+capacidades, tiene un efecto
+amplio y estadísticamente positivo
+en todos los ámbitos. Se relaciona
+con un mayor rendimiento de la
+organización y de los productos, y
+mayor productividad.
+
+Efecto estimado de las plataformas internas de calidad en los resultados clave
+Efecto estimado de las plataformas internas de calidad en los resultados clave
+Eficacia individual
+Rendimiento de la organización
+Rendimiento de los productos
+Calidad del código
+Rendimiento del equipo
+
+De acuerdo con investigaciones
+anteriores, descubrimos que una
+mejor plataforma se asocia con un
+aumento pequeño pero tangible
+en la inestabilidad de la entrega
+de software, lo que significa una
+mayor tasa de errores de cambios
+y más trabajo de reestructuración.
+
+Nota: Un aumento aquí no es un resultado deseable
+
+Inestabilidad en la
+entrega de software
+Velocidad de la
+entrega de software
+Agotamiento
+0.0
+
+0.2
+
+Efecto estimado (estandarizado)
+
+0.4
+
+Para los resultados en naranja (p. ej., el agotamiento), es deseable un efecto negativo.
+intervalos creíbles del 89%
+
+Para los resultados en naranja, como el agotamiento, es deseable un efecto negativo.
+Intervalos creíbles del 89%
+Figura 48: Efecto estimado de las plataformas internas de calidad en los resultados clave
+
+“A grandes rasgos, la idea era intentar hacer entregas continuas lo más posible. Si una
+solución llegó a la línea principal, envíala, intenta ejecutar algunas pruebas para detectar
+problemas e impleméntala ya. En general, eso estaba bien porque, incluso si algo
+fallaba durante la implementación, había muchas cosas pequeñas que impedían
+que el sitio se cayera. Por lo tanto, una implementación podría fallar y tal vez debamos
+corregirla rápidamente, pero el sitio seguirá funcionando”.
+Una gran plataforma actúa como
+un multiplicador de fuerzas, lo que
+se traduce directamente en mejor
+rendimiento y productividad.
+El aumento correspondiente
+en la inestabilidad puede ser
+representativo de un sistema de
+alta velocidad en buen estado, en
+el que la inestabilidad adicional
+es aceptable, siempre y cuando
+no afecte el rendimiento de los
+productos.
+
+El aumento en el rendimiento
+a pesar del aumento en la
+inestabilidad sugiere una forma
+de compensación de riesgos
+en la que la plataforma permite
+recuperarse de las fallas de
+forma rápida y económica, y los
+equipos tienen la capacidad de
+experimentar más y aceptar una
+tasa más alta de fallas menores en
+pos de la velocidad.
+
+45
+
+Ingeniería de plataformas
+v. 2025.2.a
+
+El ligero aumento en la
+inestabilidad debe considerarse
+
+una compensación aceptable
+a cambio de las ganancias
+significativas en el rendimiento
+que permite la plataforma. Es
+probable que las mejoras en el
+rendimiento de los productos sean
+más influyentes que las pequeñas
+ganancias en la velocidad de
+entrega y la reducción en la
+estabilidad de entrega.
+Invertir en una plataforma de alta
+calidad es una palanca estratégica
+potente con amplios beneficios.
+
+El imperativo estratégico: la plataforma
+es la clave para desbloquear la IA
+El efecto positivo de adoptar
+la IA en el rendimiento
+organizacional depende de la
+calidad de la plataforma interna.
+Adoptar la IA tiene un efecto
+insignificante en el rendimiento
+de la organización cuando la
+calidad de la plataforma es baja,
+pero, cuando es alta, el efecto
+es intenso y positivo. Este es
+un hallazgo fundamental para
+cualquier líder que invierta en IA.
+
+Las plataformas internas moderan el efecto de la IA en el rendimiento de la organización
+
+Las plataformas internas moderan el efecto de la IA en el rendimiento de la organización
+
+Sin fundamento
+
+extremadamente bajo
+
+bajo
+
+Aumento medio
+Aumento pequeño
+
+promedio
+
+alto
+
+Aumento grande
+
+extremadamente alto
+
+Puntuación de la plataforma escalada
+Figura 49: Las plataformas internas moderan el efecto de la IA en el rendimiento de la organización
+
+“Wayfair aprendió que los mayores beneficios no solo provinieron de
+detectar fallas más rápido, sino también de reducir el esfuerzo necesario
+para corregirlas. La incorporación de IA en el bucle de CI/CD demostró
+que los desarrolladores interactúan más con las sugerencias específicas y
+explicables, así como las correcciones generadas automáticamente, cuando
+se ofrecen de forma transparente en las herramientas que ya usan”.
+
+Ingeniería de plataformas
+v. 2025.2.a
+
+46
+
+Una plataforma de alta calidad
+cumple dos propósitos cuando
+amplifica los efectos de la IA en
+el rendimiento organizativo. En
+primer lugar, actúa como la capa
+de distribución y administración
+necesaria para escalar los
+beneficios de la IA, desde las
+ganancias de productividad
+individuales hasta las mejoras
+organizacionales sistémicas.
+Sin esta base, adoptar la IA
+sigue siendo una serie de
+optimizaciones locales inconexas.
+La plataforma proporciona el
+contexto centralizado y abstrae las
+partes difíciles o tediosas de hacer
+que la IA sea utilizable y eficaz a
+gran escala. Dicho esto, la IA está
+cambiando a un ritmo rápido.
+Ten cuidado de no estandarizar
+
+demasiado las prácticas,
+herramientas y métodos de IA, ya
+que probablemente limitarás los
+efectos positivos y la capacidad
+de adaptación a medida que la IA
+cambie.
+En segundo lugar, como la
+plataforma sirve para mitigar
+riesgos cuando no se considera la
+IA, estos efectos son igualmente
+útiles para la IA. La plataforma
+debe usarse para crear un espacio
+seguro que permita a las personas
+aprender y experimentar. Este
+espacio ayudará a la plataforma
+y a los equipos dedicados a ella a
+crecer y adaptarse para respaldar
+mejor nuevos modelos, modos de
+interacción y formas de desarrollar
+aplicaciones.
+
+Además, ya sea que el código se
+cree de forma manual o con IA,
+se aplican los mismos procesos
+automatizados de prueba e
+implementación, lo que ayuda
+a garantizar que los cambios
+incorporados en las aplicaciones
+y los servicios sean seguros.
+Es poco probable que una
+inversión en IA sin una
+correspondiente en plataformas
+de alta calidad genere
+retornos significativos a nivel
+organizacional. Para aprovechar
+realmente la IA y obtener una
+ventaja competitiva, los líderes
+deben considerar la ingeniería de
+plataformas como un habilitador
+estratégico fundamental.
+
+Tres imperativos para la era
+de las plataformas
+Adopta la experiencia integral
+No se puede arreglar una
+plataforma deficiente
+mejorando una sola función.
+Considera tu plataforma un
+producto completo y enfócate
+en todo el recorrido del
+desarrollador, desde los ciclos
+de retroalimentación hasta la
+automatización.
+
+Haz que tu plataforma sea la
+base de la IA
+
+Usa tu plataforma para
+calibrar tu tolerancia al riesgo
+
+Tu plataforma es el requisito
+estratégico previo para
+desbloquear el valor
+organizacional de la IA.
+
+Una plataforma excelente
+cambia la relación de tu
+organización con el riesgo, ya
+que hace que las fallas sean
+económicas y fáciles de revertir.
+
+Es el motor que convertirá
+tus inversiones en IA en una
+verdadera ventaja competitiva.
+
+1.
+
+Informe Accelerate State of DevOps del 2024: https://dora.dev/dora-report-2024
+
+2.
+
+“Loosely coupled teams”: https://dora.dev/capabilities/loosely-coupled-teams
+
+3.
+
+Informe Accelerate State of DevOps del 2024: https://dora.dev/dora-report-2024
+
+47
+
+Ingeniería de plataformas
+v. 2025.2.a
+
+Comprende y administra el
+equilibrio entre la velocidad que
+esto permite y la inestabilidad
+resultante, reconociendo que
+la plataforma no elimina los
+efectos locales de ese riesgo.
+
+El espejo de la IA: cómo
+refleja y amplifica las
+verdaderas capacidades
+de una organización
+Dr. Eirini Kalliamvakou
+Asesor de investigación de la oficina del
+director general, GitHub
+
+El espejo de la IA
+v. 2025.2.a
+
+48
+
+En el informe de DORA del año pasado, se reveló que los
+equipos que usan la IA informaron un menor rendimiento y
+mayor inestabilidad en la entrega de software. Los hallazgos
+inesperados generaron un debate candente: ¿cómo podía
+una tecnología creada para acelerar el trabajo relacionarse
+con resultados más inestables y lentos?
+Este año, el panorama cambió un poco. Ahora, adoptar la IA
+ayudó a aumentar el rendimiento, pero la inestabilidad aún
+persiste. Esta combinación de progreso y complicaciones
+nos llevó a profundizar y mirar más allá de las comparaciones
+binarias simples de la IA para comprender qué determina
+realmente su efecto.
+Lo que descubrimos apunta a algo más grande que las
+herramientas y las habilidades: el factor que más determina
+el efecto de la IA es el entorno donde se aloja.
+
+Más allá de las herramientas para
+impulsar el efecto de la IA
+Uno de los resultados más
+interesantes de la investigación
+de este año es el modelo de
+capacidades de IA de DORA.
+El efecto del uso de la IA en
+resultados como el rendimiento, la
+calidad del código y el rendimiento
+del equipo y la organización se
+amplificó de manera constante
+por siete capacidades:
+1. Una postura clara y comunicada
+sobre la IA
+2. Un ecosistema de datos en
+buen estado
+3. Datos internos accesibles por
+la IA
+4. Prácticas sólidas de control de
+versiones
+
+6. Enfoque centrado en el usuario
+7. Una plataforma interna de
+calidad
+Estas condiciones sistémicas
+reflejan cómo una organización
+estructura su trabajo, apoya a sus
+equipos y alinea su entorno con las
+prácticas de desarrollo modernas.
+Estas capacidades pueden
+ayudar a determinar si el uso de
+herramientas de IA se traduce en
+resultados significativos, lo que
+las convierte en amplificadores. El
+hecho de que todas sean a nivel
+de equipo y organización refuerza
+un cambio fundamental necesario
+en la forma de plantear el papel de
+la IA en la entrega de software.
+
+5. Trabajar en lotes pequeños
+49
+
+El espejo de la IA
+v. 2025.2.a
+
+Notamos que los efectos
+de la IA en el rendimiento
+dependen del sistema en el
+que se realiza el trabajo. Por
+ejemplo, un ecosistema de
+datos en buen estado integrado
+con herramientas de IA puede
+ayudar a crear condiciones
+que impulsen los beneficios
+de la IA, desde mejoras en la
+productividad individual hasta
+avances organizacionales. Sin esas
+iniciativas básicas para preparar a
+los usuarios de la IA para el éxito,
+sus beneficios pueden estancarse,
+dejar de crecer o distribuirse de
+manera desigual.
+Para aprovechar esta información,
+debemos cambiar el enfoque de
+cómo los individuos usan la IA a
+cómo las organizaciones diseñan
+los sistemas que los rodean.
+
+Las organizaciones son sistemas, no
+sumas de individuos
+Para comprender qué se
+necesita para escalar el efecto
+de la IA desde las ganancias de
+productividad individuales hasta los
+beneficios a nivel organizacional,
+debemos pensar en los sistemas.
+Las organizaciones se parecen
+menos a conjuntos de personas
+y herramientas, y más a redes
+de partes interdependientes. El
+trabajo fluye a través de equipos,
+procesos, políticas, infraestructura
+y normas compartidas. Si bien
+las capacidades individuales
+desempeñan un papel crucial en
+la definición de los resultados, el
+rendimiento general surge de la
+forma en que interactúan todas
+estas partes.
+Esta idea es fundamental para
+el pensamiento sistémico, una
+perspectiva que dio forma a la
+evolución de las organizaciones
+de alto rendimiento. W. Edwards
+Deming,1 uno de los fundadores
+de la gestión de calidad moderna,
+argumentó que la mayoría de los
+problemas de rendimiento no
+provienen de las personas, sino
+de los sistemas. Como dijo en una
+ocasión: “Un mal sistema siempre
+vencerá a una buena persona”.
+En un sistema, mejorar una parte
+no garantiza mejores resultados
+en general. De hecho, las mejoras
+locales pueden bloquearse, diluirse
+o incluso revertirse si el resto del
+sistema no puede adaptarse.
+Esta es también la idea central
+de la teoría de las restricciones.2
+Todos los sistemas tienen un
+factor limitante, una restricción,
+que rige la cantidad de valor
+que pueden ofrecer. Enfocarse
+
+en cualquier otra cosa que no
+sea la restricción puede parecer
+productivo, pero no mejorará
+significativamente el flujo de valor.
+Este fenómeno tiene implicaciones
+para la adopción de la IA.
+Cuando los desarrolladores usan
+herramientas de IA y escriben
+código más rápido, este aún debe
+pasar por colas de pruebas y
+revisión, seguidas de procesos de
+integración e implementación.
+Es poco probable que el ritmo
+general de la entrega cambie
+significativamente, a menos que
+los flujos de trabajo circundantes
+se actualicen para las nuevas
+herramientas de los desarrolladores
+y la mayor velocidad. El sistema no
+está diseñado para mantener las
+ganancias y mucho menos para
+amplificarlas.
+Ya conocemos esta historia.
+Durante el cambio a la nube,
+las empresas que simplemente
+trasladaron la infraestructura
+sin repensar la arquitectura y las
+prácticas de entrega obtuvieron
+retornos limitados.
+Sin embargo, las organizaciones
+que reestructuraron sus
+aplicaciones, equipos y operaciones
+para los flujos de trabajo nativos
+de la nube pudieron desbloquear
+valor real. Lo mismo ocurrió con el
+desarrollo ágil y DevOps: ambos
+cumplieron sus promesas solo
+cuando se combinaron con cambios
+profundos en los puestos, los ciclos
+de retroalimentación y los límites
+entre equipos.
+
+Por ello, adoptar la IA debe
+considerarse una iniciativa de
+transformación. Si la organización
+quiere avanzar más rápido,
+experimentar más y cambiar la forma
+en que los desarrolladores invierten
+su tiempo, deberá replantear cómo
+fluye el trabajo en sí.
+¿Los sistemas posteriores, como
+la integración, las pruebas, la
+implementación y el cumplimiento,
+son lo suficientemente flexibles
+y responsivos para aprovechar
+la velocidad de la IA? ¿Las
+estructuras de toma de decisiones
+siguen el ritmo del trabajo? ¿Se
+incentiva a los equipos a delegar
+tareas, verificar los resultados de
+la IA a gran escala y compartir
+conocimientos de nuevas formas?
+Sin cambios intencionales en los
+flujos de trabajo, los puestos, la
+administración y las expectativas
+culturales, es probable que las
+herramientas de IA sigan siendo
+mejoras aisladas en un sistema
+que, de otro modo, no cambia, lo
+que representa una oportunidad
+perdida. Para escalar el efecto
+de la IA, las organizaciones
+deberían invertir en rediseñar sus
+sistemas, lo que implica identificar
+restricciones, optimizar el flujo y
+propiciar condiciones en las que la
+aceleración local se convierta en
+impulso organizacional.
+¿Cómo podría ser esa
+transformación?
+
+El espejo de la IA
+v. 2025.2.a
+
+Las nuevas y potentes tecnologías
+y herramientas solo producen
+los resultados transformadores
+correspondientes cuando el
+sistema que las rodea evoluciona.
+
+50
+
+Dos modos de transformación:
+aumento y evolución
+A medida que las organizaciones
+buscan el valor total de la
+IA, podemos plantear la
+transformación como dos
+rutas complementarias: una se
+enfoca en aumentar los sistemas
+existentes para eliminar las
+complicaciones y respaldar
+la velocidad que ofrecen las
+herramientas de IA, y la otra
+imagina cómo la IA posibilita
+nuevos modos de trabajo.
+
+Aumento: preparar los
+sistemas para aprovechar
+las ganancias
+Cuando los desarrolladores
+comienzan a usar herramientas
+de IA y experimentan mejoras
+en la productividad, pero los
+equipos no notan un aumento
+correspondiente en el rendimiento
+o la velocidad de entrega, el
+sistema en sí puede ser el factor
+limitante.
+
+Revisiones de código y transferencias:
+Considera dónde puede la IA acelerar y aclarar
+los pasos existentes. Por ejemplo, las primeras
+revisiones generadas por IA pueden revelar
+problemas rápidamente y reducir el tiempo
+dedicado a los comentarios de rutina. Estructurar
+la entrada de la IA para destacar los riesgos o
+resumir las diferencias también puede hacer que
+las revisiones sean más fáciles y rápidas para los
+seres humanos.
+Canalizaciones de integración e implementación:
+El código generado por IA se mueve rápido.
+¿Pueden tus sistemas seguirle el ritmo? Es
+posible que las canalizaciones de integración e
+implementación continuas deban evolucionar para
+reducir los estados de espera y permitir una entrega
+de mayor frecuencia. Las verificaciones de calidad
+potenciadas por IA pueden agregarse en capas sin
+agregar puertas manuales, lo que mejora el flujo sin
+sacrificar la garantía.
+Infraestructura de datos: El modelo de capacidades
+de IA apunta al valor de invertir en la actualización
+de la infraestructura de datos. En primer lugar, los
+beneficios de la IA para la productividad y la calidad
+del código se amplifican cuando los modelos y las
+herramientas de IA se conectan a datos internos.3
+Piensa en repos, herramientas de seguimiento
+del trabajo, documentación y hasta registros de
+decisiones y herramientas de comunicación. Agregar
+este contexto valioso mejora el resultado de las
+herramientas de IA. En relación con la importancia del
+contexto, el segundo hallazgo fue que los beneficios
+de la IA para el rendimiento organizacional son
+mayores cuando el ecosistema de datos está en buen
+estado, es decir, cuando los datos son accesibles por
+la IA, precisos y completos.4
+51
+
+El espejo de la IA
+v. 2025.2.a
+
+El aumento significa identificar
+y resolver esos puntos de
+complicación para que la
+aceleración individual pueda fluir
+hacia abajo.
+
+Protocolos de seguridad y privacidad: Ahora
+que la IA participa en los flujos de trabajo de
+desarrollo y operaciones, las prácticas de
+seguridad deben evolucionar. Esto incluye
+garantizar el uso seguro de las herramientas,
+actualizar las políticas y presentar sistemas
+de supervisión basados en IA que mantengan
+la confianza sin generar cuellos de botella.
+Automatizar partes de estos procesos puede
+ayudar a los equipos a mantener la velocidad.
+
+Administración de cambios y alineación
+cultural: Como cualquier transformación
+organizacional, adoptar la IA requiere visión,
+apoyo y comunicación, todos rasgos del liderazgo
+transformacional.5 Los líderes deben articular
+los objetivos a largo plazo de la transformación
+potenciada por IA, ya sea la innovación, la
+velocidad o la calidad, y apoyar la transición
+con capacitaciones, prácticas compartidas y
+expectativas realistas.
+La cultura también es importante. Los equipos
+necesitan permiso para experimentar, cometer
+errores, desarrollar fluidez y compartir lo que
+aprenden. Recompensar comportamientos como
+la verificación, la delegación, la selección de
+instrucciones y la organización de agentes envía
+las señales correctas sobre cómo se ve el éxito en
+un entorno acelerado por IA.
+
+Evolución: diseñar en función
+de las posibilidades de la IA
+Además de mejorar los sistemas
+existentes, la IA ofrece la
+oportunidad de diseñar nuevos
+flujos de trabajo, enfoques que
+son nativos del funcionamiento
+de la IA.
+
+Canalizaciones de entrega nativas de la IA: La IA puede analizar
+continuamente el código en busca de errores, vulnerabilidades de
+seguridad y violaciones de los estándares del equipo. Puede sugerir
+pruebas y hasta generarlas de forma dinámica. Con los datos y las
+integraciones adecuados, la IA también puede predecir los riesgos de
+implementación y las regresiones de rendimiento antes de que ocurran.
+Sistemas de datos nativos de IA: La IA puede ayudar a mantener
+su propio entorno organizando, etiquetando, limpiando y analizando
+datos, lo que permite generar estadísticas con más solidez e iterar
+más rápido en las decisiones basadas en datos. También revela
+patrones en la forma en que trabajan los equipos, lo que ofrece
+nuevas palancas para la mejora operativa.
+Seguridad nativa de la IA: La IA puede expandir la capacidad de
+los equipos de seguridad detectando amenazas antes, identificando
+comportamientos anómalos y hasta automatizando partes del proceso
+de respuesta ante incidentes. Para los equipos de seguridad que a
+menudo tienen pocos recursos, el papel de la IA puede ser aliviar la
+presión y, al mismo tiempo, mejorar los tiempos de respuesta.
+Modelos de colaboración nativos de IA: Las prácticas emergentes,
+como los flujos de trabajo de agentes y el swarming, están
+empezando a cambiar la forma en que los seres humanos y la IA
+trabajan juntos. Los flujos de trabajo de agentes asignan tareas a
+agentes de IA autónomos, mientras que el swarming permite que los
+equipos y la IA converjan dinámicamente en problemas complejos.
+Aunque todavía están en etapas tempranas, estos patrones sugieren
+nuevos modos de colaboración más adaptativos.
+Las tendencias emergentes como
+la IA continua6 ilustran cómo los
+flujos de trabajo nativos de la IA
+pueden mantenerse a largo plazo.
+La IA continua trata al sistema
+de IA como una parte viva de la
+canalización de desarrollo y un
+participante en los procesos del
+equipo.
+La IA continua percibe los eventos
+que ocurren en el contexto del
+proyecto de forma continua y,
+operando de forma autónoma
+pero colaborativa, facilita las
+interacciones del equipo y ajusta
+la dirección junto con el equipo.
+La clave es que el sistema o
+los agentes de IA se actualicen
+constantemente con el contexto
+pertinente y se midan siempre
+en cuanto a precisión, utilidad
+y costo.
+
+El espejo de la IA
+v. 2025.2.a
+
+Esto mantiene la IA alineada con
+la arquitectura, las prácticas y
+las prioridades en evolución de
+la organización, lo que garantiza
+que sus resultados sigan siendo
+pertinentes y de alta calidad a
+medida que cambia el entorno.
+En el aumento y la evolución, el
+hilo conductor es la intención.
+Implementar herramientas
+de IA por sí solo no producirá
+una transformación, pero, en
+combinación con cambios
+pragmáticos y visionarios a nivel
+del sistema, adoptar la IA puede
+ser un catalizador para reformular
+la forma en que se crea,
+entrega y protege el software.
+
+52
+
+Por dónde empezar: pasos prácticos
+para la transformación potenciada
+por IA
+Cuanto antes una organización
+comience a tratar la adopción
+de la IA como un esfuerzo de
+transformación, más control tendrá
+sobre cómo se desarrolla. La
+tecnología evoluciona rápidamente,
+pero el verdadero diferenciador
+radica en la eficacia con la que
+responden las organizaciones.
+Comenzar antes de que los
+procesos antiguos se consoliden
+en torno a las nuevas herramientas
+significa que las organizaciones
+pueden dar forma al futuro de sus
+sistemas, en lugar de heredarlos de
+forma predeterminada.
+
+Un primer paso natural es
+examinar cómo fluye el trabajo
+en la actualidad, lo que, en la
+práctica, significa crear visibilidad
+compartida sobre cómo las
+ideas pasan de la concepción a la
+entrega. Este proceso, conocido
+comúnmente como administración
+de flujos de valor, puede ayudar
+a los equipos a visualizar cada
+etapa de la entrega, desde la
+programación y la revisión de
+código hasta las pruebas, la
+implementación y la producción.
+
+53
+
+El espejo de la IA
+v. 2025.2.a
+
+Cuando se hace bien, la asignación
+del flujo de trabajo expone
+dónde se acumulan los costos de
+coordinación, dónde son comunes
+los retrasos y la repetición del
+trabajo, y dónde el sistema
+absorbe o detiene la aceleración
+aportada por las herramientas de
+IA. Puede ayudar a enfocarse en
+los factores que, según la teoría
+de las restricciones, permitirán
+obtener el mayor valor.
+
+Para comenzar a asignar el flujo
+de trabajo, las organizaciones
+pueden formar pequeños grupos
+de trabajo multifuncionales
+compuestos por profesionales
+integrados en las operaciones
+diarias de entrega de software,
+incluidos ingenieros, gerentes de
+producto, ingenieros de datos,
+operaciones y seguridad. Estos
+grupos están en la mejor posición
+para mapear el sistema desde
+adentro y revelar las fallas de
+coordinación y los cuellos de
+botella, además de identificar
+dónde la IA podría desempeñar un
+papel transformador.
+Estos esfuerzos son más eficaces
+cuando cuentan con el patrocinio
+de los ejecutivos. Este respaldo
+indica importancia estratégica,
+garantiza que el trabajo tenga
+recursos y crea una ruta clara desde
+el descubrimiento hasta la acción.
+El mandato de estos grupos de
+trabajo es hacer recomendaciones
+estratégicas: ¿Dónde debería
+adaptarse el sistema para
+incorporar la IA? ¿En qué casos
+puede la IA aumentar los procesos o
+puestos? ¿Qué capacidades deben
+desarrollarse para desbloquear el
+
+valor a largo plazo?
+En algunos casos, un facilitador o
+asesor externo puede ayudar a guiar
+el proceso, ofrecer comparativas y
+mantener la conversación enfocada
+en oportunidades sistémicas que
+pueden generar mejoras más
+amplias.
+Para que el cambio se arraigue,
+la información debe provenir de
+quienes están dentro del sistema.
+Cuando los profesionales impulsan
+el descubrimiento y el liderazgo
+se compromete a habilitar los
+resultados, las condiciones para
+una transformación significativa
+comienzan a tomar forma.
+Es fundamental que este
+trabajo se aborde con un
+pensamiento sistémico. Como
+se analizó anteriormente, las
+organizaciones son sistemas
+complejos. Mejorar un nodo,
+como acelerar la generación
+de código, no aumentará el
+rendimiento, a menos que
+los componentes adyacentes
+evolucionen en paralelo. El modelo
+de capacidades de IA de DORA
+proporciona información sobre
+qué intervenciones a nivel de la
+El espejo de la IA
+
+v. 2025.2.a
+
+organización amplificarán los
+beneficios de la IA.
+Por ejemplo, un grupo de trabajo
+podría descubrir que, si bien las
+herramientas de IA son capaces
+de proporcionar sugerencias
+valiosas, con frecuencia
+generan respuestas que omiten
+contexto fundamental, como
+las convenciones del equipo, la
+historia de la arquitectura o los
+incidentes pasados.
+Esto probablemente no sorprenda
+a muchas organizaciones, ya que
+dicha información suele estar
+enterrada en sistemas dispares y
+canales de conocimiento informales.
+En respuesta, el grupo podría
+recomendar exponer la
+documentación interna, los
+registros de decisiones y los tickets
+históricos a los modelos de IA de
+una manera estructurada y segura.
+Podría proponer la creación de
+flujos de trabajo que etiqueten y
+muestren automáticamente este
+contexto durante el desarrollo
+o la revisión, lo que reduciría el
+tiempo que los desarrolladores
+dedican a buscar y mejoraría la
+calidad de los resultados de la IA.
+54
+
+Como alternativa, el grupo
+de trabajo podría explorar
+cómo se podría usar la IA para
+identificar documentación
+desactualizada, resumir largas
+discusiones de proyectos y
+detectar incoherencias entre lo
+que hacen los sistemas y lo que la
+documentación afirma que hacen.
+Esto puede ayudar a convertir el
+conocimiento fragmentado en un
+recurso estructurado y práctico.
+
+Además de los cambios en
+los procesos, estos grupos de
+trabajo también pueden revelar la
+necesidad de nuevas habilidades
+y puestos. A medida que los
+desarrolladores delegan más
+trabajo a las herramientas de IA,
+las tareas como la verificación,
+la organización y el diseño de
+flujos de trabajo se vuelven más
+centrales.
+Las organizaciones deberán
+definir cómo son esos puestos,
+cómo respaldarlos y cómo alinear
+los incentivos en consecuencia.
+
+Esto incluye proporcionar
+capacitación específica más allá
+de las herramientas sobre cómo la
+IA puede cambiar la naturaleza del
+trabajo de desarrollo.
+Ninguno de estos cambios se
+produce automáticamente ni de
+una sola vez. Requieren intención,
+propiedad y apoyo sostenido, pero
+no requieren perfección desde el
+principio.
+Cuando las organizaciones
+comienzan con poco, invierten
+con un propósito y crean una
+responsabilidad compartida en
+todos los puestos, pueden generar
+impulso. La transformación se
+arraiga paso a paso, capacidad a
+capacidad.
+
+“La transformación cultural es tan importante como las herramientas. Para
+lograr el éxito, no solo fue necesario incorporar automatización y métricas,
+sino también alinear a los equipos en torno a objetivos y responsabilidades
+compartidos”.
+
+55
+
+El espejo de la IA
+v. 2025.2.a
+
+La IA como espejo y multiplicador
+La IA tiene el potencial de
+cambiar la forma en que se crea
+el software, pero no cambia los
+sistemas organizacionales por sí
+sola. Lo que sí hace, a menudo
+muy rápido, es reflejar cómo
+operan realmente esos sistemas.
+En las organizaciones bien
+alineadas, la IA amplifica el flujo.
+En las fragmentadas, revela
+los puntos problemáticos. Los
+equipos que tienen prácticas
+sólidas, flujos de trabajo flexibles
+y contexto compartido suelen ver
+beneficios inmediatos.
+Los equipos que dependen de
+procesos frágiles y conocimientos
+implícitos pueden notar esas
+brechas más que nunca.
+
+Por ello, la IA funciona como
+espejo y multiplicador: destaca lo
+que funciona y acelera lo que ya
+está en movimiento, pero también
+revela lo que se debe cambiar.
+Para las organizaciones que están
+listas para buscar, el reflejo que
+ofrece la IA se convierte en una
+hoja de ruta. Como vimos con
+otras transformaciones anteriores,
+las organizaciones que estén
+dispuestas a tratar la adopción
+de la IA como una oportunidad
+para evolucionar la forma en
+que se realiza el trabajo serán
+las que más se beneficien, tanto
+de las herramientas como de la
+transformación que posibilitan.
+
+1.
+
+The W. Edwards Deming Institute: https://deming.org
+
+2.
+
+“Theory of constraints”: https://en.wikipedia.org/wiki/Theory_of_constraints
+
+3.
+
+Modelo de capacidades de IA de DORA
+
+4.
+
+Ibid.
+
+5.
+
+“Transformational leadership”: https://dora.dev/capabilities/transformational-leadership
+
+6.
+
+“Continuous AI”: https://githubnext.com/projects/continuous-ai
+
+El espejo de la IA
+v. 2025.2.a
+
+56
+
+Cómo poner la investigación en
+práctica: tu turno de experimentar
+Nathen Harvey
+Líder de DORA, Google Cloud
+
+Los hallazgos del informe de este
+año son complejos y, en ocasiones,
+pueden parecer contradictorios,
+lo que refleja la realidad de un
+campo en constante cambio.
+Te recomendamos que no
+consideres nuestros hallazgos
+como prescripciones rígidas, sino
+como hipótesis para tus propios
+experimentos.
+Estas son algunas formas en las
+que puedes poner en práctica esta
+investigación:
+• Realiza experimentos en tu
+organización: Usa los hallazgos
+de DORA para formular
+hipótesis y probarlas en tus
+equipos. Así, podrás obtener
+más información sobre tu
+
+contexto operativo específico y,
+además, identificar las áreas de
+mejora más influyentes.
+• Realiza encuestas internas:
+Inspírate en las preguntas
+utilizadas en la encuesta de
+este año1 para diseñar tu propia
+encuesta. Personalízalas con
+preguntas más específicas que
+sean directamente pertinentes
+para tus equipos y proyectos.
+• Adopta la experiencia
+integral: Recuerda que mejorar
+una sola función no corregirá
+una plataforma defectuosa.
+Trata tus plataformas internas
+como productos, enfocándote
+en todo el recorrido del
+desarrollador, desde los ciclos
+de retroalimentación hasta la
+automatización.
+
+Únete a la conversación
+Gracias por interactuar con
+nuestra investigación. Te
+invitamos a continuar el recorrido
+con nosotros. Comparte tus
+experiencias, aprende de tus
+pares y encuentra inspiración
+uniéndote a la comunidad de
+DORA en https://dora.community.
+
+1.
+
+“DORA Research: 2025 Survey questions”: https://dora.dev/research/2025/questions
+
+57
+
+Reflexiones finales
+v. 2025.2.a
+
+• Comparte lo que aprendiste:
+A medida que realices tus
+propios experimentos y
+recopiles estadísticas, difunde
+ese conocimiento en toda
+tu organización, ya sea a
+través de informes formales,
+comunidades de práctica
+informales o conversaciones. El
+objetivo es fomentar una cultura
+de aprendizaje continuo.
+El mayor riesgo en este panorama
+en evolución no es quedarse
+atrás, sino invertir mucho en una
+actividad caótica que no logra
+ofrecer resultados significativos.
+Elige los marcos de trabajo y
+enfoques que resuenen con tu
+organización y te impulsen a la
+acción.
+
+Agradecimientos
+La investigación de DORA es un
+testimonio del potencial de una
+comunidad global apasionada
+y colaborativa. Agradecemos
+enormemente a los miles de
+investigadores, expertos,
+profesionales, líderes y agentes
+de transformación que comparten
+sus conocimientos y experiencias
+con tanta generosidad. Este
+informe es el resultado directo
+de ese esfuerzo colectivo.
+También queremos agradecerte
+a ti como lector. Esperamos que
+estos hallazgos te permitan a ti
+y a tus equipos generar cambios
+significativos y mejoras continuas
+en sus organizaciones.
+
+Patrocinadores
+
+Equipo del informe de DORA
+
+El informe de DORA del 2025
+contó con el apoyo de los
+siguientes patrocinadores. Obtén
+más información sobre ellos en el
+sitio web de DORA.1
+
+Dr. Matt Beane
+
+Patrocinadores de platino
+
+James Brookbank
+Kim Castillo
+Dra. Sarah D’Angelo
+Derek DeBellis
+Rob Edwards
+Edward Fraser
+Benjamin Good
+
+Patrocinadores de oro
+
+Socios de investigación
+
+Nathen Harvey
+Dra. Sarah Inman
+
+El informe de DORA del 2025 es
+presentado por Google Cloud y IT
+Revolution en colaboración con los
+siguientes socios de investigación.
+
+Dr. Eirini Kalliamvakou
+Gene Kim
+
+Patrocinadores de plata
+Presentado por
+
+Eric Maxwell
+Ambar Murillo
+Allison Park
+Dr. Daniel Rock
+Dr. Kevin M. Storer
+
+Socios de investigación
+
+Dra. Daniella Villalba
+Steve Yegge
+Jessie Young
+
+Agradecimientos
+v. 2025.2.a
+
+58
+
+Editor
+
+Blanca Delgado
+
+Jerome Simms
+
+Seth Rosenblatt
+
+Thomas De Meo
+
+Dustin Smith
+
+Accuracy Matters2
+
+Dra. Nicole Forsgren
+
+Dave Stanke
+
+Vivian Hu
+
+Laura Tacho
+
+Guías de la comunidad de
+DORA
+
+Jez Humble
+
+Adrienne Braganza Tacke
+
+Dhruv Agarwal
+
+Michelle Irvine
+
+Finn Toner
+
+Lisa Crispin
+
+Ben Jose
+
+Cedric Yao
+
+Steve Fenton
+
+Deepti Kamat
+
+Miembros de la comunidad de
+DORA
+
+Denali Lumma
+
+Amanda Lewis
+
+Betsalel (Saul) Williamson
+
+Mike Long
+Steve McGhee
+
+Asesores y expertos en el
+campo
+
+Rebecca Murphey
+
+Socios de investigación y
+diseño
+Apparent:3 Desarrollo de la marca
+de DORA
+
+Jacek Ostrowski
+Ameer Abbas
+Justin Reock
+
+Human After All:4 Diseño del
+informe de DORA
+
+Colette Alexander
+Willy Rouvre
+Christy Barrett
+
+Prolific:5 Apoyo a la infraestructura
+de investigación
+
+Ryan J. Salva
+Sander Bogdan
+Harini Sampath
+Kevin Borders
+Dadisi Sanyika
+Adam Brown
+Robin Savinar
+Michele Chubirka
+Sean Sedlock
+Andrew Davis
+
+1.
+
+“DORA 2025 Sponsors”: https://dora.dev/research/2025/sponsors
+
+2.
+
+“Accuracy Matters”: https://accuracymatters.co.uk
+
+3.
+
+“We Are Apparent”: https://apparent.com.au
+
+4.
+
+“Human After All: Clarity through creativity”: https://www.humanafterall.studio
+
+5.
+
+“Prolific | Easily collect high-quality data from real people”: https://www.prolific.com
+
+6.
+
+“User Research for Product Development | User Research International”: https://www.uriux.com
+
+59
+
+Agradecimientos
+v. 2025.2.a
+
+User Research International:6
+Apoyo a la infraestructura de
+investigación
+
+Próximos pasos
+
+Únete a DORA Community para debatir,
+aprender y colaborar en torno a la mejora del
+efecto de las organizaciones y los equipos
+tecnológicos: https://dora.community
+
+Lee el libro
+Flow engineering: From Value Stream Mapping to
+Effective Action. IT Revolution: https://itrevolution.
+com/product/flow-engineering
+
+Explora las capacidades que propician un ambiente
+adecuado para el aprendizaje, los procesos veloces
+y la retroalimentación rápida: https://dora.dev/
+capabilities
+
+Publicaciones del programa de investigación de
+DORA, incluidos informes anteriores de DORA:
+https://dora.dev/publications
+
+Lee el libro
+Accelerate: The Science of Lean Software and
+DevOps: Building and Scaling High Performing
+Technology Organizations. IT Revolution: https://
+itrevolution.com/product/accelerate
+Lee el libro Team Topologies: Organizing Business
+and Technology Teams for Fast Flow. IT Revolution:
+https://itrevolution.com/product/team-topologies/
+
+Revisa las preguntas frecuentes sobre la
+investigación y los informes: https://dora.dev/faq
+Lee el informe y envía cambios, correcciones y
+aclaraciones: https://dora.dev/publications/errata
+
+Comprueba si esta es la versión más reciente
+del informe de DORA del 2025: https://dora.
+dev/vc/?v=2025.2.a
+
+Lee el libro
+The Skill Code: How to Save Human Ability in an Age
+of Intelligent Machines. HarperCollins: https://www.
+harpercollins.com/products/the-skill-code-mattbeane
+Próximos pasos
+v. 2025.2.a
+
+60
+
+“El estado del desarrollo de
+software asistido por IA” de
+Google LLC cuenta con una
+licencia CC BY-NC-SA 4.0.
+
+61
+v. 2025.2.a
+
+Sigue mejorando cada vez más
+dora.dev
+
+
