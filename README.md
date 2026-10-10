@@ -416,7 +416,7 @@ With `FLOWS_ENABLED=true` (default) the bot is the companion for Alan's talk:
 |---|---|---|
 | Welcome menu | greeting (`hola`, `menu`, …), or after the first question | WhatsApp list message on Meta; numbered text elsewhere (`1`–`5`) |
 | Explore the talk | menu 1 or any question | Claude answers from `app/kb/core/*.md` (whole, prompt-cached) and searches `app/kb/sources/*` with the `search_sources` tool (BM25, no vector DB) |
-| AI maturity assessment | menu 2, `diagnóstico`/`quiz`, or the agent's `start_assessment` tool | Deterministic (`app/flows/quiz.py`): 9 questions on the talk's 7 domains + adoption + measurement, L0–L3, cap at L1 without sponsorship/ownership, 3 next steps. Result note goes to the Slack thread. `salir`/`exit` stops it |
+| AI maturity assessment | menu 2, `diagnóstico`/`quiz`, or the agent's `start_assessment` tool | Deterministic (`app/flows/quiz.py`): 9 questions on the talk's 7 domains + adoption + measurement, L0–L3, cap at L1 without sponsorship/ownership, 3 next steps. Result note goes to the Slack thread. `salir`/`exit` stops it. If the person first describes their company (typed or by voice note), the agent pre-scores the domains their story clearly covers and the quiz asks only the rest (see **Voice notes and assessments from a story**) |
 | About Alan | menu 3 | Agent answers from `app/kb/core/about.md` |
 | Talk to Alan | menu 4, `humano`, or the agent's `talk_to_alan` tool | Slack handoff (existing) |
 | Slides / PDFs | menu 5, `lámina 8`, `slides`, `pdf`, or the agent's `send_slides` / `create_topic_pdf` / `send_assessment_report` tools | See **PDF documents** below |
@@ -457,7 +457,7 @@ Attendees can send a JPG/PNG/WebP/GIF or a PDF (with or without a caption) and a
 - Limits: photos 4 MB, PDFs 8 MB and 20 pages (`app/attachments.py`). The size is checked on the declared size and while streaming; the real type is sniffed from the bytes, not trusted from the sender.
 - Nothing is saved to disk, and the chat history keeps only a text note (`[Attached image: name]`), never the file.
 - The prompt tells Claude to treat file contents as data, not instructions, and not to repeat IDs or card numbers it sees.
-- Audio, video, stickers, other types, files too big, unreadable PDFs and download failures get a short polite reply (ES/EN). During the quiz, a file is asked to wait.
+- Video, stickers, other types, files too big, unreadable PDFs and download failures get a short polite reply (ES/EN). During the quiz, a file is asked to wait. Voice notes: see below.
 - A caption like `humano` still hands off to Alan. In the Slack thread the file shows as `📎 name`; the file itself is not forwarded.
 - Meta only. Twilio gets the "photos, PDFs and text only" reply.
 
@@ -468,6 +468,39 @@ from app import docs
 open("deck.pdf", "wb").write(docs.make_deck().data)            # whole deck
 open("s8.pdf", "wb").write(docs.make_deck("8").data)           # one slide
 ```
+
+## Voice notes and assessments from a story
+
+Attendees can send a WhatsApp voice note instead of typing: a question, an assessment answer ("la tercera"),
+or a few minutes about their company, what they struggle with and how they approach AI.
+
+Claude doesn't take audio, so `app/voice.py` transcribes the note first with any OpenAI-compatible
+`/audio/transcriptions` endpoint, then the transcript goes through the normal flow as if it had been typed
+(goodbye and `humano` keywords, quiz, menu, off-topic guard, agent). The agent sees it as `[Voice note] …`.
+
+| Variable | Default | |
+|---|---|---|
+| `TRANSCRIBE_API_KEY` | (empty) | Turns voice notes on. Empty = voice notes get the "photos and PDFs only" reply, as before |
+| `TRANSCRIBE_BASE_URL` | `https://api.openai.com/v1` | Groq: `https://api.groq.com/openai/v1` |
+| `TRANSCRIBE_MODEL` | `gpt-4o-mini-transcribe` | Groq: `whisper-large-v3-turbo` |
+| `VOICE_ENABLED` | `true` | `false` turns voice notes off even with a key |
+
+- Limits: 4 MB per note (~15+ minutes of WhatsApp voice), and each note counts toward `USER_FILES_PER_DAY`.
+  Ogg/Opus (WhatsApp voice notes), MP3, M4A, WAV and WebM are accepted, sniffed from the bytes; AMR/AAC get a polite reply.
+- The audio is never written to disk: it is sent to the transcription service and dropped. Only the transcript
+  is kept (chat history, and a `🎙️ Transcript:` note in the Slack thread). Note that the audio does leave for that
+  third-party service. Transcription cost is not counted in the token caps.
+- Download or transcription failures and silent notes get a short ES/EN reply asking to resend or type it.
+- Meta only, like photos and PDFs.
+
+**Assessment from a story.** When someone describes their company (by voice or text) and wants a diagnostic, the
+agent calls `start_assessment` with `known`: a 0–3 score for each domain their account *clearly* supports, on
+the quiz's own answer scale (the options are in the tool description, generated from `app/flows/quiz.py`).
+The quiz then lists what it scored ("Con lo que me contaste ya califiqué 4 de 9 dominios: …") and asks only
+the missing domains; with all 9 covered the result and PDF arrive right away. Scoring is unchanged. The result
+text, the PDF and the Slack note mark the domains that came from the person's account. If someone only shares
+their story, the agent reflects it back in light of the talk and offers to turn it into the diagnostic.
+If a pre-scored domain looks wrong, the person types `salir` and asks for the full assessment.
 
 ## Conversation lifecycle & guardrails
 
@@ -541,7 +574,7 @@ Usage of every model call (main agent and guard) is recorded per user per day
 |---|---|---|---|
 | `USER_MSG_PER_MINUTE` | 6 | inbound messages per user, rolling minute | "Recibí muchos mensajes seguidos; dame un minuto 🙂", once per burst |
 | `USER_MSG_PER_DAY` | 120 | inbound messages per user per day | daily-limit note + offer to type *humano*, once a day |
-| `USER_FILES_PER_DAY` | 10 | inbound photos/PDFs per user per day | file isn't downloaded; note once a day |
+| `USER_FILES_PER_DAY` | 10 | inbound photos/PDFs/voice notes per user per day | file isn't downloaded; note once a day |
 | `USER_TOKENS_PER_DAY` | 300000 | input+output tokens per user, all model calls | no more model calls for that user today; note once a day |
 | `DAILY_TOKEN_BUDGET` | 5000000 | input+output tokens, everyone | 80%: one top-level Slack alert mentioning `SLACK_ALERT_USER_ID`; 100%: model calls stop for everyone (another alert) |
 

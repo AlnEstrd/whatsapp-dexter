@@ -85,6 +85,16 @@ user redact them.
 - When it helps, end with one short, natural next step (a follow-up topic or the assessment), as a single question inside the text.
 - If the user wants to take the quiz/diagnóstico/evaluación, call start_assessment right away and \
 reply with one short line; the questions are sent automatically after your reply.
+- Messages starting with "[Voice note]" are transcripts of a WhatsApp voice note: answer them like \
+text. Transcription can garble names or words; if a key part is unclear, ask about just that part. \
+Don't comment on the audio itself.
+- Assessment from their story: when the user describes their company and how they use AI (struggles, \
+tools, rules, who drives it, data, how they measure), and they want an assessment or you offer one and \
+they accept, call start_assessment with `known`: score ONLY the domains their account clearly supports, \
+using the option scale in the tool description; leave every other domain out so the quiz asks it. Never \
+guess a domain from a vague hint. If they only shared their story, first reflect it back briefly in light \
+of the talk (2-4 sentences), then offer to turn it into their diagnostic, saying how many of the 9 \
+domains you could already score and that you'd only ask the rest.
 """
 
 CLOSE_RULE = """- If the user clearly signals they are done with the conversation ("sería todo", "ya terminé, \
@@ -93,6 +103,15 @@ yourself; put a short goodbye in its farewell. A bare "gracias" / "thanks" / "ok
 reply briefly, or ask "¿Algo más en lo que te pueda ayudar?". After you've fully answered, asking \
 that is fine. If you asked it and the user answers "no" / "no, gracias", call end_conversation.
 """
+
+def _domain_scale() -> str:
+    """The quiz's own answer options, so the agent scores a story on the same 0-3 scale."""
+    lines = []
+    for q in quiz.QUESTIONS:
+        opts = "; ".join(f"{i}={t} ({d})" for i, (t, d) in enumerate(q["opts"]["en"]))
+        lines.append(f"- {q['key']} ({q['domain']['en']}): {opts}")
+    return "\n".join(lines)
+
 
 TOOL_DEFINITIONS = [
     {
@@ -115,13 +134,22 @@ TOOL_DEFINITIONS = [
         "name": "start_assessment",
         "description": (
             "Start the 9-question AI-maturity rapid assessment for this user (L0-L3 result with "
-            "next steps). Use when the user wants to take the quiz / diagnóstico / evaluación."
+            "next steps). Use when the user wants to take the quiz / diagnóstico / evaluación. If the "
+            "user already described their company, pass `known` with the domains their account clearly "
+            "supports; only the missing domains are asked (all 9 known -> the result is sent right away). "
+            "Domains and their 0-3 scale:\n" + _domain_scale()
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "language": {"type": "string", "enum": ["es", "en"],
                              "description": "Language for the questions"},
+                "known": {
+                    "type": "object",
+                    "description": "Domain key -> score 0-3, only for domains the user's own account clearly supports",
+                    "properties": {k: {"type": "integer", "minimum": 0, "maximum": 3} for k in quiz.KEYS},
+                    "additionalProperties": False,
+                },
             },
             "required": ["language"],
         },
@@ -281,8 +309,15 @@ def run_tool(user_id: str, name: str, tool_input: dict) -> str:
     if name == "search_sources":
         return knowledge.search_sources(str(tool_input.get("query", "")))
     if name == "start_assessment":
-        _pending[user_id] = {"action": "quiz", "lang": tool_input.get("language", "es")}
-        return "Assessment will start right after your reply. Reply with one short line only."
+        known = quiz.clean_known(tool_input.get("known"))
+        _pending[user_id] = {"action": "quiz", "lang": tool_input.get("language", "es"), "known": known}
+        if not known:
+            return "Assessment will start right after your reply. Reply with one short line only."
+        missing = len(quiz.QUESTIONS) - len(known)
+        return (f"Assessment starts right after your reply with {len(known)} domains scored from the "
+                f"user's account ({', '.join(known)}); "
+                + (f"it asks only the {missing} missing. " if missing else "the result is sent right away. ")
+                + "The scored domains are listed to the user automatically. Reply with one short line only.")
     if name == "get_assessment_result":
         r = quiz.last_result(user_id)
         return quiz.summary_for_agent(r) if r else "This user hasn't completed the assessment yet."
