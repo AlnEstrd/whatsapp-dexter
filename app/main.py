@@ -44,7 +44,7 @@ from .config import get_settings
 from .escalation import HANDOFF_REPLY, alert_provider_event, escalate, notify_slack, wants_human
 from .flows import menu, quiz
 from .flows.types import Outgoing
-from .formatting import to_whatsapp
+from .formatting import strip_greeting, to_whatsapp
 from .handoff import hand_off
 from .resilience import with_retry
 
@@ -512,6 +512,7 @@ async def _run_agent(channel: Channel, msg: InboundMessage, text: str,
             await send_file(channel, msg, doc)
         await close_chat(msg.user_id, "user_intent", farewell=action.get("farewell"), user_text=text)
         return True
+    reply = strip_greeting(reply)  # the welcome / new-chat intro already said hello
     if reply or not (action or documents):
         await send_bubbles(channel, msg, reply or FALLBACK_REPLY)
     for doc in documents:
