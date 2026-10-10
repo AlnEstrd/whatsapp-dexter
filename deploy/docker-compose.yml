@@ -1,6 +1,8 @@
 services:
   app:
     build: ..
+    # Tagged builds for CI/CD + rollback (deploy/remote-deploy.sh): whatsapp-bot:<sha>, :current, :previous.
+    image: whatsapp-bot:${IMAGE_TAG:-current}
     env_file: ../.env
     environment:
       # Public URL as Meta/Twilio/Slack see it (Vercel rewrite on the site).

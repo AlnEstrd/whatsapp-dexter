@@ -307,6 +307,78 @@ Live evals against the real models are opt-in (see **Evals**).
 
 ---
 
+## CI/CD
+
+Every pull request and every push to `main` runs the tests (`.github/workflows/ci.yml`, check name **`ci`**).
+Every push to `main` (except changes that only touch `**.md` / `docs/**`) also deploys to the Droplet
+(`.github/workflows/deploy.yml`):
+
+```
+merge to main ──> test (pytest, same commit) ──> deploy job (environment: production, one at a time)
+                       │ fail: no deploy             │
+                       ▼                             ├─ rsync code ──> /opt/whatsapp-bot   (.env, data/, backups untouched)
+                    Slack ❌                         ├─ ssh deploy@droplet deploy/remote-deploy.sh <sha>
+                                                     │     build whatsapp-bot:<sha> → :current (old one kept as :previous)
+                                                     │     up -d → GET / inside the container until "status":"ok" (60 s)
+                                                     │     unhealthy → :previous → :current, up -d, job fails
+                                                     ├─ GET https://www.alanestrada.space/whatsapp-bot/api/ (retries)
+                                                     ▼
+                                               Slack ✅ / ❌ (+ link to the run)
+```
+
+- The image is built **on the Droplet**, as before (no registry). If builds get too heavy for 1 GB RAM,
+  the next step would be to build in Actions, push to GHCR and only `docker pull` on the server.
+- The server keeps the last 3 builds (`whatsapp-bot:<sha>`) plus `:current` and `:previous`, and prunes the rest.
+  `/opt/whatsapp-bot/DEPLOYED_SHA` holds the commit that's live.
+- App secrets **never** go to GitHub. `.env` lives only on the server; neither CI nor `deploy.sh` overwrites it
+  unless you ask (see below). `deploy/rsync-excludes` lists what is never sent nor deleted on the server.
+- Live evals (`eval_live` marker) never run in CI; tests use dummy values and mock all HTTP.
+
+**GitHub secrets** (repo → Settings → Secrets and variables → Actions)
+
+| Name | Kind | Value |
+|---|---|---|
+| `DEPLOY_SSH_KEY` | secret | Private key `~/.ssh/whatsapp_bot_ci` (whole file, including the BEGIN/END lines) |
+| `DEPLOY_KNOWN_HOSTS` | secret | Output of `ssh-keyscan -t ed25519 <droplet IP>` (pins the host key) |
+| `DEPLOY_HOST` | secret | Droplet IP (same value you used for `ssh-keyscan`) |
+| `SLACK_DEPLOY_WEBHOOK` | secret, optional | Slack Incoming Webhook URL for deploy messages; unset = no Slack |
+| `SLACK_ALERT_USER_ID` | **variable**, optional | Your Slack member ID (`U0…`), mentioned on failures |
+
+**Redeploy on demand:** Actions → **deploy** → **Run workflow** → pick the branch. It always deploys
+(tests still run first). Useful after editing `.env` on the server, or to deploy a branch to try it.
+
+**Roll back by hand** (on the server):
+
+```bash
+ssh whatsapp-bot
+cd /opt/whatsapp-bot/deploy
+IMAGE_TAG=previous docker compose up -d --no-build --force-recreate app   # the build before the current one
+docker image ls whatsapp-bot                                              # or pick any kept build:
+IMAGE_TAG=<sha> docker compose up -d --no-build --force-recreate app
+```
+
+This lasts until the next deploy. To make it stick, `git revert` the bad commit and merge.
+
+**Change `.env`:**
+- edit it on the server (`ssh whatsapp-bot`, `nano /opt/whatsapp-bot/.env`), then run the deploy workflow from
+  the Actions tab, or on the server: `cd /opt/whatsapp-bot/deploy && docker compose up -d --no-build --force-recreate app`; or
+- from the Mac: `./deploy/deploy.sh --with-env` (pushes your local `.env` and deploys).
+
+**Manual deploy from the Mac** still works and runs the same server script (build, health check, rollback):
+`./deploy/deploy.sh` (code only), `--with-env`, or `--dry-run` (shows what rsync would send or delete).
+Uncommitted changes are tagged `<sha>-dirty-<time>`.
+
+**One-time setup** (in order):
+1. Mac: `ssh-keygen -t ed25519 -f ~/.ssh/whatsapp_bot_ci -N "" -C "github-actions-deploy"`.
+2. Droplet: `ssh whatsapp-bot "bash -s -- '$(cat ~/.ssh/whatsapp_bot_ci.pub)'" < deploy/setup-ci-user.sh`
+   (creates user `deploy` in group `docker`, installs the key, `chown`s `/opt/whatsapp-bot`, turns off SSH
+   passwords while keeping root key login). Check `ssh whatsapp-bot true` and
+   `ssh -i ~/.ssh/whatsapp_bot_ci deploy@<IP> docker ps` both work. Note: group `docker` is root-equivalent.
+3. Add the secrets above. 4. Settings → Environments → create `production` (add reviewers there later if you
+   want approval before deploys). 5. Settings → Branches → protect `main`, require the `ci` status check.
+
+---
+
 ## Project layout
 
 ```

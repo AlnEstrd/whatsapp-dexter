@@ -1,0 +1,49 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  # deploy.yml calls this so a deploy only happens after tests pass on the same commit.
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Dummy values only: tests mock every HTTP call (respx) and tests/conftest.py
+    # sets its own env per test. No real secret is needed or available here.
+    env:
+      AGENT_MODE: echo
+      ANTHROPIC_API_KEY: ""
+      SESSIONS_FILE: ""
+      SLACK_STATE_FILE: ""
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Read Python version from Dockerfile
+        id: py
+        run: |
+          v=$(sed -n 's/^FROM python:\([0-9][0-9.]*\).*/\1/p' Dockerfile | head -n1)
+          test -n "$v" || { echo "::error::Could not read the Python version from Dockerfile"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ steps.py.outputs.version }}
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      # Offline evals are part of the suite; live evals (marker eval_live) never run in CI.
+      - name: Run tests
+        run: pytest -q -m "not eval_live"
