@@ -1,0 +1,135 @@
+[
+  {
+    "id": "talk-es-10-20-70",
+    "lang": "es",
+    "message": "¿Qué es la regla 10-20-70?",
+    "expect": {
+      "route": "agent",
+      "must_contain": [
+        "70"
+      ],
+      "must_not_contain": [
+        "**",
+        "#"
+      ],
+      "language": "es"
+    }
+  },
+  {
+    "id": "talk-es-thesis",
+    "lang": "es",
+    "message": "¿De qué trata la plática de Alan?",
+    "expect": {
+      "route": "agent",
+      "must_contain": [
+        "actividades"
+      ],
+      "language": "es"
+    }
+  },
+  {
+    "id": "talk-en-thesis",
+    "lang": "en",
+    "message": "What is the main idea of the talk?",
+    "expect": {
+      "route": "agent",
+      "must_contain": [
+        "activities"
+      ],
+      "language": "en"
+    }
+  },
+  {
+    "id": "talk-en-no-value",
+    "lang": "en",
+    "message": "Why do 3 out of 4 companies see no value from AI?",
+    "expect": {
+      "route": "agent",
+      "must_contain": [
+        "BCG"
+      ],
+      "language": "en"
+    }
+  },
+  {
+    "id": "talk-es-katherine-johnson",
+    "lang": "es",
+    "message": "¿Quién fue Katherine Johnson y por qué sale en la plática?",
+    "expect": {
+      "route": "agent",
+      "must_contain": [
+        "NASA"
+      ],
+      "language": "es"
+    }
+  },
+  {
+    "id": "talk-es-90-dias",
+    "lang": "es",
+    "message": "¿Qué debería hacer mi empresa en los primeros 90 días?",
+    "expect": {
+      "route": "agent",
+      "language": "es"
+    }
+  },
+  {
+    "id": "talk-en-measure",
+    "lang": "en",
+    "message": "How should I measure the value of AI in my company?",
+    "expect": {
+      "route": "agent",
+      "language": "en"
+    }
+  },
+  {
+    "id": "talk-es-short-followup",
+    "lang": "es",
+    "prior": [
+      "¿Qué es la regla 10-20-70?"
+    ],
+    "message": "¿y en ventas?",
+    "expect": {
+      "route": "agent",
+      "language": "es"
+    }
+  },
+  {
+    "id": "talk-es-topic-pdf",
+    "lang": "es",
+    "message": "Mándame un PDF de una página sobre la regla 10-20-70",
+    "mock": {
+      "agent": [
+        {
+          "tool": "create_topic_pdf",
+          "input": {
+            "language": "es",
+            "title": "La regla 10-20-70",
+            "summary": "Las empresas que sí sacan valor de la IA dedican 70% del esfuerzo a personas y procesos.",
+            "sections": [
+              {
+                "heading": "Qué dice",
+                "paragraphs": [
+                  "10% algoritmos, 20% tecnología y datos, 70% personas y procesos."
+                ]
+              }
+            ],
+            "sources": [
+              "BCG, 2024"
+            ]
+          }
+        },
+        {
+          "text": "Te mando el PDF."
+        }
+      ]
+    },
+    "expect": {
+      "route": "agent",
+      "tool_called": "create_topic_pdf",
+      "state": {
+        "file_sent": true
+      },
+      "language": "es"
+    }
+  }
+]

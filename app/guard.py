@@ -16,7 +16,7 @@ from typing import Optional
 
 from anthropic import AsyncAnthropic
 
-from . import store
+from . import limits, store
 from .config import get_settings
 
 logger = logging.getLogger("guard")
@@ -55,6 +55,7 @@ class Guard:
                 system=PROMPT,
                 messages=[{"role": "user", "content": content}],
             )
+            await limits.record(user_id, resp, "guard")
             verdict = "".join(b.text for b in resp.content if b.type == "text").strip().upper()
             logger.info("guard %s -> %s", user_id, verdict or "?")
             return not verdict.startswith("OUT")

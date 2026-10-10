@@ -1,0 +1,92 @@
+[
+  {
+    "id": "slides-lamina-8",
+    "lang": "es",
+    "message": "lámina 8",
+    "expect": {
+      "route": "file_reply",
+      "state": {
+        "file_sent": true
+      },
+      "must_not_contain": [
+        "No encontré"
+      ]
+    }
+  },
+  {
+    "id": "slides-lamina-8-pdf",
+    "lang": "es",
+    "message": "lámina 8 pdf",
+    "expect": {
+      "route": "file_reply",
+      "state": {
+        "file_sent": true
+      }
+    }
+  },
+  {
+    "id": "slides-slide-a-en",
+    "lang": "en",
+    "message": "slide A",
+    "expect": {
+      "route": "file_reply",
+      "state": {
+        "file_sent": true
+      }
+    }
+  },
+  {
+    "id": "slides-whole-deck",
+    "lang": "es",
+    "message": "láminas",
+    "expect": {
+      "route": "file_reply",
+      "state": {
+        "file_sent": true
+      },
+      "must_contain": [
+        "[document]"
+      ]
+    }
+  },
+  {
+    "id": "slides-unknown",
+    "lang": "es",
+    "message": "lámina 42",
+    "expect": {
+      "route": "file_reply",
+      "state": {
+        "file_sent": false
+      },
+      "must_contain": [
+        "No encontré esa lámina"
+      ]
+    }
+  },
+  {
+    "id": "slides-agent-measurement-en",
+    "lang": "en",
+    "message": "Can you send me the slide about measuring AI value?",
+    "mock": {
+      "agent": [
+        {
+          "tool": "send_slides",
+          "input": {
+            "slide": "9"
+          }
+        },
+        {
+          "text": "Sending slide 9 (it's in Spanish)."
+        }
+      ]
+    },
+    "expect": {
+      "route": "agent",
+      "tool_called": "send_slides",
+      "state": {
+        "file_sent": true
+      },
+      "language": "en"
+    }
+  }
+]
