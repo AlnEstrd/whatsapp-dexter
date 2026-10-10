@@ -87,9 +87,11 @@ user redact them.
 reply with one short line; the questions are sent automatically after your reply.
 """
 
-CLOSE_RULE = """- If the user clearly signals they are done with the conversation ("ya terminé, gracias por todo", \
-"that's everything, bye"), call end_conversation and write no text: a standard goodbye is sent \
-automatically. A bare "gracias" / "thanks" is NOT a goodbye: reply briefly and keep the chat open.
+CLOSE_RULE = """- If the user clearly signals they are done with the conversation ("sería todo", "ya terminé, \
+gracias por todo", "that's everything, bye"), call end_conversation instead of writing the goodbye \
+yourself; put a short goodbye in its farewell. A bare "gracias" / "thanks" / "ok" is NOT a goodbye: \
+reply briefly, or ask "¿Algo más en lo que te pueda ayudar?". After you've fully answered, asking \
+that is fine. If you asked it and the user answers "no" / "no, gracias", call end_conversation.
 """
 
 TOOL_DEFINITIONS = [
@@ -216,11 +218,24 @@ TOOL_DEFINITIONS = [
 END_CONVERSATION_TOOL = {
     "name": "end_conversation",
     "description": (
-        "Close this chat when the user clearly says they are done (e.g. 'eso sería todo, gracias', "
-        "'that's all I needed, bye'). Never for a bare 'gracias'/'thanks' or mid-conversation. "
-        "A standard goodbye is sent and the memory is cleared right after your reply."
+        "Close this chat. Call this when the user signals they are done and don't need anything else "
+        "(e.g. 'sería todo', 'es todo', 'ya quedó', 'nada más, gracias', 'that's all', 'I'm good, "
+        "thanks'), or answers 'no' / 'no, gracias' right after you asked whether they need anything "
+        "else. Do NOT call it for a bare 'gracias'/'ok' that may just acknowledge an answer, or when "
+        "the same message also asks something new. If unsure, ask '¿Algo más en lo que te pueda "
+        "ayudar?' instead. Your text for this turn is discarded: put the goodbye in `farewell`."
     ),
-    "input_schema": {"type": "object", "properties": {}},
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "farewell": {
+                "type": "string",
+                "description": ("One short, warm goodbye sentence in the user's language, e.g. '¡Un "
+                                "gusto! Que tengas excelente día. 👋'. Don't tell them how to come "
+                                "back (no 'escribe hola'); the system adds that."),
+            },
+        },
+    },
 }
 
 
@@ -297,9 +312,9 @@ def run_tool(user_id: str, name: str, tool_input: dict) -> str:
             return "This user hasn't completed the assessment yet; offer start_assessment."
         _pending[user_id] = {"action": "report"}
         return "The report PDF is sent right after your reply. Reply with one short line only."
-    if name == "end_conversation":
-        _pending[user_id] = {"action": "close"}
-        return "The chat is closed right after this turn with a standard goodbye. Do not write any text."
+    if name == "end_conversation" and get_settings().close_on_intent:
+        _pending[user_id] = {"action": "close", "farewell": str(tool_input.get("farewell") or "")}
+        return "The chat is closed right after this turn with your farewell. Do not write any text."
     if name == "talk_to_alan":
         _pending[user_id] = {"action": "human", "reason": tool_input.get("reason", "")}
         return ("Alan will be notified right after your reply and will answer in this chat. "
@@ -395,6 +410,8 @@ class Agent:
                     "content": run_tool(wa_id, block.name, block.input),
                 })
             store.append_message(wa_id, "user", tool_results)
+            if _pending.get(wa_id, {}).get("action") == "close":
+                return ""  # end_conversation ends the turn; main.py sends the farewell
 
         return ("No pude terminar esa respuesta. ¿Puedes reformular la pregunta? "
                 "/ I couldn't finish that answer — could you rephrase?")

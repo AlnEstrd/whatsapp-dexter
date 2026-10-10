@@ -86,20 +86,20 @@
     }
   },
   {
-    "id": "quiz-mid-closer-is-not-a-close",
+    "id": "quiz-mid-closer-closes-chat",
     "lang": "es",
     "prior": [
       "diagnóstico"
     ],
     "message": "Sería todo, gracias",
     "expect": {
-      "route": "quiz",
+      "route": "close",
       "must_contain": [
-        "número del 1 al 4"
+        "Cerré la conversación"
       ],
       "state": {
-        "quiz_active": true,
-        "closed": false
+        "quiz_active": false,
+        "closed": true
       }
     }
   },

@@ -8,7 +8,8 @@ be recovered, the user gets the restart apology instead of a bot that silently
 "forgot" them (``RESTART_NOTICE``).
 
 A session is *open* from the user's first message until it is closed by:
-    user   - says goodbye (adiós, bye, terminar, ...)
+    user   - says goodbye: a whole-message closer (adiós, sería todo, that's all, ...)
+             or, with CLOSE_ON_INTENT, the agent's end_conversation tool
     bot    - idle: IDLE_WARN_MINUTES without activity -> warning,
              then IDLE_CLOSE_MINUTES more -> closed
     admin  - ``close`` in the Slack thread (or POST /admin/close)
@@ -47,14 +48,26 @@ DONE_PHRASES = {
     "ya es todo", "listo es todo", "eso fue todo", "ya termine", "ya terminé",
     "thats all", "that's all", "thats it", "that's it", "that is all", "nothing else",
     "im done", "i'm done", "no thats all", "no that's all", "that will be all",
+    "ya quedo", "ya quedó", "con eso", "con eso es todo", "listo gracias", "hasta pronto",
+    "im all set", "i'm all set", "im good thanks", "i'm good thanks", "no thanks", "no thank you",
+}
+# A goodbye inside a longer message ("no, eso sería todo por hoy, gracias Dexter"). Only keeps
+# such messages away from the off-topic guard; the agent decides whether to close.
+_CLOSE_HINTS = ("seria todo", "sería todo", "eso es todo", "es todo por hoy", "ya quedo", "ya quedó",
+                "nada mas por ahora", "nada más por ahora", "con eso es todo", "thats all",
+                "that's all", "nothing else", "im done", "i'm done", "adios", "adiós", "bye",
+                "goodbye", "chao", "hasta luego", "hasta pronto", "nos vemos")
+_REENGAGE = {
+    "es": "Cuando quieras, escribe *hola* para empezar de nuevo.",
+    "en": "Type *hi* anytime to start again.",
 }
 _THANKS = r"(?:muchas |mil )?gracias|thanks?(?: you)?|thank you|ok|okay|va|vale|listo|perfecto|perfect|great|no"
 _DONE_RE = re.compile(rf"^(?:(?:{_THANKS}) )*(?P<core>.+?)(?: (?:{_THANKS}))*(?: por todo| for everything)?$")
 
 TEXT = {
     "close_user": {
-        "es": "¡Gracias por platicar! 👋 Cerré la conversación. Cuando quieras, escribe *hola* para empezar de nuevo.",
-        "en": "Thanks for chatting! 👋 I've closed the conversation. Type *hi* anytime to start again.",
+        "es": "¡Gracias por platicar! 👋 Cerré la conversación. " + _REENGAGE["es"],
+        "en": "Thanks for chatting! 👋 I've closed the conversation. " + _REENGAGE["en"],
     },
     "close_bot": {
         "es": "Cerré la conversación por inactividad. Si quieres retomarla, escribe *hola* y empezamos de nuevo.",
@@ -114,6 +127,19 @@ def is_done_intent(msg_text: str) -> bool:
         return True
     m = _DONE_RE.match(t)
     return bool(m and m.group("core") in DONE_PHRASES)
+
+
+def sounds_like_closing(msg_text: str) -> bool:
+    t = f" {_norm(msg_text)} "
+    return any(f" {h} " in t for h in _CLOSE_HINTS)
+
+
+def farewell_text(farewell: Optional[str], lang: Optional[str]) -> str:
+    """Agent farewell + the standard re-engage line (the default close_user text if none)."""
+    f = re.sub(r"\s+", " ", farewell or "").strip()[:200]
+    if not f:
+        return text("close_user", lang)
+    return f"{f} {_REENGAGE[lang if lang in ('es', 'en') else 'es']}"
 
 
 def now() -> float:
@@ -231,12 +257,14 @@ def bump_offtopic(user_id: str) -> int:
     return s["offtopic"]
 
 
-def mark_closed(user_id: str, by: str) -> Optional[dict[str, Any]]:
+def mark_closed(user_id: str, by: str, reason: Optional[str] = None) -> Optional[dict[str, Any]]:
     s = _sessions.get(user_id)
     if not s or s.get("state") != "open":
         return None
     s.update(state="closed", closed_by=by, closed_at=now(), offtopic=0, context=False,
              quiz=False, warned=False)
+    if reason:
+        s["closed_reason"] = reason
     save(user_id)
     return s
 
