@@ -1,9 +1,11 @@
 """Conversation lifecycle: open/close, idle warning, restart recovery, off-topic count.
 
-Agent history and quiz progress live in process memory, so a restart (deploy,
-crash, ``--reload``) wipes them. This module keeps a small per-user record on
-disk (SESSIONS_FILE) so that after a restart we can tell recent users their
-chat was lost, instead of the bot silently "forgetting" them.
+Each user's session record is written through to SQLite (``sessions`` table,
+app/db.py), like the agent history and quiz progress, so a restart (deploy,
+crash, ``--reload``) picks the chat up where it was. The ``boot`` id still
+tells us which sessions came from a previous process: if their state could not
+be recovered, the user gets the restart apology instead of a bot that silently
+"forgot" them (``RESTART_NOTICE``).
 
 A session is *open* from the user's first message until it is closed by:
     user   - says goodbye (adiós, bye, terminar, ...)
@@ -22,18 +24,32 @@ import time
 import uuid
 from typing import Any, Optional
 
+from . import db
+
 logger = logging.getLogger("sessions")
 
 BOOT_ID = uuid.uuid4().hex[:12]   # changes on every process start
 
 _sessions: dict[str, dict[str, Any]] = {}
-_path: str = ""
 
 CLOSE_WORDS = {
     "adios", "adiós", "bye", "goodbye", "good bye", "chao", "chau", "hasta luego", "nos vemos",
     "terminar", "cerrar", "cerrar chat", "fin", "finalizar", "salir", "exit", "end", "quit",
     "gracias adios", "gracias adiós", "gracias bye", "thanks bye", "ok gracias adios",
 }
+
+# "I'm done" phrases (CLOSE_ON_INTENT). Matched after stripping punctuation, with or
+# without a thanks around them. Bare "gracias" / "thanks" is NOT a closer: people say
+# it mid-conversation. Free-form goodbyes go through the agent's end_conversation tool.
+DONE_PHRASES = {
+    "seria todo", "sería todo", "es todo", "eso es todo", "eso seria todo", "eso sería todo",
+    "por ahora es todo", "seria todo por ahora", "sería todo por ahora", "nada mas", "nada más",
+    "ya es todo", "listo es todo", "eso fue todo", "ya termine", "ya terminé",
+    "thats all", "that's all", "thats it", "that's it", "that is all", "nothing else",
+    "im done", "i'm done", "no thats all", "no that's all", "that will be all",
+}
+_THANKS = r"(?:muchas |mil )?gracias|thanks?(?: you)?|thank you|ok|okay|va|vale|listo|perfecto|perfect|great|no"
+_DONE_RE = re.compile(rf"^(?:(?:{_THANKS}) )*(?P<core>.+?)(?: (?:{_THANKS}))*(?: por todo| for everything)?$")
 
 TEXT = {
     "close_user": {
@@ -80,10 +96,24 @@ def text(key: str, lang: Optional[str], **kw: Any) -> str:
     return TEXT[key][lang if lang in ("es", "en") else "es"].format(**kw)
 
 
+def _norm(msg_text: str) -> str:
+    t = re.sub(r"[!¡.?¿,;:🙂🙏👋😊]", "", (msg_text or "").strip().lower().replace("’", "'"))
+    return re.sub(r"\s+", " ", t).strip()
+
+
 def is_close_request(msg_text: str) -> bool:
-    t = re.sub(r"[!¡.?¿,]", "", (msg_text or "").strip().lower())
-    t = re.sub(r"\s+", " ", t)
-    return t in CLOSE_WORDS
+    return _norm(msg_text) in CLOSE_WORDS
+
+
+def is_done_intent(msg_text: str) -> bool:
+    """'Sería todo, gracias', 'That's all, thanks' -> True; bare 'gracias' -> False."""
+    t = _norm(msg_text)
+    if not t or len(t.split()) > 8 or (msg_text or "").strip().endswith("?"):  # "¿es todo?" asks
+        return False
+    if t in DONE_PHRASES:
+        return True
+    m = _DONE_RE.match(t)
+    return bool(m and m.group("core") in DONE_PHRASES)
 
 
 def now() -> float:
@@ -91,42 +121,50 @@ def now() -> float:
 
 
 # --------------------------------------------------------------------------- #
-# Persistence
+# Persistence (SQLite ``sessions`` table; the dict is the working copy)
 # --------------------------------------------------------------------------- #
-def load(path: str) -> int:
-    """Load the registry written by a previous process. Returns sessions loaded."""
-    global _path
-    _path = path
-    if not path or not os.path.exists(path):
-        return 0
-    try:
-        with open(path, encoding="utf-8") as fh:
-            _sessions.update(json.load(fh))
-        return len(_sessions)
-    except Exception:  # noqa: BLE001
-        logger.exception("Could not load sessions from %s", path)
-        return 0
-
-
-def save() -> None:
-    if not _path:
+def save(user_id: str) -> None:
+    sess = _sessions.get(user_id)
+    if sess is None:
         return
-    try:
-        d = os.path.dirname(_path)
-        if d:
-            os.makedirs(d, exist_ok=True)
-        tmp = f"{_path}.tmp"
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(_sessions, fh)
-        os.replace(tmp, _path)
-    except Exception:  # noqa: BLE001
-        logger.exception("Could not save sessions")
+    db.safe("save session", lambda: db.execute(
+        "INSERT OR REPLACE INTO sessions (user_id, state_json, updated_at) VALUES (?, ?, ?)",
+        (user_id, db.dumps(sess), db.now())))
 
 
-def reset() -> None:  # tests
-    global _path
+def import_legacy(path: str) -> int:
+    """Import ``data/sessions.json`` (older versions) once, then rename it to ``*.imported``.
+    Skipped if the table already has rows. Returns sessions imported."""
+    if not path or not os.path.exists(path) or not db.enabled():
+        return 0
+    if db.count("sessions"):
+        logger.info("Session file %s ignored: table already populated", path)
+        return 0
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+    for uid, sess in data.items():
+        _sessions[uid] = sess
+        save(uid)
+    os.replace(path, f"{path}.imported")
+    logger.info("Imported %d session(s) from the JSON file", len(data))
+    return len(data)
+
+
+def load_all() -> int:
+    """Read every session back into memory. Raises on DB errors."""
+    if not db.enabled():
+        return 0
+    for row in db.query("SELECT user_id, state_json FROM sessions"):
+        _sessions[row["user_id"]] = json.loads(row["state_json"])
+    return len(_sessions)
+
+
+def reset() -> None:  # tests (memory only)
     _sessions.clear()
-    _path = ""
+
+
+def forget(user_id: str) -> None:
+    _sessions.pop(user_id, None)
 
 
 # --------------------------------------------------------------------------- #
@@ -156,7 +194,7 @@ def touch_user(user_id: str, channel_name: str, reply_to: str, profile_name: Opt
              boot=BOOT_ID)
     if profile_name:
         s["profile_name"] = profile_name
-    save()
+    save(user_id)
     return s
 
 
@@ -174,14 +212,14 @@ def touch_bot(user_id: str, *, context: Optional[bool] = None, quiz: Optional[bo
         s["quiz"] = quiz
     if lang:
         s["lang"] = lang
-    save()
+    save(user_id)
 
 
 def set_lang(user_id: str, lang: str) -> None:
     s = _sessions.get(user_id)
     if s and s.get("lang") != lang:
         s["lang"] = lang
-        save()
+        save(user_id)
 
 
 def bump_offtopic(user_id: str) -> int:
@@ -189,7 +227,7 @@ def bump_offtopic(user_id: str) -> int:
     if not s:
         return 1
     s["offtopic"] = s.get("offtopic", 0) + 1
-    save()
+    save(user_id)
     return s["offtopic"]
 
 
@@ -199,7 +237,7 @@ def mark_closed(user_id: str, by: str) -> Optional[dict[str, Any]]:
         return None
     s.update(state="closed", closed_by=by, closed_at=now(), offtopic=0, context=False,
              quiz=False, warned=False)
-    save()
+    save(user_id)
     return s
 
 
@@ -208,7 +246,7 @@ def mark_warned(user_id: str) -> None:
     if s:
         s["warned"] = True
         s["warned_at"] = now()
-        save()
+        save(user_id)
 
 
 def idle_actions(warn_after: float, close_after: float, skip: set[str]) -> list[tuple[str, str]]:
@@ -247,4 +285,12 @@ def restart_notified(user_id: str) -> None:
     s = _sessions.get(user_id)
     if s:
         s.update(boot=BOOT_ID, context=False, quiz=False)
-        save()
+        save(user_id)
+
+
+def mark_recovered(user_id: str) -> None:
+    """State from a previous process was restored: adopt the session, no apology needed."""
+    s = _sessions.get(user_id)
+    if s:
+        s["boot"] = BOOT_ID
+        save(user_id)

@@ -28,6 +28,9 @@ BASE_ENV = {
     "SLACK_THREAD_IDLE_HOURS": "24",
     "SESSIONS_FILE": "",
     "GUARD_ENABLED": "true",
+    "SLACK_STATE_FILE": "",
+    "LIMITS_ENABLED": "true",
+    "RUN_LIVE_EVALS": "",
 }
 
 
@@ -36,11 +39,13 @@ def make_client(monkeypatch, tmp_path):
     """Build a TestClient with a clean config (ignores the real .env)."""
 
     def _make(**overrides):
+        """Fresh process state. Keyword ``fresh_db=False`` keeps the SQLite file (restart tests)."""
         monkeypatch.chdir(tmp_path)  # so pydantic-settings can't find the real .env
-        for k, v in {**BASE_ENV, **overrides}.items():
+        env = {**BASE_ENV, "DB_PATH": str(tmp_path / "data" / "bot.sqlite3"), **overrides}
+        for k, v in env.items():
             monkeypatch.setenv(k, v)
 
-        from app import agent, guard, sessions, slack_bridge, store
+        from app import agent, db, guard, limits, main, sessions, slack_bridge, store
         from app.flows import quiz
         from app.channels import reset_channels
         from app.config import get_settings
@@ -48,14 +53,14 @@ def make_client(monkeypatch, tmp_path):
         get_settings.cache_clear()
         reset_channels()
         agent._agent = None
-        store._conversations.clear()
-        store._handoff.clear()
-        store._seen_ids.clear()
-        store._transcripts.clear()
-        store._lang.clear()
+        db.close()
+        store.reset_memory()
+        limits.reset()
+        main.last_route.clear()
         quiz.reset()
         agent._pending.clear()
         agent._docs.clear()
+        agent.tools_called.clear()
         store.reset_threads()
         slack_bridge.reset()
         sessions.reset()
@@ -65,5 +70,7 @@ def make_client(monkeypatch, tmp_path):
         return TestClient(app)
 
     yield _make
+    from app import db
     from app.config import get_settings
+    db.close()
     get_settings.cache_clear()

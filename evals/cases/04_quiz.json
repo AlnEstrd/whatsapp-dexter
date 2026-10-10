@@ -1,0 +1,145 @@
+[
+  {
+    "id": "quiz-start-es",
+    "lang": "es",
+    "message": "diagnóstico",
+    "expect": {
+      "route": "quiz",
+      "must_contain": [
+        "Diagnóstico rápido",
+        "1/9"
+      ],
+      "state": {
+        "quiz_active": true
+      },
+      "language": "es"
+    }
+  },
+  {
+    "id": "quiz-start-en",
+    "lang": "en",
+    "message": "assessment",
+    "expect": {
+      "route": "quiz",
+      "must_contain": [
+        "rapid assessment",
+        "1/9"
+      ],
+      "state": {
+        "quiz_active": true
+      },
+      "language": "en"
+    }
+  },
+  {
+    "id": "quiz-menu-2",
+    "lang": "es",
+    "prior": [
+      "hola"
+    ],
+    "message": "2",
+    "expect": {
+      "route": "quiz",
+      "must_contain": [
+        "1/9"
+      ],
+      "state": {
+        "quiz_active": true
+      }
+    }
+  },
+  {
+    "id": "quiz-mid-no",
+    "lang": "es",
+    "prior": [
+      "diagnóstico",
+      "2"
+    ],
+    "message": "no",
+    "expect": {
+      "route": "quiz",
+      "must_contain": [
+        "número del 1 al 4",
+        "2/9"
+      ],
+      "state": {
+        "quiz_active": true
+      }
+    }
+  },
+  {
+    "id": "quiz-mid-salir",
+    "lang": "es",
+    "prior": [
+      "diagnóstico"
+    ],
+    "message": "salir",
+    "expect": {
+      "route": "quiz",
+      "must_contain": [
+        "detuve el diagnóstico"
+      ],
+      "state": {
+        "quiz_active": false,
+        "closed": false
+      }
+    }
+  },
+  {
+    "id": "quiz-mid-closer-is-not-a-close",
+    "lang": "es",
+    "prior": [
+      "diagnóstico"
+    ],
+    "message": "Sería todo, gracias",
+    "expect": {
+      "route": "quiz",
+      "must_contain": [
+        "número del 1 al 4"
+      ],
+      "state": {
+        "quiz_active": true,
+        "closed": false
+      }
+    }
+  },
+  {
+    "id": "quiz-agent-start",
+    "lang": "es",
+    "message": "Quiero medir qué tan madura está mi empresa en IA",
+    "mock": {
+      "agent": [
+        {
+          "tool": "start_assessment",
+          "input": {
+            "language": "es"
+          }
+        },
+        {
+          "text": "¡Va! Empecemos."
+        }
+      ]
+    },
+    "expect": {
+      "route": "agent",
+      "tool_called": "start_assessment",
+      "state": {
+        "quiz_active": true
+      }
+    }
+  },
+  {
+    "id": "quiz-report-before-quiz",
+    "lang": "es",
+    "message": "reporte",
+    "expect": {
+      "route": "file_reply",
+      "must_contain": [
+        "Aún no has hecho el diagnóstico"
+      ],
+      "state": {
+        "file_sent": false
+      }
+    }
+  }
+]

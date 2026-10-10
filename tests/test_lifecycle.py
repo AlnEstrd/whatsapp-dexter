@@ -168,13 +168,11 @@ def test_restart_notice_on_next_message_and_stale_sessions_closed(make_client, s
     assert len(send.calls) == n and not sessions.is_open(USER)
 
 
-def test_sessions_persist_to_disk(make_client, send, tmp_path):
-    path = str(tmp_path / "data" / "sessions.json")
-    c = make_client(**FLOWS, SESSIONS_FILE=path)
-    sessions.load(path)
+def test_sessions_persist_to_disk(make_client, send):
+    c = make_client(**FLOWS)
     twilio_post(c, tw_msg("hola", sid="S1"))
     sessions._sessions.clear()
-    assert sessions.load(path) == 1 and sessions.is_open(USER)
+    assert sessions.load_all() == 1 and sessions.is_open(USER)
 
 
 # --------------------------------------------------------------------------- #

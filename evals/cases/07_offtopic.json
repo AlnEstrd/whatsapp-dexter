@@ -1,0 +1,71 @@
+[
+  {
+    "id": "offtopic-recipe",
+    "lang": "es",
+    "message": "Dame una receta de enchiladas suizas por favor",
+    "mock": {
+      "guard": "OUT"
+    },
+    "expect": {
+      "route": "offtopic_warning",
+      "must_contain": [
+        "Aviso 1 de 2"
+      ],
+      "language": "es"
+    }
+  },
+  {
+    "id": "offtopic-homework",
+    "lang": "es",
+    "message": "¿Me ayudas con mi tarea de álgebra sobre ecuaciones cuadráticas?",
+    "mock": {
+      "guard": "OUT"
+    },
+    "expect": {
+      "route": "offtopic_warning",
+      "must_contain": [
+        "Aviso 1 de 2"
+      ]
+    }
+  },
+  {
+    "id": "offtopic-coding-en",
+    "lang": "en",
+    "message": "Can you write me a Python function to reverse a linked list?",
+    "mock": {
+      "guard": "OUT"
+    },
+    "expect": {
+      "route": "offtopic_warning",
+      "must_contain": [
+        "Warning 1 of 2"
+      ],
+      "must_not_contain": [
+        "def "
+      ],
+      "language": "en"
+    }
+  },
+  {
+    "id": "offtopic-third-escalates",
+    "lang": "es",
+    "prior": [
+      "Dame una receta de enchiladas suizas por favor",
+      "¿Quién ganó el partido del América ayer?"
+    ],
+    "message": "¿Me recomiendas una serie para ver este fin de semana?",
+    "mock": {
+      "guard": "OUT",
+      "prior_guard": "OUT"
+    },
+    "expect": {
+      "route": "handoff",
+      "must_contain": [
+        "paso la conversación a Alan"
+      ],
+      "state": {
+        "handoff": true
+      }
+    }
+  }
+]
