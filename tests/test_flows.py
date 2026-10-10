@@ -166,14 +166,16 @@ def test_interactive_failure_falls_back_to_text(make_client):
 
 
 @respx.mock
-def test_first_question_gets_intro_then_answer_no_menu(make_client):
+def test_first_question_gets_intro_answer_then_menu_offer(make_client):
     send = respx.post(TWILIO_SEND).mock(return_value=httpx.Response(201))
     c = make_client(FLOWS_ENABLED="true")
     twilio_post(c, tw_msg("¿Qué es la regla 10-20-70?", sid="S0"))
     twilio_post(c, tw_msg("¿Y quién es Alan?", sid="S1"))
     bodies = [dict(httpx.QueryParams(x.request.content.decode()))["Body"] for x in send.calls]
     assert "Dexter" in bodies[0] and "¿Qué quieres hacer?" not in bodies[0]
-    assert bodies[1:] == ["echo: ¿Qué es la regla 10-20-70?", "echo: ¿Y quién es Alan?"]
+    assert bodies[1] == "echo: ¿Qué es la regla 10-20-70?"
+    assert "*menu*" in bodies[2] and "¿Qué quieres hacer?" not in bodies[2]   # offer, not the menu
+    assert bodies[3:] == ["echo: ¿Y quién es Alan?"]                          # only once
 
 
 # --------------------------------------------------------------------------- #

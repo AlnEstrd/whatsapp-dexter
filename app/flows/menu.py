@@ -61,6 +61,11 @@ TEXT = {
         "es": "👋 Hola{name}, soy Dexter, jefe de Estrada Lab. Te ayudo con la plática *Gobernanza de IA* de Alan Estrada.",
         "en": "👋 Hi{name}, I'm Dexter, lab chief at Estrada Lab. I can help with Alan Estrada's talk *AI Governance*.",
     },
+    # ...and after that first answer: offer the menu, don't show it.
+    "offer": {
+        "es": "Puedes seguir preguntándome lo que quieras, o escribe *menu* para ver todo lo que puedo hacer.",
+        "en": "Keep asking me anything, or type *menu* to see everything I can do.",
+    },
     "button": {"es": "Ver opciones", "en": "See options"},
     "talk": {
         "es": ("En una frase: la IA cambia las *actividades* de un puesto, no sus responsabilidades. "
@@ -129,6 +134,10 @@ def welcome(lang: str, name: Optional[str] = None) -> Outgoing:
 def intro(lang: str, name: Optional[str] = None) -> str:
     first = f", {name.split()[0]}" if name else ""
     return TEXT["intro"][lang].format(name=first)
+
+
+def menu_offer(lang: str) -> str:
+    return TEXT["offer"][lang]
 
 
 def typed_choice(text: str) -> Optional[str]:
