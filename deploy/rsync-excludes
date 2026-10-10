@@ -1,0 +1,26 @@
+# Paths never sent to /opt/whatsapp-bot. Used by deploy/deploy.sh (Mac) and
+# .github/workflows/deploy.yml (CI) with: rsync -az --delete --exclude-from=deploy/rsync-excludes
+# An excluded path is also left alone on the server by --delete, so this list is
+# what keeps the server's .env, data, backups and deploy state safe.
+# Plain patterns only (works with macOS's built-in rsync too).
+
+# Server-only state: secrets, data, deploy bookkeeping
+/.env
+/.env.*
+/data/
+/DEPLOYED_SHA
+/.deploy.lock
+.slack_threads*
+_backup-*
+*.tar.gz
+*.tgz
+
+# Local / build junk
+/.git/
+/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+/evals/results/
+Claude outputs/
+.DS_Store

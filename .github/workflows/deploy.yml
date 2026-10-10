@@ -1,0 +1,132 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+  # "Run workflow" button in the Actions tab: always deploys the chosen ref.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Same tests as ci.yml, on this exact commit. Deploy only runs if they pass.
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30          # the 1 GB droplet builds the image itself
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    outputs:
+      result: ${{ steps.public.outputs.result || steps.remote.outputs.result }}
+    env:
+      DEST: /opt/whatsapp-bot
+      PUBLIC_URL: https://www.alanestrada.space/whatsapp-bot/api/
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up SSH (deploy key + pinned host key)
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          for v in DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS DEPLOY_HOST; do
+            [ -n "${!v}" ] || { echo "::error::GitHub secret $v is not set"; exit 1; }
+          done
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy_key ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host prod
+            HostName $DEPLOY_HOST
+            User deploy
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            UserKnownHostsFile ~/.ssh/known_hosts
+            ConnectTimeout 20
+            ServerAliveInterval 30
+          EOF
+
+      - name: Sync code
+        run: rsync -az --delete --exclude-from=deploy/rsync-excludes ./ "prod:$DEST/"
+
+      - name: Build, start, health check (rolls back on failure)
+        id: remote
+        run: |
+          set +e
+          # shellcheck disable=SC2029  # $DEST and $GITHUB_SHA expand here on purpose
+          ssh prod "bash $DEST/deploy/remote-deploy.sh $GITHUB_SHA"
+          rc=$?
+          case $rc in
+            0) echo "result=deployed" >> "$GITHUB_OUTPUT" ;;
+            2) echo "result=build failed, nothing changed" >> "$GITHUB_OUTPUT" ;;
+            3) echo "result=unhealthy, rolled back" >> "$GITHUB_OUTPUT" ;;
+            4) echo "result=unhealthy, ROLLBACK FAILED" >> "$GITHUB_OUTPUT" ;;
+            *) echo "result=deploy script failed (exit $rc)" >> "$GITHUB_OUTPUT" ;;
+          esac
+          exit $rc
+
+      - name: Check public URL
+        id: public
+        run: |
+          for i in $(seq 1 12); do
+            if body=$(curl -fsS --max-time 10 "$PUBLIC_URL") && [ "$(jq -r .status <<<"$body" 2>/dev/null)" = ok ]; then
+              echo "public health ok"
+              exit 0
+            fi
+            echo "attempt $i: not ok yet"; sleep 5
+          done
+          echo "result=deployed, but public URL not ok" >> "$GITHUB_OUTPUT"
+          echo "::error::$PUBLIC_URL did not return status ok"
+          exit 1
+
+      - name: Remove SSH key
+        if: always()
+        run: rm -rf ~/.ssh
+
+  notify:
+    needs: [test, deploy]
+    if: always() && (needs.deploy.result == 'success' || needs.deploy.result == 'failure' || needs.test.result == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Post to Slack
+        env:
+          WEBHOOK: ${{ secrets.SLACK_DEPLOY_WEBHOOK }}
+          ALERT_USER: ${{ vars.SLACK_ALERT_USER_ID }}
+          TEST_RESULT: ${{ needs.test.result }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          DETAIL: ${{ needs.deploy.outputs.result }}
+          ACTOR: ${{ github.actor }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          [ -n "$WEBHOOK" ] || { echo "SLACK_DEPLOY_WEBHOOK not set, skipping"; exit 0; }
+          short=${GITHUB_SHA::7}
+          title=$(git log -1 --format=%s)
+          if [ "$DEPLOY_RESULT" = success ]; then
+            text="✅ Deployed $short — $title ($ACTOR) · <$RUN_URL|run>"
+          else
+            [ "$TEST_RESULT" = failure ] && DETAIL="tests failed, not deployed"
+            text="❌ Deploy failed / rolled back — $short (${DETAIL:-failed}) · <$RUN_URL|run>"
+            [ -n "$ALERT_USER" ] && text="<@$ALERT_USER> $text"
+          fi
+          jq -n --arg text "$text" '{text: $text}' \
+            | curl -fsS -X POST -H 'Content-Type: application/json' --data @- "$WEBHOOK" >/dev/null
+          echo "posted to Slack"

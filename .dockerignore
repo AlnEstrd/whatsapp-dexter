@@ -12,3 +12,6 @@ Claude outputs/
 deploy/
 run-local.sh
 data/
+.github/
+DEPLOYED_SHA
+.deploy.lock
