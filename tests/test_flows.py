@@ -166,12 +166,16 @@ def test_interactive_failure_falls_back_to_text(make_client):
 
 
 @respx.mock
-def test_first_question_gets_answer_then_menu(make_client):
+def test_first_question_gets_intro_answer_then_menu_offer(make_client):
     send = respx.post(TWILIO_SEND).mock(return_value=httpx.Response(201))
-    twilio_post(make_client(FLOWS_ENABLED="true"), tw_msg("¿Qué es la regla 10-20-70?"))
+    c = make_client(FLOWS_ENABLED="true")
+    twilio_post(c, tw_msg("¿Qué es la regla 10-20-70?", sid="S0"))
+    twilio_post(c, tw_msg("¿Y quién es Alan?", sid="S1"))
     bodies = [dict(httpx.QueryParams(x.request.content.decode()))["Body"] for x in send.calls]
-    assert bodies[0] == "echo: ¿Qué es la regla 10-20-70?"
-    assert "¿Qué quieres hacer?" in bodies[1]
+    assert "Dexter" in bodies[0] and "¿Qué quieres hacer?" not in bodies[0]
+    assert bodies[1] == "echo: ¿Qué es la regla 10-20-70?"
+    assert "*menu*" in bodies[2] and "¿Qué quieres hacer?" not in bodies[2]   # offer, not the menu
+    assert bodies[3:] == ["echo: ¿Y quién es Alan?"]                          # only once
 
 
 # --------------------------------------------------------------------------- #
@@ -212,8 +216,9 @@ def test_agent_start_assessment_tool_starts_quiz(make_client):
     a._client = SimpleNamespace(messages=fake)
     twilio_post(c, tw_msg("quiero medir la madurez de mi empresa"))
     bodies = [dict(httpx.QueryParams(x.request.content.decode()))["Body"] for x in send.calls]
-    assert bodies[0] == "¡Va! Empecemos."
-    assert bodies[1].startswith("📊") and bodies[2].startswith("*1/9")
+    assert "Dexter" in bodies[0]                     # new chat: one-line intro first
+    assert bodies[1] == "¡Va! Empecemos."
+    assert bodies[2].startswith("📊") and bodies[3].startswith("*1/9")
     assert quiz.active("523312345678")
     sys_blocks = fake.calls[0]["system"]
     assert sys_blocks[-1]["cache_control"] == {"type": "ephemeral"}
