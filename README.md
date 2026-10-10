@@ -321,7 +321,7 @@ merge to main ──> test (pytest, same commit) ──> deploy job (environment
                                                      │     build whatsapp-bot:<sha> → :current (old one kept as :previous)
                                                      │     up -d → GET / inside the container until "status":"ok" (60 s)
                                                      │     unhealthy → :previous → :current, up -d, job fails
-                                                     ├─ GET https://www.alanestrada.space/whatsapp-bot/api/ (retries)
+                                                     ├─ GET https://origin.alanestrada.space/ (retries)      
                                                      ▼
                                                Slack ✅ / ❌ (+ link to the run)
 ```
@@ -343,6 +343,7 @@ merge to main ──> test (pytest, same commit) ──> deploy job (environment
 | `DEPLOY_HOST` | secret | Droplet IP (same value you used for `ssh-keyscan`) |
 | `SLACK_DEPLOY_WEBHOOK` | secret, optional | Slack Incoming Webhook URL for deploy messages; unset = no Slack |
 | `SLACK_ALERT_USER_ID` | **variable**, optional | Your Slack member ID (`U0…`), mentioned on failures |
+| `PUBLIC_HEALTH_URL` | **variable**, optional | URL the deploy checks for `"status":"ok"` (default `https://origin.alanestrada.space/`; the bare `www…/whatsapp-bot/api/` is a Vercel 404, only sub-paths are forwarded) |
 
 **Redeploy on demand:** Actions → **deploy** → **Run workflow** → pick the branch. It always deploys
 (tests still run first). Useful after editing `.env` on the server, or to deploy a branch to try it.
