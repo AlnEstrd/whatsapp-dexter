@@ -29,7 +29,10 @@ jobs:
       result: ${{ steps.public.outputs.result || steps.remote.outputs.result }}
     env:
       DEST: /opt/whatsapp-bot
-      PUBLIC_URL: https://www.alanestrada.space/whatsapp-bot/api/
+      # Caddy on the droplet, over public DNS + TLS. Not the www path: Vercel only forwards
+      # /whatsapp-bot/api/<path>, the bare /whatsapp-bot/api/ is a Vercel 404.
+      # Override with the repo variable PUBLIC_HEALTH_URL.
+      PUBLIC_URL: ${{ vars.PUBLIC_HEALTH_URL || 'https://origin.alanestrada.space/' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -83,11 +86,13 @@ jobs:
         id: public
         run: |
           for i in $(seq 1 12); do
-            if body=$(curl -fsS --max-time 10 "$PUBLIC_URL") && [ "$(jq -r .status <<<"$body" 2>/dev/null)" = ok ]; then
-              echo "public health ok"
+            code=$(curl -sS --max-time 10 -o body.json -D headers.txt -w '%{http_code}' "$PUBLIC_URL" || true)
+            if [ "$code" = 200 ] && [ "$(jq -r .status body.json 2>/dev/null)" = ok ]; then
+              echo "public health ok ($PUBLIC_URL)"
               exit 0
             fi
-            echo "attempt $i: not ok yet"; sleep 5
+            server=$(grep -i '^server:' headers.txt 2>/dev/null | tr -d '\r' | cut -d' ' -f2-)
+            echo "attempt $i: HTTP ${code:-none}, server ${server:-?}"; sleep 5
           done
           echo "result=deployed, but public URL not ok" >> "$GITHUB_OUTPUT"
           echo "::error::$PUBLIC_URL did not return status ok"
