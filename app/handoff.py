@@ -102,6 +102,8 @@ async def start_flex_handoff(msg: InboundMessage, reason: str) -> str:
 
 async def hand_off(msg: InboundMessage, reason: str) -> str:
     """Route the user to a human. Returns the target used: "flex" or "slack"."""
+    from . import on_request
+    reason = on_request.lead_note(msg.user_id) + reason  # Alan sees what a lead read first
     s = get_settings()
     if s.flex_enabled and msg.channel == "twilio":
         try:

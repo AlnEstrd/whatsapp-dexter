@@ -482,6 +482,14 @@ It's a reward for curious attendees: ask "¿cómo se hizo Dexter?" / "how was De
   (conversations, assessments, curious people). No IPs, ids, phone numbers or user data;
   a failing field is dropped; a literal `{{…}}` never reaches a user.
 
+- **Lead generation** (`lead: true`): the content is shared without restrictions, and Alan is
+  always one message away. The entry's `## Contacto` / `## Contact` invitation ("escribe *hablar
+  con Alan*") goes out as its own bubble after the reply and after the PDF; the agent is told to
+  repeat it naturally (costs, building one, their company, working with Alan), and if three
+  answers in a row go by without it the bot adds it itself. When a lead asks for Alan (typed,
+  `humano` or the agent's `talk_to_alan`), they get a personal reply ("te va a escribir él
+  mismo") and Alan's Slack alert starts with `🔥 Lead (read: <id>)`.
+
 Add or edit an entry: see `app/kb/on_request/README.md` (format, triggers, the
 volume option for entries that must not live in git). Config: `ON_REQUEST_ENABLED`,
 `ON_REQUEST_DIR`, `ON_REQUEST_EXTRA_DIR`, `META_VERIFICATION_STATUS`.

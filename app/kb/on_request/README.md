@@ -33,6 +33,7 @@ triggers:                 # explicit phrasings that count as asking for it
 min_score: 0.75           # optional, 0.3-1.0
 notify_slack: true        # silent "🔑 On-request info shared: <id>" note in the user's thread
 pdf: true                 # allow "pdf" to send the whole entry as a document
+lead: true                # lead magnet: keep inviting the reader to talk to Alan (see below)
 ---
 
 <!-- comments are stripped and never sent -->
@@ -42,6 +43,12 @@ What the bot sends (Spanish). Keep it under ~1,000 characters; over 4,000 is rej
 
 ## Response
 Optional English version for English speakers.
+
+## Contacto
+Optional invitation to talk to Alan (Spanish), sent as its own bubble after the reply and the PDF.
+
+## Contact
+Same, in English.
 
 ## Detalle
 Everything the bot may use for follow-ups. Light Markdown: ### headings, - bullets
@@ -55,6 +62,16 @@ Placeholders (rendered at disclosure time, per user, never cached):
   features and public counters. See `app/status.py`.
 
 Unknown placeholders render empty and are logged at startup.
+
+## Lead entries (`lead: true`)
+
+Share generously, and keep the human route one message away:
+
+- the `## Contacto` invitation follows the reply and the PDF;
+- the agent repeats it naturally (costs, building one, their company, working with Alan);
+  after three answers in a row without it, the bot adds it itself;
+- when that person asks for Alan, the reply is personal and the Slack alert starts with
+  `🔥 Lead (read: <id>)` so Alan knows what they read.
 
 ## Matching
 
