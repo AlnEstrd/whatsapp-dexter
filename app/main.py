@@ -1295,12 +1295,6 @@ async def handle_inbound(channel: Channel, msg: InboundMessage) -> None:
         await _handle_inbound(channel, msg)
     finally:
         _record_user_msg(msg)
-
-
-async def _handle_inbound(channel: Channel, msg: InboundMessage) -> None:
-    try:
-        await _handle_inbound(channel, msg)
-    finally:
         await leads.effects(msg.user_id)  # hot alert etc., after the replies; never raises
 
 

@@ -384,6 +384,21 @@ def test_profile_and_signal_tools_are_invisible(make_client):
 
 
 @respx.mock
+def test_hot_alert_posted_in_the_same_turn(make_client):
+    meta, slack = mocks()
+    c = client(make_client, AGENT_MODE="claude", ANTHROPIC_API_KEY="sk-test", GUARD_ENABLED="false")
+    from app.leads import core
+    lid = core.engage(USER, "quiz_start")["lead_id"]
+    core.record_consent(lid, True, "v", "test")
+    fake_agent(_resp("tool_use", _tool("flag_buying_signal", {"kind": "asked_meeting", "note": "quiere reunión"})),
+               _resp("end_turn", _text("Va, le aviso a Alan.")))
+    say(c, "¿Puedo agendar una reunión con Alan para mi empresa?")
+    texts = [json.loads(x.request.content)["text"] for x in slack.calls]
+    assert sum("Lead caliente" in t for t in texts) == 1       # not left to the background loop
+    assert core.get(lid)["hot_alerted_at"]
+
+
+@respx.mock
 def test_request_contact_tool_starts_form(make_client):
     meta, _ = mocks()
     c = client(make_client, AGENT_MODE="claude", ANTHROPIC_API_KEY="sk-test", GUARD_ENABLED="false")
