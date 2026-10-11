@@ -650,12 +650,18 @@ async def _route_flows(channel: Channel, msg: InboundMessage, is_new: bool) -> b
         await send_out(channel, msg, menu.welcome(lang, msg.profile_name))
     elif (blocked := limits.model_block(uid)):
         await _limit_notice(channel, msg, blocked)   # no guard / agent call; menu still works
-    elif not await guard.on_topic(uid, msg.text):
-        await _off_topic(channel, msg, lang)
     else:
-        ok = await _run_agent(channel, msg, msg.text)
-        if ok and is_new and sessions.is_open(uid) and not store.in_handoff(uid) and not quiz.active(uid):
-            await send_out(channel, msg, menu.welcome(lang, msg.profile_name))
+        # A new chat that opens with a question: intro, answer, then a one-line offer of the
+        # menu (not the menu itself; it goes out on a greeting, "menu" or "opciones").
+        if is_new:
+            await send_reply(channel, msg, menu.intro(lang, msg.profile_name))
+        if not await guard.on_topic(uid, msg.text):
+            await _off_topic(channel, msg, lang)
+        else:
+            ok = await _run_agent(channel, msg, msg.text)
+            if ok and is_new and last_route.get(uid) == "agent" and sessions.is_open(uid) \
+                    and not store.in_handoff(uid) and not quiz.active(uid):
+                await send_reply(channel, msg, menu.menu_offer(lang))
     return True
 
 

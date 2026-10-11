@@ -383,7 +383,7 @@ def test_agent_documents_are_sent_after_the_text_reply(make_client, monkeypatch)
     c.post("/webhooks/meta", json=meta_payload("g1", "mándame la lámina de medición y un resumen del 10-20-70"))
     calls = [x.request.content for x in meta.calls if x.request.content.startswith(b"{")]
     kinds = [json.loads(x).get("type") for x in calls if json.loads(x).get("status") is None]
-    assert kinds[:3] == ["text", "image", "document"]
+    assert kinds[:4] == ["text", "text", "image", "document"]  # intro, reply, files
     assert media.call_count == 2
 
 

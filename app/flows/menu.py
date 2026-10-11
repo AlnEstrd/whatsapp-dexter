@@ -56,6 +56,16 @@ TEXT = {
                "5. 📄 Slides (PDF)\n\n"
                "You can also just type your question."),
     },
+    # First message of a new chat that is already a question: introduce, no menu, then answer.
+    "intro": {
+        "es": "👋 Hola{name}, soy Dexter, jefe de Estrada Lab. Estoy aquí para resolver tus dudas sobre lo más nuevo del lab.",
+        "en": "👋 Hi{name}, I'm Dexter, lab chief at Estrada Lab. I'm here to answer your questions about what's new at the lab.",
+    },
+    # ...and after that first answer: offer the menu, don't show it.
+    "offer": {
+        "es": "Puedes seguir preguntándome lo que quieras, o escribe *menu* para ver todo lo que puedo hacer.",
+        "en": "Keep asking me anything, or type *menu* to see everything I can do.",
+    },
     "button": {"es": "Ver opciones", "en": "See options"},
     "talk": {
         "es": ("En una frase: la IA cambia las *actividades* de un puesto, no sus responsabilidades. "
@@ -119,6 +129,15 @@ def welcome(lang: str, name: Optional[str] = None) -> Outgoing:
         options=[Option(i, t, d) for i, t, d in MENU_OPTIONS[lang]],
         button=TEXT["button"][lang],
     )
+
+
+def intro(lang: str, name: Optional[str] = None) -> str:
+    first = f", {name.split()[0]}" if name else ""
+    return TEXT["intro"][lang].format(name=first)
+
+
+def menu_offer(lang: str) -> str:
+    return TEXT["offer"][lang]
 
 
 def typed_choice(text: str) -> Optional[str]:
