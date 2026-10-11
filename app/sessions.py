@@ -214,8 +214,10 @@ def touch_user(user_id: str, channel_name: str, reply_to: str, profile_name: Opt
     s = _sessions.get(user_id)
     t = now()
     if not s or s.get("state") != "open":
-        s = {"state": "open", "opened_at": t, "offtopic": 0, "context": False, "quiz": False}
+        s = {"state": "open", "opened_at": t, "offtopic": 0, "context": False, "quiz": False, "unlocked": []}
         _sessions[user_id] = s
+        from . import status
+        status.bump("conversations")
     s.update(channel_name=channel_name, reply_to=reply_to, last_activity=t, warned=False,
              boot=BOOT_ID)
     if profile_name:
@@ -262,7 +264,7 @@ def mark_closed(user_id: str, by: str, reason: Optional[str] = None) -> Optional
     if not s or s.get("state") != "open":
         return None
     s.update(state="closed", closed_by=by, closed_at=now(), offtopic=0, context=False,
-             quiz=False, warned=False)
+             quiz=False, warned=False, unlocked=[])
     if reason:
         s["closed_reason"] = reason
     save(user_id)

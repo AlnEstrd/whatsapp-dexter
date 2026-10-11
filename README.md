@@ -399,7 +399,10 @@ app/
   twilio_api.py        Minimal Twilio REST helper
   resilience.py        Retry with exponential backoff
   tools.py             Tool definitions + implementations
-  docs/                PDF generation (reportlab): slides.py, topic.py, assessment.py, common/theme
+  on_request.py        On-request entries: load, trigger matching, unlocks, lookup tool
+  status.py            Live status for on-request entries (build info, uptime, features, Meta state)
+  kb/on_request/       Entries Dexter only shares when explicitly asked (see its README.md)
+  docs/                PDF generation (reportlab): slides.py, topic.py, assessment.py, dossier.py, common/theme
   store.py             History, language, handoff, transcript, webhook dedupe, Slack thread map
                        (in memory, written through to SQLite)
   config.py            Settings loaded from .env
@@ -448,6 +451,40 @@ Content sources and how to change them:
   (`WHY`) and the 90-day list are in `app/docs/assessment.py`. Report language follows the quiz language (ES/EN).
 - **Topic one-pager**: no fixed content; the agent writes it. Limits are in `app/docs/topic.py` (`LIMITS`, `MAX_WORDS`).
 - Look and feel (colors, fonts, footer): `app/docs/theme.py`.
+
+## On-request information
+
+Information stored inside Dexter that it gives **only to people who explicitly ask for it**:
+never a menu option, never suggested, never mentioned in "what can you do?" answers. The first
+entry, `app/kb/on_request/dexter-making-of.md`, is the making of Dexter (hosting, domain, Meta
+setup and verification, why not Twilio, costs, lessons, the repo) with Dexter's **live status**.
+It's a reward for curious attendees: ask "¿cómo se hizo Dexter?" / "how was Dexter built?".
+
+- **Hidden by construction**: entries are not in the system prompt, the core KB, the
+  `search_sources` index or the menu. The model can't suggest what it can't see.
+- **Fast path** (`main._route_flows`, before the guard and the agent): the message matches an
+  entry's `triggers` → its `## Respuesta` (or `## Response` for English) is sent as written.
+  No model call, so it works even when the token budget is spent.
+- **Agent path**: a generic `lookup_private_info(query)` tool (its description names no topic).
+  The server runs the same matcher on the query and returns the entry or `found: false`.
+- **Matching** is deterministic and only looks at triggers (accents/punctuation ignored; a whole
+  trigger phrase scores 1.0; otherwise the share of the trigger's meaningful words, discounted
+  when the message is about something else). Content is never searched.
+- **After disclosure** the entry is unlocked for that conversation only: `## Detalle` joins
+  that user's system prompt (after the cached prefix) so follow-ups work, the off-topic guard
+  treats follow-ups as in scope, and `pdf` sends the whole entry as a multipage PDF
+  (`app/docs/dossier.py`). Closing the chat locks it again. A silent `🔑 On-request info
+  shared: <id>` note goes to the Slack thread. Human mode: nothing is auto-disclosed.
+- **Live status** (`{{status_line}}`, `{{status}}`, `app/status.py`): commit and deploy date and
+  passing tests and eval count from `app/BUILD_INFO.json` (written by `deploy/remote-deploy.sh`,
+  test count from CI), uptime, ✅/⏳ features from the actual config, Meta verification state
+  from the last account webhooks (fallback `META_VERIFICATION_STATUS`), and counters
+  (conversations, assessments, curious people). No IPs, ids, phone numbers or user data;
+  a failing field is dropped; a literal `{{…}}` never reaches a user.
+
+Add or edit an entry: see `app/kb/on_request/README.md` (format, triggers, the
+volume option for entries that must not live in git). Config: `ON_REQUEST_ENABLED`,
+`ON_REQUEST_DIR`, `ON_REQUEST_EXTRA_DIR`, `META_VERIFICATION_STATUS`.
 
 ## Files from attendees (photos, screenshots, PDFs)
 
@@ -602,7 +639,7 @@ prompt or model change before deploying. Each case runs through the real webhook
             "state": {"closed": true}}}
 ```
 
-- `route`: `menu | quiz | agent | close | handoff | offtopic_warning | file_reply` (a list means "any of"). `file_reply` = the bot answered with a file (slides, report); `file_note` = a static reply about a file the user sent.
+- `route`: `menu | quiz | agent | close | handoff | offtopic_warning | file_reply | on_request` (a list means "any of"). `file_reply` = the bot answered with a file (slides, report); `file_note` = a static reply about a file the user sent.
 - `must_contain` / `must_not_contain`: case-insensitive substrings of the reply; `language`: `es` / `en`.
 - `tool_called` / `tool_not_called` (e.g. `end_conversation`, `start_assessment`, `send_slides`, `talk_to_alan`); `state`: `quiz_active`, `handoff`, `closed`, `file_sent`.
 - `media`: an inbound photo/PDF (`{"type": "image", "caption": "..."}`).

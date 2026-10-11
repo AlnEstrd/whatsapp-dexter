@@ -11,3 +11,4 @@ data/
 Claude outputs/
 *.tgz
 evals/results/*.json
+app/BUILD_INFO.json

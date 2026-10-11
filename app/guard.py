@@ -41,13 +41,18 @@ Answer with exactly one word: IN or OUT."""
 CLOSING_NOTE = "\n\nGoodbyes and \"that's all, thanks\"-style closings are always IN."
 
 
+# On-request info the user explicitly asked for: follow-ups about it are in scope for them.
+UNLOCKED_NOTE = ("\n\nIn this conversation the user also asked about: {topics}. Questions about that "
+                 "(and its details) are IN.")
+
+
 class Guard:
     def __init__(self) -> None:
         s = get_settings()
         self._client = AsyncAnthropic(api_key=s.anthropic_api_key)
         self._model = s.guard_model
 
-    async def on_topic(self, user_id: str, text: str) -> bool:
+    async def on_topic(self, user_id: str, text: str, unlocked: Optional[list[str]] = None) -> bool:
         last_bot = next((t for role, t in reversed(store.transcript(user_id)) if role == "bot"), "")
         content = (f"Previous bot message: {last_bot[:400]}\n\n" if last_bot else "") + \
                   f"User message: {text[:1500]}"
@@ -55,7 +60,8 @@ class Guard:
             resp = await self._client.messages.create(
                 model=self._model,
                 max_tokens=5,
-                system=PROMPT + (CLOSING_NOTE if get_settings().close_on_intent else ""),
+                system=PROMPT + (CLOSING_NOTE if get_settings().close_on_intent else "")
+                + (UNLOCKED_NOTE.format(topics="; ".join(unlocked)) if unlocked else ""),
                 messages=[{"role": "user", "content": content}],
             )
             await limits.record(user_id, resp, "guard")
@@ -86,8 +92,12 @@ async def on_topic(user_id: str, text: str) -> bool:
         return True
     if get_settings().close_on_intent and sessions.sounds_like_closing(text):
         return True  # a goodbye is never off-topic; the agent decides whether to close
+    from . import on_request
+    topics = on_request.guard_topics(user_id) if on_request.enabled() else []
     if _guard is None:
         _guard = Guard()
+    if topics:
+        return await _guard.on_topic(user_id, text, topics)
     return await _guard.on_topic(user_id, text)
 
 

@@ -62,6 +62,10 @@ MIGRATIONS: list[list[str]] = [
         # one-time flags: "limit notice sent today", "80% budget alert sent", ...
         "CREATE TABLE flags (key TEXT PRIMARY KEY, created_at REAL NOT NULL)",
     ],
+    # 2 - small key/value store: last Meta account events and public counters (app/status.py)
+    [
+        "CREATE TABLE kv (key TEXT PRIMARY KEY, value_json TEXT NOT NULL, updated_at REAL NOT NULL)",
+    ],
 ]
 
 _lock = threading.RLock()

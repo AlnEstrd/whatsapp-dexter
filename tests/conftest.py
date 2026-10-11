@@ -45,7 +45,7 @@ def make_client(monkeypatch, tmp_path):
         for k, v in env.items():
             monkeypatch.setenv(k, v)
 
-        from app import agent, db, guard, limits, main, sessions, slack_bridge, store
+        from app import agent, db, guard, limits, main, on_request, sessions, slack_bridge, status, store
         from app.flows import quiz
         from app.channels import reset_channels
         from app.config import get_settings
@@ -65,6 +65,9 @@ def make_client(monkeypatch, tmp_path):
         slack_bridge.reset()
         sessions.reset()
         guard.reset()
+        on_request.reset()
+        status.reset()
+        agent._unlocked.clear()
 
         from app.main import app
         return TestClient(app)

@@ -7,6 +7,10 @@ on:
     branches: [main]
   # deploy.yml calls this so a deploy only happens after tests pass on the same commit.
   workflow_call:
+    outputs:
+      tests:
+        description: Number of passing tests (shown in Dexter's live status)
+        value: ${{ jobs.ci.outputs.tests }}
 
 permissions:
   contents: read
@@ -16,6 +20,8 @@ jobs:
     name: ci
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      tests: ${{ steps.tests.outputs.tests }}
     # Dummy values only: tests mock every HTTP call (respx) and tests/conftest.py
     # sets its own env per test. No real secret is needed or available here.
     env:
@@ -46,4 +52,9 @@ jobs:
 
       # Offline evals are part of the suite; live evals (marker eval_live) never run in CI.
       - name: Run tests
-        run: pytest -q -m "not eval_live"
+        id: tests
+        run: |
+          set -o pipefail
+          pytest -q -m "not eval_live" | tee pytest.out
+          n=$(grep -oE '[0-9]+ passed' pytest.out | tail -n1 | grep -oE '[0-9]+' || true)
+          echo "tests=${n}" >> "$GITHUB_OUTPUT"
