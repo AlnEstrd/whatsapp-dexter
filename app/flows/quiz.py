@@ -12,6 +12,11 @@ Scale (average of 9 answers scored 0-3):
     L3 Frontera / Frontier            >= 2.8
 Gate from the talk: without sponsorship (leadership) and ownership the other
 domains don't produce value -> if either scores <= 1 the level is capped at L1.
+
+Domains can arrive pre-scored (``start(known=...)``): when someone describes their company
+(typed or in a voice note), the agent maps what they said onto the same 0-3 options and the
+quiz asks only the domains still missing. Scoring is unchanged; the result marks which
+domains came from the person's own account.
 """
 from __future__ import annotations
 
@@ -206,6 +211,15 @@ TIPS = {
 T = {
     "intro": {"es": "📊 *Diagnóstico rápido de madurez en IA*\n9 preguntas, ~3 minutos. Responde con el número (1–4) o elige en la lista. Escribe *salir* para terminar.",
               "en": "📊 *AI maturity rapid assessment*\n9 questions, ~3 minutes. Reply with the number (1-4) or pick from the list. Type *exit* to stop."},
+    "intro_known": {"es": "📊 *Diagnóstico rápido de madurez en IA*\nCon lo que me contaste ya califiqué {n} de 9 dominios:",
+                    "en": "📊 *AI maturity rapid assessment*\nFrom what you told me I've already scored {n} of 9 domains:"},
+    "rest": {"es": "Te pregunto {m} que faltan. Responde con el número (1–4) o elige en la lista. Si algo no cuadra, escribe *salir* y pídeme el diagnóstico completo.",
+             "en": "I'll ask the {m} missing. Reply with the number (1-4) or pick from the list. If something is off, type *exit* and ask me for the full assessment."},
+    "rest_one": {"es": "Solo me falta 1. Responde con el número (1–4) o elige en la lista. Si algo no cuadra, escribe *salir* y pídeme el diagnóstico completo.",
+                 "en": "Just 1 left. Reply with the number (1-4) or pick from the list. If something is off, type *exit* and ask me for the full assessment."},
+    "all_known": {"es": "No me falta ninguno, aquí va tu resultado. Si algo no cuadra, pídeme el diagnóstico completo.",
+                  "en": "Nothing missing, here's your result. If something is off, ask me for the full assessment."},
+    "inferred": {"es": "_(de lo que me contaste)_", "en": "_(from what you told me)_"},
     "invalid": {"es": "Responde con un número del 1 al 4 (o escribe *salir*).",
                 "en": "Please reply with a number from 1 to 4 (or type *exit*)."},
     "button": {"es": "Elegir respuesta", "en": "Choose answer"},
@@ -225,13 +239,22 @@ T = {
 
 EXIT_WORDS = {"salir", "exit", "cancelar", "cancel", "stop", "terminar", "menu", "menú"}
 LETTERS = {"a": 1, "b": 2, "c": 3, "d": 4}
+# Spoken answers ("la tercera", "option two") arrive as transcribed text.
+NUMBER_WORDS = {
+    "uno": 1, "una": 1, "primera": 1, "primero": 1, "one": 1, "first": 1,
+    "dos": 2, "segunda": 2, "segundo": 2, "two": 2, "second": 2,
+    "tres": 3, "tercera": 3, "tercero": 3, "three": 3, "third": 3,
+    "cuatro": 4, "cuarta": 4, "cuarto": 4, "four": 4, "fourth": 4,
+}
+KEYS = [q["key"] for q in QUESTIONS]
 
 
 @dataclass
 class QuizState:
     lang: str = "es"
-    index: int = 0
-    answers: list[int] = field(default_factory=list)
+    index: int = 0                    # QUESTIONS index of the current question
+    answers: list[int] = field(default_factory=list)  # answers to the questions asked, in order
+    known: dict[str, int] = field(default_factory=dict)  # domains scored from the person's account
 
 
 @dataclass
@@ -242,6 +265,7 @@ class Result:
     level: int
     capped: bool
     weakest: list[str]
+    inferred: list[str] = field(default_factory=list)  # keys scored from the person's account
 
 
 _states: dict[str, QuizState] = {}
@@ -303,10 +327,25 @@ def load_all() -> int:
     return len(_states)
 
 
+def clean_known(known: Optional[dict]) -> dict[str, int]:
+    """Keep only valid domain keys with an integer score 0-3."""
+    out: dict[str, int] = {}
+    for k, v in (known or {}).items():
+        if k in KEYS and isinstance(v, (int, float)) and not isinstance(v, bool) and 0 <= int(v) <= 3:
+            out[k] = int(v)
+    return out
+
+
+def _skip_known(st: QuizState) -> None:
+    while st.index < len(QUESTIONS) and QUESTIONS[st.index]["key"] in st.known:
+        st.index += 1
+
+
 def _question(st: QuizState) -> Outgoing:
     q = QUESTIONS[st.index]
     lang = st.lang
-    lines = [f"*{st.index + 1}/{len(QUESTIONS)} · {q['domain'][lang]}*", q["q"][lang], ""]
+    total = len(QUESTIONS) - len(st.known)
+    lines = [f"*{len(st.answers) + 1}/{total} · {q['domain'][lang]}*", q["q"][lang], ""]
     options = []
     for i, (title, desc) in enumerate(q["opts"][lang], start=1):
         lines.append(f"{i}. *{title}* — {desc}")
@@ -314,11 +353,39 @@ def _question(st: QuizState) -> Outgoing:
     return Outgoing(text="\n".join(lines), options=options, button=T["button"][lang])
 
 
-def start(user_id: str, lang: str = "es") -> list[Outgoing]:
-    st = QuizState(lang=lang if lang in ("es", "en") else "es")
+def _known_intro(st: QuizState) -> str:
+    lang = st.lang
+    lines = [T["intro_known"][lang].format(n=len(st.known))]
+    for q in QUESTIONS:
+        if q["key"] in st.known:
+            v = st.known[q["key"]]
+            lines.append(f"{_bar(v)} {q['domain'][lang]}: _{q['opts'][lang][v][0]}_")
+    missing = len(QUESTIONS) - len(st.known)
+    lines.append("")
+    if missing == 0:
+        lines.append(T["all_known"][lang])
+    elif missing == 1:
+        lines.append(T["rest_one"][lang])
+    else:
+        lines.append(T["rest"][lang].format(m=missing))
+    return "\n".join(lines)
+
+
+def start(user_id: str, lang: str = "es", known: Optional[dict] = None) -> list[Outgoing]:
+    """Start the quiz. ``known``: {domain key: 0-3} already scored from what the person told
+    the agent; only the other domains are asked (all known -> the result right away)."""
+    st = QuizState(lang=lang if lang in ("es", "en") else "es", known=clean_known(known))
+    if not st.known:
+        _states[user_id] = st
+        _save_state(user_id)
+        return [Outgoing(text=T["intro"][st.lang]), _question(st)]
+    intro = Outgoing(text=_known_intro(st))
+    _skip_known(st)
+    if st.index >= len(QUESTIONS):
+        return [intro, *_finish(user_id, st)]
     _states[user_id] = st
     _save_state(user_id)
-    return [Outgoing(text=T["intro"][st.lang]), _question(st)]
+    return [intro, _question(st)]
 
 
 def _parse(st: QuizState, text: str, reply_id: Optional[str]) -> Optional[int]:
@@ -339,6 +406,13 @@ def _parse(st: QuizState, text: str, reply_id: Optional[str]) -> Optional[int]:
     for i, (title, _) in enumerate(QUESTIONS[st.index]["opts"][st.lang], start=1):
         if t and t == title.lower():
             return i
+    # Short spoken answer: "la tercera", "opción 2", "option four".
+    words = "".join(c if c.isalnum() else " " for c in t).split()
+    if len(words) <= 3:
+        hits = {NUMBER_WORDS[w] if w in NUMBER_WORDS else int(w)
+                for w in words if w in NUMBER_WORDS or w in ("1", "2", "3", "4")}
+        if len(hits) == 1:
+            return hits.pop()
     return None
 
 
@@ -355,18 +429,25 @@ def answer(user_id: str, text: str, reply_id: Optional[str] = None) -> list[Outg
         return [Outgoing(text=T["invalid"][st.lang]), _question(st)]
     st.answers.append(choice - 1)
     st.index += 1
+    _skip_known(st)
     if st.index < len(QUESTIONS):
         _save_state(user_id)
         return [_question(st)]
+    return _finish(user_id, st)
+
+
+def _finish(user_id: str, st: QuizState) -> list[Outgoing]:
     _states.pop(user_id, None)
     _save_state(user_id)
-    result = score(st.answers, st.lang)
+    asked = iter(st.answers)
+    full = [st.known[k] if k in st.known else next(asked) for k in KEYS]
+    result = score(full, st.lang, inferred=[k for k in KEYS if k in st.known])
     _results[user_id] = result
     _save_result(user_id)
     return [Outgoing(text=render(result)), Outgoing(text=T["outro"][st.lang])]
 
 
-def score(answers: list[int], lang: str = "es") -> Result:
+def score(answers: list[int], lang: str = "es", inferred: Optional[list[str]] = None) -> Result:
     by_key = {q["key"]: a for q, a in zip(QUESTIONS, answers)}
     avg = round(sum(answers) / len(answers), 2)
     level = 0 if avg < 1.0 else 1 if avg < 2.0 else 2 if avg < 2.8 else 3
@@ -376,7 +457,8 @@ def score(answers: list[int], lang: str = "es") -> Result:
     # Weakest three (ties keep question order, which puts strategy/governance first).
     ranked = sorted(by_key, key=lambda k: by_key[k])
     weakest = [k for k in ranked if by_key[k] < 3][:3]
-    return Result(lang=lang, answers=by_key, average=avg, level=level, capped=capped, weakest=weakest)
+    return Result(lang=lang, answers=by_key, average=avg, level=level, capped=capped, weakest=weakest,
+                  inferred=list(inferred or []))
 
 
 def _bar(v: int) -> str:
@@ -391,7 +473,8 @@ def render(r: Result) -> str:
         lines.append(T["gate"][lang])
     lines += ["", T["by_domain"][lang]]
     for q in QUESTIONS:
-        lines.append(f"{_bar(r.answers[q['key']])} {q['domain'][lang]}")
+        mark = f" {T['inferred'][lang]}" if q["key"] in r.inferred else ""
+        lines.append(f"{_bar(r.answers[q['key']])} {q['domain'][lang]}{mark}")
     lines += ["", T["next"][lang]]
     if r.weakest:
         lines += [f"{i}. {TIPS[k][lang]}" for i, k in enumerate(r.weakest, start=1)]
@@ -405,10 +488,12 @@ def summary_for_agent(r: Result) -> str:
     dims = ", ".join(f"{q['domain']['en']}={r.answers[q['key']]}/3" for q in QUESTIONS)
     return (f"Level {LEVELS[r.level]['en'][0]} (avg {r.average}/3"
             f"{', capped at L1 by sponsorship/ownership gate' if r.capped else ''}). "
-            f"Dimensions: {dims}. Weakest: {', '.join(r.weakest) or 'none'}.")
+            f"Dimensions: {dims}. Weakest: {', '.join(r.weakest) or 'none'}."
+            + (f" Scored from the user's own account (not asked): {', '.join(r.inferred)}." if r.inferred else ""))
 
 
 def summary_for_slack(r: Result) -> str:
     dims = " · ".join(f"{q['domain']['es']} {r.answers[q['key']]}" for q in QUESTIONS)
     return (f"📊 Assessment done: *{LEVELS[r.level]['es'][0]}* ({r.average:.1f}/3"
-            f"{', capped' if r.capped else ''})\n{dims}")
+            f"{', capped' if r.capped else ''})\n{dims}"
+            + (f"\n🎙️ From their account: {', '.join(r.inferred)}" if r.inferred else ""))

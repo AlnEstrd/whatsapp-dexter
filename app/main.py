@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import dataclasses
 import json
 import logging
 import re
@@ -29,7 +30,7 @@ from typing import Optional
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, Response
 from pydantic import BaseModel
 
-from . import attachments, db, docs, guard, limits, on_request, sessions, slack_bridge, status, store
+from . import attachments, db, docs, guard, limits, on_request, sessions, slack_bridge, status, store, voice
 from .agent import get_agent, pop_action, pop_documents, pop_unlocked
 from .channels import (
     Channel,
@@ -44,7 +45,7 @@ from .config import get_settings
 from .escalation import HANDOFF_REPLY, alert_provider_event, escalate, notify_slack, wants_human
 from .flows import menu, quiz
 from .flows.types import Outgoing
-from .formatting import to_whatsapp
+from .formatting import strip_greeting, to_whatsapp
 from .handoff import hand_off
 from .resilience import with_retry
 
@@ -320,20 +321,24 @@ async def _to_human(channel: Channel, msg: InboundMessage, reason: str) -> None:
     await send_reply(channel, msg, HANDOFF_REPLY)
 
 
-async def _start_quiz(channel: Channel, msg: InboundMessage, lang: str) -> None:
-    for out in quiz.start(msg.user_id, lang):
-        await send_out(channel, msg, out)
-    sessions.touch_bot(msg.user_id, quiz=True)
+async def _start_quiz(channel: Channel, msg: InboundMessage, lang: str,
+                      known: Optional[dict] = None) -> None:
+    before = quiz.last_result(msg.user_id)
+    await _send_quiz(channel, msg, quiz.start(msg.user_id, lang, known=known), before)
 
 
 async def _quiz_step(channel: Channel, msg: InboundMessage) -> None:
     before = quiz.last_result(msg.user_id)
-    outs = quiz.answer(msg.user_id, msg.text, msg.reply_id)
+    await _send_quiz(channel, msg, quiz.answer(msg.user_id, msg.text, msg.reply_id), before)
+
+
+async def _send_quiz(channel: Channel, msg: InboundMessage, outs: list, before) -> None:
+    """Send the quiz's messages; when they finish it (new result), the PDF goes right after the result."""
     result = quiz.last_result(msg.user_id)
     finished = result is not None and result is not before
     for i, out in enumerate(outs):
         await send_out(channel, msg, out)
-        if finished and i == 0 and getattr(channel, "send_document", None):
+        if finished and i == len(outs) - 2 and getattr(channel, "send_document", None):
             # result text first, then the PDF report, then the follow-up line (skipped silently where files can't be sent)
             await _send_assessment_pdf(channel, msg, result)
     if finished:
@@ -384,6 +389,12 @@ async def typing(channel: Channel, msg: InboundMessage):
 
 
 MEDIA_NOTE = {
+    "unsupported_voice": {  # voice notes on (TRANSCRIBE_API_KEY set)
+        "es": "Puedo leer fotos (JPG, PNG, WebP), PDFs y escuchar notas de voz. Videos y otros archivos no. "
+              "¿Me escribes tu pregunta o me mandas una foto, PDF o audio?",
+        "en": "I can read photos (JPG, PNG, WebP) and PDFs and listen to voice notes, not video or other files. "
+              "Could you type your question or send a photo, PDF or voice note?",
+    },
     "unsupported": {
         "es": "Por ahora puedo leer fotos (JPG, PNG, WebP) y PDFs. Audios, videos y otros archivos no. "
               "¿Me escribes tu pregunta o me mandas una foto/PDF?",
@@ -416,6 +427,32 @@ MEDIA_NOTE = {
     },
 }
 
+VOICE_NOTE = {
+    "too_large": {
+        "es": "Ese audio es muy largo para mí (máx. unos 15 minutos). ¿Me lo mandas en partes más cortas?",
+        "en": "That audio is too long for me (about 15 minutes max). Could you send it in shorter parts?",
+    },
+    "unsupported": {
+        "es": "No pude abrir ese formato de audio. ¿Me mandas una nota de voz de WhatsApp o me lo escribes?",
+        "en": "I couldn't open that audio format. Could you send a WhatsApp voice note or type it?",
+    },
+    "empty": {
+        "es": "No alcancé a entender el audio. ¿Me lo mandas otra vez o me lo escribes?",
+        "en": "I couldn't make out the audio. Could you send it again or type it?",
+    },
+    "failed": {
+        "es": "No pude escuchar tu nota de voz. ¿Me la mandas otra vez o me lo escribes?",
+        "en": "I couldn't process your voice note. Could you send it again or type it?",
+    },
+}
+VOICE_PREFIX = "[Voice note] "
+
+
+def _media_note(reason: str, lang: str) -> str:
+    if reason == "unsupported" and voice.enabled():
+        reason = "unsupported_voice"
+    return MEDIA_NOTE[reason][lang]
+
 
 async def _handle_media(channel: Channel, msg: InboundMessage) -> None:
     """Photo / screenshot / PDF from the attendee: validate, then let Claude look at it."""
@@ -438,7 +475,7 @@ async def _handle_media(channel: Channel, msg: InboundMessage) -> None:
             att = await attachments.load(channel, msg.media)
     except attachments.Rejected as exc:
         _route(msg, "file_note")
-        await send_reply(channel, msg, MEDIA_NOTE[exc.reason][lang])
+        await send_reply(channel, msg, _media_note(exc.reason, lang))
         return
     except Exception:  # noqa: BLE001
         logger.exception("Media download failed for %s", uid)
@@ -446,6 +483,46 @@ async def _handle_media(channel: Channel, msg: InboundMessage) -> None:
         await send_reply(channel, msg, MEDIA_NOTE["failed"][lang])
         return
     await _run_agent(channel, msg, msg.text, attachments=[att])
+
+
+async def _handle_voice(channel: Channel, msg: InboundMessage, is_new: bool) -> None:
+    """Voice note: transcribe it, then handle the text as if it had been typed
+    (goodbye / human keywords, quiz answer, menu, guard, agent)."""
+    uid = msg.user_id
+    lang = store.get_lang(uid) or "es"
+    if not hasattr(channel, "download_media") or not msg.media:
+        _route(msg, "file_note")
+        await send_reply(channel, msg, MEDIA_NOTE["channel"][lang])
+        return
+    blocked = limits.model_block(uid)
+    if blocked:
+        await _limit_notice(channel, msg, blocked)
+        return
+    try:
+        async with typing(channel, msg):
+            transcript = await voice.load_transcript(channel, msg.media)
+    except attachments.Rejected as exc:
+        _route(msg, "file_note")
+        await send_reply(channel, msg, VOICE_NOTE[exc.reason][lang])
+        return
+    except Exception:  # noqa: BLE001  (download or transcription service failed)
+        logger.exception("Voice note failed for %s", uid)
+        _route(msg, "file_note")
+        await send_reply(channel, msg, VOICE_NOTE["failed"][lang])
+        return
+    if not transcript:
+        _route(msg, "file_note")
+        await send_reply(channel, msg, VOICE_NOTE["empty"][lang])
+        return
+    store.log_turn(uid, "user", f"🎙️ {transcript}")
+    await _thread_note(msg, f"🎙️ Transcript: {transcript}")
+    voiced = dataclasses.replace(msg, text=transcript, media=None, transcribed=True)
+    if await _closer_or_human(channel, voiced):
+        return
+    if get_settings().flows_enabled:
+        await _route_flows(channel, voiced, is_new)
+    else:
+        await _run_agent(channel, voiced, voiced.text)
 
 
 MAX_BUBBLES = 3
@@ -491,6 +568,8 @@ async def _run_agent(channel: Channel, msg: InboundMessage, text: str,
         await _limit_notice(channel, msg, blocked)
         return True
     _route(msg, "agent")
+    if msg.transcribed and text == msg.text:
+        text = VOICE_PREFIX + text
     try:
         # The Anthropic SDK already retries transient API errors (429/5xx), so
         # no outer retry here: re-running would duplicate history entries.
@@ -518,6 +597,7 @@ async def _run_agent(channel: Channel, msg: InboundMessage, text: str,
             await send_file(channel, msg, doc)
         await close_chat(msg.user_id, "user_intent", farewell=action.get("farewell"), user_text=text)
         return True
+    reply = strip_greeting(reply)  # the welcome / new-chat intro already said hello
     if reply or not (action or documents):
         await send_bubbles(channel, msg, reply or FALLBACK_REPLY)
     for doc in documents:
@@ -527,7 +607,8 @@ async def _run_agent(channel: Channel, msg: InboundMessage, text: str,
         if result is not None:
             await _send_assessment_pdf(channel, msg, result)
     elif action and action["action"] == "quiz":
-        await _start_quiz(channel, msg, action.get("lang") or store.get_lang(msg.user_id) or "es")
+        await _start_quiz(channel, msg, action.get("lang") or store.get_lang(msg.user_id) or "es",
+                          known=action.get("known"))
     elif action and action["action"] == "human":
         await hand_off(msg, f"Talk to Alan: {action.get('reason', '')}".strip())
     return True
@@ -827,6 +908,25 @@ def _is_closer(msg: InboundMessage) -> bool:
     return sessions.is_close_request(msg.text) or (intent and sessions.is_done_intent(msg.text))
 
 
+async def _closer_or_human(channel: Channel, msg: InboundMessage) -> bool:
+    """Goodbye and "talk to a human" keywords, which work before any limit or flow.
+    True when the message was handled."""
+    if _is_closer(msg):
+        _route(msg, "close")
+        if get_settings().close_on_intent:
+            lang = menu.detect_lang(msg.text, store.get_lang(msg.user_id))
+            store.set_lang(msg.user_id, lang)
+            sessions.set_lang(msg.user_id, lang)
+        await close_chat(msg.user_id, "user_keyword", user_text=msg.text)
+        return True
+    if msg.text and wants_human(msg.text):
+        _route(msg, "handoff")
+        await hand_off(msg, "User asked for a human")
+        await send_reply(channel, msg, HANDOFF_REPLY)
+        return True
+    return False
+
+
 async def handle_inbound(channel: Channel, msg: InboundMessage) -> None:
     try:
         await channel.mark_as_read(msg)
@@ -865,13 +965,7 @@ async def handle_inbound(channel: Channel, msg: InboundMessage) -> None:
     is_new = not store.transcript(msg.user_id)
     store.log_turn(msg.user_id, "user", msg.text or f"({msg.msg_type})")
 
-    if _is_closer(msg):
-        _route(msg, "close")
-        if get_settings().close_on_intent:
-            lang = menu.detect_lang(msg.text, store.get_lang(msg.user_id))
-            store.set_lang(msg.user_id, lang)
-            sessions.set_lang(msg.user_id, lang)
-        await close_chat(msg.user_id, "user_keyword", user_text=msg.text)
+    if await _closer_or_human(channel, msg):
         return
 
     if not msg.text and msg.media is None:
@@ -879,18 +973,17 @@ async def handle_inbound(channel: Channel, msg: InboundMessage) -> None:
         await send_reply(channel, msg, "Por ahora solo entiendo texto, fotos y PDFs. / Text, photos and PDFs only for now.")
         return
 
-    if msg.text and wants_human(msg.text):
-        _route(msg, "handoff")
-        await hand_off(msg, "User asked for a human")
-        await send_reply(channel, msg, HANDOFF_REPLY)
-        return
-
     # Message caps (after "adiós" / "humano", which always work). Quiz answers don't count.
-    is_file = msg.media is not None and msg.msg_type in ("image", "document")
+    listen = voice.is_voice(msg) and voice.enabled()
+    is_file = msg.media is not None and (msg.msg_type in ("image", "document") or listen)
     exempt = msg.media is None and quiz.active(msg.user_id)
     kind = limits.check_inbound(msg.user_id, is_file=is_file, exempt=exempt)
     if kind:
         await _limit_notice(channel, msg, kind)
+        return
+
+    if listen:
+        await _handle_voice(channel, msg, is_new)
         return
 
     if msg.media is not None:

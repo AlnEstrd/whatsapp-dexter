@@ -144,6 +144,8 @@ Ask me about any part: hosting, domain, Meta and verification, Twilio, costs, cu
 - Archivos que manda la gente (fotos, PDFs):
   - Claude los lee solo en ese turno; nunca se guardan en disco.
   - Hay límites de tamaño y se verifica el tipo real del archivo.
+- Notas de voz: un servicio de voz a texto (compatible con la API de OpenAI) las transcribe y el texto sigue el flujo normal, como si la persona lo hubiera escrito. El audio no se guarda.
+  - Si alguien cuenta cómo usa la IA en su empresa, Dexter puede precalificar el diagnóstico con lo que dijo y solo preguntar lo que falta.
 - Slack: un hilo por conversación.
   - Alan solo recibe una mención cuando hay escalamiento.
   - Escribe `take` para tomar el control y `bot` para devolverlo.
@@ -172,7 +174,6 @@ Qué incluye cada pieza. Cuáles ya están activas lo dice "Estado actual".
 - Láminas en inglés (hoy solo hay versión en español).
 - Servir el PDF real de la presentación en lugar de las láminas regeneradas.
 - Guardar los resultados del diagnóstico para darle seguimiento a quien lo pida después de la plática.
-- Transcribir notas de voz (hoy no se aceptan audios).
 - Trazas de cada conversación (guard, pasos del agente, herramientas) para depurar y medir costo.
 
 ### Costos (orden de magnitud)

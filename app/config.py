@@ -45,6 +45,14 @@ class Settings(BaseSettings):
     retention_days: float = 30          # purge closed/idle conversations older than this
     processed_retention_days: float = 7  # webhook dedupe ids kept this long
 
+    # --- Voice notes (app/voice.py) -------------------------------------------
+    # Transcribed with any OpenAI-compatible /audio/transcriptions endpoint (OpenAI, Groq...).
+    # Without TRANSCRIBE_API_KEY voice notes get the "photos and PDFs only" reply.
+    voice_enabled: bool = True
+    transcribe_api_key: Optional[str] = None
+    transcribe_base_url: str = "https://api.openai.com/v1"  # Groq: https://api.groq.com/openai/v1
+    transcribe_model: str = "gpt-4o-mini-transcribe"         # Groq: whisper-large-v3-turbo
+
     # --- Usage and cost caps (app/limits.py) --------------------------------
     limits_enabled: bool = True         # false = no caps (usage is still recorded)
     user_msg_per_minute: int = 6

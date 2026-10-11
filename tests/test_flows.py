@@ -178,6 +178,21 @@ def test_first_question_gets_intro_answer_then_menu_offer(make_client):
     assert bodies[3:] == ["echo: ¿Y quién es Alan?"]                          # only once
 
 
+@respx.mock
+def test_agent_does_not_greet_twice_after_intro(make_client):
+    send = respx.post(TWILIO_SEND).mock(return_value=httpx.Response(201))
+    c = make_client(FLOWS_ENABLED="true", AGENT_MODE="claude", ANTHROPIC_API_KEY="sk-test")
+    from app import agent
+    agent.get_agent()._client = SimpleNamespace(messages=FakeMessages([
+        _resp("end_turn", _text("¡Hola!\n\nAlan Estrada es un líder de ingeniería.")),
+    ]))
+    twilio_post(c, tw_msg("hola, quiero saber mas de alan"))
+    bodies = [dict(httpx.QueryParams(x.request.content.decode()))["Body"] for x in send.calls]
+    assert "Dexter" in bodies[0]                     # the intro is the only greeting
+    assert bodies[1] == "Alan Estrada es un líder de ingeniería."
+    assert not any(b.startswith("¡Hola!") for b in bodies)
+
+
 # --------------------------------------------------------------------------- #
 # Claude agent tool loop (Anthropic client faked)
 # --------------------------------------------------------------------------- #

@@ -32,6 +32,7 @@ TXT = {
         "strengths": "Fortalezas", "priorities": "Prioridades", "none_strong": "Ningún dominio en el nivel máximo "
         "todavía: es normal, empieza por las prioridades.", "none_weak": "Sin prioridades urgentes: mantén el rumbo.",
         "detail": "Detalle por dominio", "domain": "Dominio", "level": "Nivel", "answer": "Tu respuesta",
+        "inferred": "Calificado a partir de lo que contaste.",
         "legend": "Cada dominio se califica de 0 a 3 según la respuesta elegida. 3 es el nivel más avanzado.",
         "next": "Tus siguientes pasos", "why": "Por qué importa", "do": "Qué hacer",
         "all_good": "Mantén el rumbo: revisa el costo por unidad de resultado y comparte lo que funciona.",
@@ -52,6 +53,7 @@ TXT = {
         "strengths": "Strengths", "priorities": "Priorities", "none_strong": "No domain at the top level yet: "
         "that's normal, start with the priorities.", "none_weak": "No urgent priorities: keep going.",
         "detail": "Domain detail", "domain": "Domain", "level": "Level", "answer": "Your answer",
+        "inferred": "Scored from what you told me.",
         "legend": "Each domain is scored 0 to 3 from the answer you picked. 3 is the most advanced.",
         "next": "Your next steps", "why": "Why it matters", "do": "What to do",
         "all_good": "Keep going: review the cost per unit of outcome and share what works.",
@@ -271,7 +273,8 @@ def build_assessment_pdf(r: quiz.Result, name: Optional[str] = None, today: Opti
         v = r.answers[q["key"]]
         title, desc = _answer(q["key"], v, lang)
         rows.append([Paragraph(esc(q["domain"][lang]), S["cell_b"]), Dots(v, LEVEL_COLORS[min(3, v + 0)] if v else MUTED),
-                     [Paragraph(esc(title), S["cell_b"]), Paragraph(esc(desc), S["cell"])]])
+                     [Paragraph(esc(title), S["cell_b"]), Paragraph(esc(desc), S["cell"]),
+                      *([Paragraph(f"<i>{esc(tx['inferred'])}</i>", S["cell"])] if q["key"] in r.inferred else [])]])
     t = Table(rows, colWidths=[FRAME_W * 0.27, FRAME_W * 0.13, FRAME_W * 0.60], repeatRows=1)
     t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), NAVY), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [CARD, PAPER]), ("BOX", (0, 0), (-1, -1), 0.8, LINE),
