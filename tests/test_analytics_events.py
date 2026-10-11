@@ -359,3 +359,12 @@ def test_analytics_disabled_writes_nothing(make_client, tw):
     assert "note_gap" not in llm.calls[0]["system"][0]["text"]
     assert "IN or OUT." in gl.calls[0]["system"] and "on_topic" not in gl.calls[0]["system"]
     assert gl.calls[0]["max_tokens"] == 5
+
+
+def test_on_request_disclosed_event_and_topic(make_client, tw):
+    c = make_client(**FLOWS)
+    twilio_post(c, tw_msg("¿Cómo se hizo Dexter?", sid="S1"))
+    d = evs("on_request_disclosed")
+    assert len(d) == 1 and d[0]["data"] == {"id": "dexter-making-of"} and d[0]["step"] == "on_request"
+    m = evs("user_msg")[0]["data"]
+    assert (m["route"], m["topic"]) == ("on_request", "making_of")

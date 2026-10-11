@@ -52,6 +52,7 @@ MENU = {
 ROUTE = {
     "menu": "saludo_menu", "quiz": "diagnostico", "close": "despedida", "handoff": "contacto_alan",
     "offtopic_warning": "fuera_de_tema", "file_reply": "laminas", "human": "contacto_alan",
+    "on_request": "making_of",   # the on-request fast path (today's only entry is the making-of)
 }
 
 # Topics that describe *what the conversation is about* (a short follow-up inherits them).

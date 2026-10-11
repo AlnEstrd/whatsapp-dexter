@@ -35,8 +35,8 @@ from typing import Optional
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, Response
 from pydantic import BaseModel
 
-from . import attachments, db, docs, guard, limits, sessions, slack_bridge, store, voice
-from .agent import get_agent, pop_action, pop_documents, pop_gaps, turn_stats
+from . import attachments, db, docs, guard, limits, on_request, sessions, slack_bridge, status, store, voice
+from .agent import get_agent, pop_action, pop_documents, pop_gaps, pop_unlocked, turn_stats
 from .agent import tools_called as agent_tools_called
 from .analytics import digest, events, metrics, mcp_server, pricing, topics
 from .channels import (
@@ -114,6 +114,7 @@ def run_retention() -> int:
 async def lifespan(_app: FastAPI):
     tasks = []
     restore_state()
+    on_request.load()  # validate entries at startup (bad files are logged and skipped)
     if slack_bridge.enabled():
         await slack_bridge.load_bot_user_id()
         tasks.append(asyncio.create_task(slack_bridge.window_watcher()))
@@ -192,9 +193,11 @@ async def _ingest(channel_name: str, request: Request, background_tasks: Backgro
     parsed = await channel.parse_webhook(request, raw)
     for event in parsed.events:
         logger.info("Provider event %s/%s", event.channel, event.kind)
+        if event.channel == "meta":
+            status.record_meta_event(event.kind, event.data)  # verification state for the live status
         background_tasks.add_task(alert_provider_event, event)
-    for status in parsed.statuses:  # metrics only (msg_status, read receipts)
-        background_tasks.add_task(events.status, status)
+    for st in parsed.statuses:  # metrics only (msg_status, read receipts)
+        background_tasks.add_task(events.status, st)
 
     # Only real messages get here: Meta "statuses" (sent/delivered/read) never become
     # InboundMessages (failed ones are surfaced as provider events above).
@@ -344,9 +347,26 @@ async def _thread_note(msg: InboundMessage, text: str) -> None:
         await notify_slack(f"{msg.profile_name or msg.user_id}: {text}")
 
 
+LEAD_HANDOFF_REPLY = {
+    "es": "¡Va! Ya le avisé a Alan: te va a escribir él mismo por este chat en cuanto pueda. "
+          "Si quieres, adelántale qué te interesa (tu empresa, un bot así, la plática) para que llegue con contexto. 🤝",
+    "en": "Done! I've let Alan know: he'll write to you himself in this chat as soon as he can. "
+          "If you like, tell him upfront what you're interested in (your company, a bot like this, the talk) "
+          "so he comes with context. 🤝",
+}
+
+
+def _handoff_reply(user_id: str) -> str:
+    """Leads (they read the making-of) get a personal line from Alan's side; others the usual one."""
+    if on_request.enabled() and on_request.is_lead(user_id):
+        return LEAD_HANDOFF_REPLY["en" if _lang_of(user_id) == "en" else "es"]
+    return HANDOFF_REPLY
+
+
 async def _to_human(channel: Channel, msg: InboundMessage, reason: str, kind: str = "other") -> None:
+    reply = _handoff_reply(msg.user_id)  # before the handoff: it doesn't change, but be explicit
     await hand_off(msg, reason, kind)
-    await send_reply(channel, msg, HANDOFF_REPLY)
+    await send_reply(channel, msg, reply)
 
 
 async def _start_quiz(channel: Channel, msg: InboundMessage, lang: str,
@@ -370,6 +390,7 @@ async def _send_quiz(channel: Channel, msg: InboundMessage, outs: list, before) 
             # result text first, then the PDF report, then the follow-up line (skipped silently where files can't be sent)
             await _send_assessment_pdf(channel, msg, result)
     if finished:
+        status.bump("assessments")
         await _thread_note(msg, quiz.summary_for_slack(result))
     sessions.touch_bot(msg.user_id, quiz=quiz.active(msg.user_id), context=finished or None)
 
@@ -643,6 +664,8 @@ async def _run_agent(channel: Channel, msg: InboundMessage, text: str,
     for gap in pop_gaps(uid):
         note_id = events.sample(uid, gap["summary"], gap["topic"], lang, kind="gap_note")
         events.record("gap", uid, topic=gap["topic"], source="tool", sample_id=sample_id, note_id=note_id)
+    for entry_id in pop_unlocked(msg.user_id):
+        await _note_disclosure(msg, entry_id)
     if action and action["action"] == "close":
         # end_conversation: the agent's own text is dropped, the farewell is the only message
         for doc in documents:
@@ -652,6 +675,13 @@ async def _run_agent(channel: Channel, msg: InboundMessage, text: str,
     reply = strip_greeting(reply)  # the welcome / new-chat intro already said hello
     if reply or not (action or documents):
         await send_bubbles(channel, msg, reply or FALLBACK_REPLY)
+        # Lead: Alan is always one message away. Every few answers without the invitation,
+        # the bot adds it (not when the turn already hands off, quizzes or closes).
+        if reply and not action and on_request.enabled() and on_request.lead_tick(msg.user_id, reply):
+            lang = store.get_lang(msg.user_id) or "es"
+            if (cta := on_request.lead_cta(msg.user_id, lang)):
+                await send_reply(channel, msg, cta)
+                store.add_to_last_reply(msg.user_id, cta)  # so the model knows it was just offered
     for doc in documents:
         await send_file(channel, msg, doc)
     if action and action["action"] == "report":
@@ -690,6 +720,16 @@ async def _route_flows(channel: Channel, msg: InboundMessage, is_new: bool) -> b
         _route(msg, "quiz")
         await _quiz_step(channel, msg)
         return True
+
+    # On-request info: only for people who explicitly ask (no model call, works over budget).
+    if on_request.enabled() and not msg.reply_id:
+        if (entry := on_request.pdf_request(uid, msg.text)) is not None:
+            _route(msg, "file_reply")
+            await _send_dossier(channel, msg, entry, lang)
+            return True
+        if (entry := on_request.match(msg.text)) is not None:
+            await _disclose(channel, msg, entry, lang)
+            return True
 
     choice = msg.reply_id if (msg.reply_id or "").startswith("menu:") else menu.typed_choice(msg.text)
     slide = menu.slide_request(msg.text)
@@ -746,6 +786,49 @@ async def _route_flows(channel: Channel, msg: InboundMessage, is_new: bool) -> b
                     and not store.in_handoff(uid) and not quiz.active(uid):
                 await send_reply(channel, msg, menu.menu_offer(lang))
     return True
+
+
+async def _note_disclosure(msg: InboundMessage, entry_id: str) -> None:
+    """Silent owner note + public counter, the first time an entry is given in a conversation."""
+    status.bump("curious")
+    events.record("on_request_disclosed", msg.user_id, step="on_request", id=entry_id)
+    entry = on_request.get(entry_id)
+    if entry is not None and entry.notify_slack:
+        lead = " · 🔥 possible lead: they were told they can talk to you" if entry.lead else ""
+        try:
+            await _thread_note(msg, f"🔑 On-request info shared: {entry_id}{lead}")
+        except Exception:  # noqa: BLE001
+            logger.exception("on-request Slack note failed")
+
+
+async def _disclose(channel: Channel, msg: InboundMessage, entry: on_request.Entry, lang: str) -> None:
+    """Fast path: send the entry's reply as written and seed the agent so follow-ups work."""
+    _route(msg, "on_request")
+    _turn_topic[msg.user_id] = "making_of"
+    reply = on_request.response_for(entry, lang)
+    cta = on_request.cta_for(entry, lang)
+    first = on_request.unlock(msg.user_id, entry.id)
+    # The agent sees the exchange (and, via its system prompt, the entry's detail) next turn.
+    store.append_message(msg.user_id, "user", msg.text)
+    store.append_message(msg.user_id, "assistant", [{"type": "text", "text": f"{reply}\n\n{cta}".strip()}])
+    sessions.touch_bot(msg.user_id, context=True)
+    await send_bubbles(channel, msg, reply)
+    if cta:  # its own bubble: the human route right after the content
+        await send_reply(channel, msg, cta)
+    if first:
+        await _note_disclosure(msg, entry.id)
+
+
+async def _send_dossier(channel: Channel, msg: InboundMessage, entry: on_request.Entry, lang: str) -> None:
+    try:
+        doc = docs.make_dossier(entry, lang)
+    except Exception:  # noqa: BLE001
+        logger.exception("Dossier PDF failed for %s", entry.id)
+        await send_reply(channel, msg, DOC_FAILED[lang])
+        await _thread_note(msg, f"⚠️ The {entry.id} PDF failed to build.")
+        return
+    if await send_file(channel, msg, doc) and entry.lead and (cta := on_request.cta_for(entry, lang)):
+        await send_reply(channel, msg, cta)
 
 
 # --------------------------------------------------------------------------- #
@@ -957,7 +1040,7 @@ async def _off_topic(channel: Channel, msg: InboundMessage, lang: str) -> None:
 
 
 # Last route taken per user (also logged): menu | quiz | agent | close | handoff |
-# offtopic_warning | file_reply | file_note | limited | human | unsupported. Used by the evals.
+# offtopic_warning | file_reply | file_note | limited | human | unsupported | on_request. Used by the evals.
 last_route: dict[str, str] = {}
 
 
@@ -1001,8 +1084,9 @@ async def _closer_or_human(channel: Channel, msg: InboundMessage) -> bool:
         return True
     if msg.text and wants_human(msg.text):
         _route(msg, "handoff")
+        reply = _handoff_reply(msg.user_id)
         await hand_off(msg, "User asked for a human", "user_asked")
-        await send_reply(channel, msg, HANDOFF_REPLY)
+        await send_reply(channel, msg, reply)
         return True
     return False
 

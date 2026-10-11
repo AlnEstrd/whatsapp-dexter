@@ -62,7 +62,11 @@ MIGRATIONS: list[list[str]] = [
         # one-time flags: "limit notice sent today", "80% budget alert sent", ...
         "CREATE TABLE flags (key TEXT PRIMARY KEY, created_at REAL NOT NULL)",
     ],
-    # 2 - metrics & governance (app/analytics/). ts columns are UTC ISO-8601 strings
+    # 2 - small key/value store: last Meta account events and public counters (app/status.py)
+    [
+        "CREATE TABLE kv (key TEXT PRIMARY KEY, value_json TEXT NOT NULL, updated_at REAL NOT NULL)",
+    ],
+    # 3 - metrics & governance (app/analytics/). ts columns are UTC ISO-8601 strings
     #     ("2026-10-11T14:05:09.123456Z"), so range filters are plain string compares.
     [
         """CREATE TABLE events (

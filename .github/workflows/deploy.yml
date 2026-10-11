@@ -68,10 +68,12 @@ jobs:
 
       - name: Build, start, health check (rolls back on failure)
         id: remote
+        env:
+          TESTS: ${{ needs.test.outputs.tests }}
         run: |
           set +e
-          # shellcheck disable=SC2029  # $DEST and $GITHUB_SHA expand here on purpose
-          ssh prod "bash $DEST/deploy/remote-deploy.sh $GITHUB_SHA"
+          # shellcheck disable=SC2029  # $DEST, $GITHUB_SHA and $TESTS expand here on purpose
+          ssh prod "bash $DEST/deploy/remote-deploy.sh $GITHUB_SHA '$TESTS' ci"
           rc=$?
           case $rc in
             0) echo "result=deployed" >> "$GITHUB_OUTPUT" ;;

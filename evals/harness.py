@@ -49,7 +49,7 @@ RESULTS_DIR = Path(__file__).parent / "results"
 # file_reply = the bot answered with a file (slides, report); file_note = a static reply about an
 # inbound file (too big, wait for the quiz...); limited = a usage cap; human = Alan is in charge.
 ROUTES = {"menu", "quiz", "agent", "close", "handoff", "offtopic_warning", "file_reply",
-          "file_note", "limited", "human", "unsupported"}
+          "file_note", "limited", "human", "unsupported", "on_request"}
 
 GRAPH = "https://graph.facebook.com/v20.0"
 META_SEND = f"{GRAPH}/111/messages"

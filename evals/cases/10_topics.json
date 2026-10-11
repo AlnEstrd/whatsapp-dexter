@@ -81,11 +81,8 @@
     "id": "topic-making-of",
     "lang": "es",
     "message": "¿Cómo construyeron este bot de WhatsApp, Dexter?",
-    "mock": {
-      "guard": "{\"on_topic\": true, \"topic\": \"making_of\"}"
-    },
     "expect": {
-      "route": "agent",
+      "route": "on_request",
       "topic": "making_of"
     }
   },

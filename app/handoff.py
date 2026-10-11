@@ -109,6 +109,8 @@ async def hand_off(msg: InboundMessage, reason: str, kind: str = "other") -> str
     """Route the user to a human. Returns the target used: "flex" or "slack".
     ``kind``: one of REASONS, recorded as the ``handoff`` event's reason."""
     events.record("handoff", msg.user_id, step="handoff", reason=kind if kind in REASONS else "other")
+    from . import on_request
+    reason = on_request.lead_note(msg.user_id) + reason  # Alan sees what a lead read first
     s = get_settings()
     if s.flex_enabled and msg.channel == "twilio":
         try:

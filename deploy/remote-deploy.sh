@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Build, start and health-check the bot ON THE SERVER, rolling back if it's unhealthy.
 # Used by CI (.github/workflows/deploy.yml) and by ./deploy/deploy.sh, after the code was rsynced:
-#   bash /opt/whatsapp-bot/deploy/remote-deploy.sh <tag>      # tag = git sha
+#   bash /opt/whatsapp-bot/deploy/remote-deploy.sh <tag> [tests_passed] [ci|manual]   # tag = git sha
+#
+# Before building it writes app/BUILD_INFO.json (commit, build time, passing tests, eval cases,
+# ci|manual), baked into the image: Dexter's live status reads it (app/status.py).
 #
 # Images: whatsapp-bot:<tag> (each build), :current (what compose runs), :previous (rollback target).
 # Exit codes: 0 deployed | 1 precondition | 2 build failed (nothing changed)
@@ -9,6 +12,10 @@
 set -euo pipefail
 
 TAG="${1:-}"
+TESTS="${2:-}"
+SOURCE="${3:-manual}"
+[[ "$TESTS" =~ ^[0-9]{1,6}$ ]] || TESTS=""
+[[ "$SOURCE" == ci ]] || SOURCE=manual
 if [[ ! "$TAG" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$ ]]; then
   echo "usage: $0 <tag>   (git sha; letters, digits, . _ -)" >&2
   exit 1
@@ -24,7 +31,7 @@ HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-60}"
 # so CI and manual deploys never leave files the other one can't overwrite.
 if [[ $EUID -eq 0 ]] && id deploy >/dev/null 2>&1; then
   chown -R deploy:deploy "$DEST"
-  exec runuser -u deploy -- bash "$SELF" "$TAG"
+  exec runuser -u deploy -- bash "$SELF" "$TAG" "$TESTS" "$SOURCE"
 fi
 
 [[ -f "$DEST/.env" ]] || { echo "ERROR: $DEST/.env is missing (create it on the server or use ./deploy/deploy.sh --with-env)" >&2; exit 1; }
@@ -65,6 +72,12 @@ if [[ -n "$running" ]]; then
 elif has_image "$IMAGE:current"; then
   docker tag "$IMAGE:current" "$IMAGE:previous"
 fi
+
+# Build facts for the live status (no secrets: commit, time, counts).
+SHA="$(printf '%s' "$TAG" | grep -oE '^[0-9a-f]{7,40}' || true)"
+EVALS="$(cat "$DEST"/evals/cases/*.json 2>/dev/null | grep -c '"id":' || true)"
+printf '{"sha": "%s", "built_at": "%s", "tests_passed": %s, "eval_cases": %s, "source": "%s"}\n' \
+  "$SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${TESTS:-null}" "${EVALS:-0}" "$SOURCE" > "$DEST/app/BUILD_INFO.json"
 
 log "building $IMAGE:$TAG"
 if ! IMAGE_TAG="$TAG" docker compose build app; then

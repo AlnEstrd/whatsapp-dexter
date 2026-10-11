@@ -402,7 +402,10 @@ app/
   twilio_api.py        Minimal Twilio REST helper
   resilience.py        Retry with exponential backoff
   tools.py             Tool definitions + implementations
-  docs/                PDF generation (reportlab): slides.py, topic.py, assessment.py, common/theme
+  on_request.py        On-request entries: load, trigger matching, unlocks, lookup tool
+  status.py            Live status for on-request entries (build info, uptime, features, Meta state)
+  kb/on_request/       Entries Dexter only shares when explicitly asked (see its README.md)
+  docs/                PDF generation (reportlab): slides.py, topic.py, assessment.py, dossier.py, common/theme
   store.py             History, language, handoff, transcript, webhook dedupe, Slack thread map
                        (in memory, written through to SQLite)
   config.py            Settings loaded from .env
@@ -451,6 +454,48 @@ Content sources and how to change them:
   (`WHY`) and the 90-day list are in `app/docs/assessment.py`. Report language follows the quiz language (ES/EN).
 - **Topic one-pager**: no fixed content; the agent writes it. Limits are in `app/docs/topic.py` (`LIMITS`, `MAX_WORDS`).
 - Look and feel (colors, fonts, footer): `app/docs/theme.py`.
+
+## On-request information
+
+Information stored inside Dexter that it gives **only to people who explicitly ask for it**:
+never a menu option, never suggested, never mentioned in "what can you do?" answers. The first
+entry, `app/kb/on_request/dexter-making-of.md`, is the making of Dexter (hosting, domain, Meta
+setup and verification, why not Twilio, costs, lessons, the repo) with Dexter's **live status**.
+It's a reward for curious attendees: ask "¿cómo se hizo Dexter?" / "how was Dexter built?".
+
+- **Hidden by construction**: entries are not in the system prompt, the core KB, the
+  `search_sources` index or the menu. The model can't suggest what it can't see.
+- **Fast path** (`main._route_flows`, before the guard and the agent): the message matches an
+  entry's `triggers` → its `## Respuesta` (or `## Response` for English) is sent as written.
+  No model call, so it works even when the token budget is spent.
+- **Agent path**: a generic `lookup_private_info(query)` tool (its description names no topic).
+  The server runs the same matcher on the query and returns the entry or `found: false`.
+- **Matching** is deterministic and only looks at triggers (accents/punctuation ignored; a whole
+  trigger phrase scores 1.0; otherwise the share of the trigger's meaningful words, discounted
+  when the message is about something else). Content is never searched.
+- **After disclosure** the entry is unlocked for that conversation only: `## Detalle` joins
+  that user's system prompt (after the cached prefix) so follow-ups work, the off-topic guard
+  treats follow-ups as in scope, and `pdf` sends the whole entry as a multipage PDF
+  (`app/docs/dossier.py`). Closing the chat locks it again. A silent `🔑 On-request info
+  shared: <id>` note goes to the Slack thread. Human mode: nothing is auto-disclosed.
+- **Live status** (`{{status_line}}`, `{{status}}`, `app/status.py`): commit and deploy date and
+  passing tests and eval count from `app/BUILD_INFO.json` (written by `deploy/remote-deploy.sh`,
+  test count from CI), uptime, ✅/⏳ features from the actual config, Meta verification state
+  from the last account webhooks (fallback `META_VERIFICATION_STATUS`), and counters
+  (conversations, assessments, curious people). No IPs, ids, phone numbers or user data;
+  a failing field is dropped; a literal `{{…}}` never reaches a user.
+
+- **Lead generation** (`lead: true`): the content is shared without restrictions, and Alan is
+  always one message away. The entry's `## Contacto` / `## Contact` invitation ("escribe *hablar
+  con Alan*") goes out as its own bubble after the reply and after the PDF; the agent is told to
+  repeat it naturally (costs, building one, their company, working with Alan), and if three
+  answers in a row go by without it the bot adds it itself. When a lead asks for Alan (typed,
+  `humano` or the agent's `talk_to_alan`), they get a personal reply ("te va a escribir él
+  mismo") and Alan's Slack alert starts with `🔥 Lead (read: <id>)`.
+
+Add or edit an entry: see `app/kb/on_request/README.md` (format, triggers, the
+volume option for entries that must not live in git). Config: `ON_REQUEST_ENABLED`,
+`ON_REQUEST_DIR`, `ON_REQUEST_EXTRA_DIR`, `META_VERIFICATION_STATUS`.
 
 ## Files from attendees (photos, screenshots, PDFs)
 
@@ -626,6 +671,7 @@ Every close records `last_step`, the most recent funnel step.
 | `user_msg` | every inbound message | `topic`, `route`, `lang`, `kind` |
 | `gap` | see below | `topic`, `source` (`tool`/`handoff`/`idle_after_answer`), `sample_id`, `note_id` |
 | `csat` | 👍/👎 after a user close (`CSAT_ENABLED`) | `value` (`up`/`down`) |
+| `on_request_disclosed` | first time an on-request entry is given in a conversation (fast path or `lookup_private_info`) | `id` |
 | `conversation_close` | `close_chat()` | `reason`, `last_step`, `turns`, `duration_s`, `last_bot_msg_read` (true/false, null = unknown, e.g. Twilio), `csat_offered` |
 
 Close reasons: `user_keyword | user_intent | idle | admin | offtopic_handoff | limit | error | window_expired`
@@ -780,11 +826,11 @@ prompt or model change before deploying. Each case runs through the real webhook
             "state": {"closed": true}}}
 ```
 
-- `route`: `menu | quiz | agent | close | handoff | offtopic_warning | file_reply` (a list means "any of"). `file_reply` = the bot answered with a file (slides, report); `file_note` = a static reply about a file the user sent.
+- `route`: `menu | quiz | agent | close | handoff | offtopic_warning | file_reply | on_request` (a list means "any of"). `file_reply` = the bot answered with a file (slides, report); `file_note` = a static reply about a file the user sent.
 - `must_contain` / `must_not_contain`: case-insensitive substrings of the reply; `language`: `es` / `en`.
 - `tool_called` / `tool_not_called` (e.g. `end_conversation`, `start_assessment`, `send_slides`, `talk_to_alan`); `state`: `quiz_active`, `handoff`, `closed`, `file_sent`.
 - `media`: an inbound photo/PDF (`{"type": "image", "caption": "..."}`).
-- `topic`: the topic label the message gets in the metrics (`user_msg` event), e.g. `roles_ownership` (see "Metrics & governance"); `evals/cases/09_topics.json` covers ~13 representative messages.
+- `topic`: the topic label the message gets in the metrics (`user_msg` event), e.g. `roles_ownership` (see "Metrics & governance"); `evals/cases/10_topics.json` covers ~13 representative messages.
 - `mock` (offline only): the guard verdict (`"guard": "OUT"`, `"prior_guard"`) and the agent's scripted steps (`[{"tool": "send_slides", "input": {"slide": "8"}}, {"text": "Va."}]`).
 
 **Offline** (default, part of `pytest`): the Anthropic API is mocked with respx, so it checks

@@ -57,22 +57,28 @@ class Verdict:
     topic: Optional[str] = None   # topic id; None when the guard didn't label the message
 
 
+# On-request info the user explicitly asked for: follow-ups about it are in scope for them.
+UNLOCKED_NOTE = ("\n\nIn this conversation the user also asked about: {topics}. Questions about that "
+                 "(and its details) are IN.")
+
+
 class Guard:
     def __init__(self) -> None:
         s = get_settings()
         self._client = AsyncAnthropic(api_key=s.anthropic_api_key)
         self._model = s.guard_model
 
-    async def classify(self, user_id: str, text: str) -> Verdict:
+    async def classify(self, user_id: str, text: str, unlocked: Optional[list[str]] = None) -> Verdict:
         last_bot = next((t for role, t in reversed(store.transcript(user_id)) if role == "bot"), "")
         content = (f"Previous bot message: {last_bot[:400]}\n\n" if last_bot else "") + \
                   f"User message: {text[:1500]}"
         labels = events.enabled()
-        closing = CLOSING_NOTE if get_settings().close_on_intent else ""
+        notes = (CLOSING_NOTE if get_settings().close_on_intent else "") + \
+            (UNLOCKED_NOTE.format(topics="; ".join(unlocked)) if unlocked else "")
         if labels:  # same scope rules; the answer is JSON with the topic instead of one word
-            system = PROMPT.replace(ANSWER_LINE, "").rstrip() + closing + topics.guard_prompt_suffix()
+            system = PROMPT.replace(ANSWER_LINE, "").rstrip() + notes + topics.guard_prompt_suffix()
         else:
-            system = PROMPT + closing
+            system = PROMPT + notes
         t0 = time.monotonic()
         try:
             resp = await self._client.messages.create(
@@ -100,8 +106,8 @@ class Guard:
             logger.exception("Guard response handling failed; letting the message through")
             return Verdict(True)
 
-    async def on_topic(self, user_id: str, text: str) -> bool:
-        return (await self.classify(user_id, text)).on_topic
+    async def on_topic(self, user_id: str, text: str, unlocked: Optional[list[str]] = None) -> bool:
+        return (await self.classify(user_id, text, unlocked)).on_topic
 
 
 _guard: Optional[Guard] = None
@@ -125,9 +131,11 @@ async def classify(user_id: str, text: str) -> Verdict:
         return Verdict(True)
     if get_settings().close_on_intent and sessions.sounds_like_closing(text):
         return Verdict(True, "despedida")  # the agent decides whether to close
+    from . import on_request
+    unlocked = on_request.guard_topics(user_id) if on_request.enabled() else []
     if _guard is None:
         _guard = Guard()
-    return await _guard.classify(user_id, text)
+    return await _guard.classify(user_id, text, unlocked or None)
 
 
 async def on_topic(user_id: str, text: str) -> bool:
