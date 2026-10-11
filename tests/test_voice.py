@@ -183,8 +183,9 @@ def test_story_in_a_voice_note_prefills_the_assessment(make_client):
     tool_result = fake.calls[1]["messages"][-1]["content"][0]["content"]
     assert "2 domains scored" in tool_result and "only the 7 missing" in tool_result
     sent = texts(meta)
-    assert sent[0] == "Va, con lo que me contaste ya avanzamos."
-    assert "califiqué 2 de 9" in sent[1] and sent[2].startswith("*1/7 · Estrategia")
+    assert sent[0].startswith("👋 Hola, Ana, soy Dexter")  # new chat: intro first (menu.intro)
+    assert sent[1] == "Va, con lo que me contaste ya avanzamos."
+    assert "califiqué 2 de 9" in sent[2] and sent[3].startswith("*1/7 · Estrategia")
     assert quiz._states[UID].known == {"adoption": 1, "governance": 0}
 
 
@@ -203,7 +204,8 @@ def test_fully_known_assessment_sends_result_and_pdf(make_client):
     c.post("/webhooks/meta", json=meta_payload("m1", "Te cuento todo de mi empresa y hazme el diagnóstico"))
     kinds = [json.loads(x.request.content).get("type") for x in meta.calls]
     sent = texts(meta)
-    assert "No me falta ninguno" in sent[1] and "L1 · Ad hoc" in sent[2]
+    assert sent[0].startswith("👋") and sent[1] == "Listo."  # new chat: intro, then the agent's line
+    assert "No me falta ninguno" in sent[2] and "L1 · Ad hoc" in sent[3]
     # result text, then the PDF, then the outro
     doc_at = kinds.index("document")
     assert kinds[doc_at - 1] == "text" and "L1 · Ad hoc" in json.loads(meta.calls[doc_at - 1].request.content)["text"]["body"]
