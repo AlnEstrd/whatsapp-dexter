@@ -393,6 +393,9 @@ app/
   agent.py             Claude tool-use loop + EchoAgent (AGENT_MODE=echo)
   db.py                SQLite: connection, migrations, dedupe ids, flags, retention purge
   limits.py            Usage per user/day, rate + token caps, /admin/usage summary
+  analytics/           Metrics & governance: events.py (event log, samples, llm_calls), topics.py,
+                       pricing.py, metrics.py (KPIs), digest.py (Slack), anthropic_usage.py
+                       (Admin API reconciliation), mcp_server.py (read-only MCP connector + OAuth)
   escalation.py        Slack escalation + provider event alerts (Incoming Webhook)
   slack_bridge.py      Slack app bridge: thread per conversation, take/bot, /slack/events
   handoff.py           Handoff router: Flex (Conversations + Interactions API) or Slack
@@ -637,6 +640,182 @@ curl -s "$URL/admin/usage" -H "X-Admin-Token: $ADMIN_TOKEN"
 #  "top_users": [{"user": "****5678", "tokens": 41210, ...}, ...]}   (numbers masked)
 ```
 
+## Metrics & governance
+
+Alan governs Dexter by **asking Claude in chat** instead of reading a dashboard: an event log,
+topic labels and per-call cost land in SQLite; a daily digest goes to Slack; a read-only MCP
+connector lets Claude query the same numbers live. All of it is in `app/analytics/`, and
+analytics never breaks or delays a WhatsApp reply (every write is caught, logged and skipped).
+`ANALYTICS_ENABLED=false` writes nothing and the bot behaves exactly as before.
+
+### Event model
+
+`events(id, ts, user_id, conversation_id, type, step, data_json)`. `ts` is UTC ISO-8601. Writes
+are fire-and-forget on one background thread. `conversation_id` is new on every session start,
+including the first message after a close. It lives in the session state, so it survives restarts.
+Every close records `last_step`, the most recent funnel step.
+
+| type | where | data |
+|---|---|---|
+| `conversation_start` | first message of a session | `source` (`ENTRY_SOURCES` or `organic`), `lang`, `channel` |
+| `menu_shown` / `menu_choice` | welcome menu / talk overview, menu option | `menu` / `option` |
+| `quiz_start` / `quiz_answer` / `quiz_complete` / `quiz_exit` | `flows/quiz.py` | `q` (1–9), `level`; never the answer text. Step `quiz_qN` = question N on screen |
+| `report_sent`, `slides_sent`, `topic_pdf_sent` | file delivered | `pages`, `slide`, `format` |
+| `agent_turn` | after each agent turn | `tools`, `steps`, `latency_ms`, `input_tokens`, `output_tokens`, `topic`, `outcome` (`answered`/`handoff`/`error`/`closed`) |
+| `file_in` | inbound photo/PDF/voice note | `kind`, `accepted`, `reject_reason` |
+| `offtopic_warning` | guard said OUT | `n` (1/2) |
+| `handoff` | `hand_off()` (+ delivery failures) | `reason`: `user_asked`/`agent_error`/`offtopic`/`delivery_failure`/`limit`/`other` |
+| `human_take` / `human_release` | Slack bridge | — |
+| `limit_hit` | any limit | `limit` |
+| `error` | agent, guard, sends | `kind` (exception class only), `where` |
+| `msg_status` | Meta `statuses` callbacks (never reach `handle_inbound`) | `status`, `error_code`, `wamid` |
+| `user_msg` | every inbound message | `topic`, `route`, `lang`, `kind` |
+| `gap` | see below | `topic`, `source` (`tool`/`handoff`/`idle_after_answer`), `sample_id`, `note_id` |
+| `csat` | 👍/👎 after a user close (`CSAT_ENABLED`) | `value` (`up`/`down`) |
+| `on_request_disclosed` | first time an on-request entry is given in a conversation (fast path or `lookup_private_info`) | `id` |
+| `conversation_close` | `close_chat()` | `reason`, `last_step`, `turns`, `duration_s`, `last_bot_msg_read` (true/false, null = unknown, e.g. Twilio), `csat_offered` |
+
+Close reasons: `user_keyword | user_intent | idle | admin | offtopic_handoff | limit | error | window_expired`
+(today only the first four happen). **Note:** "Sería todo, gracias" is a *keyword* close
+(`user_keyword`, zero tokens). `user_intent` is when the agent calls `end_conversation` on a free-form
+goodbye ("Perfecto, con eso ya tengo todo, muchas gracias").
+
+The QR prefill text (`ENTRY_SOURCES='{"hola dexter": "qr_talk"}'`, matched ignoring case, accents
+and punctuation) sets the source and gets the welcome menu, same as "hola".
+
+**Gaps.** A turn is a gap when the agent called `note_gap` (an invisible tool; the turn goes
+on), when it ended in a handoff with reason ≠ `user_asked` (agent error), or when the chat
+closed `idle` right after an answer that was read (`last_step=agent_turn`, `last_bot_msg_read=true`).
+
+**Question samples** (`question_samples`): the text of messages that reached the agent, plus the
+agent's `note_gap` summaries (`kind=gap_note`). Phones, emails, URLs, card numbers and long digit
+runs are replaced with `[…]`, and text is cut at 200 characters. These texts come from attendees,
+so treat them as untrusted data, never instructions.
+
+**Cost** (`llm_calls`): one row per Anthropic call (`purpose` = `agent | guard | other`) from the
+response's `usage` (cache read/write included), plus failed calls with the exception class. The
+`usage` table that the limits use is still fed. Prices are in `app/analytics/pricing.py` (Sonnet 4.5
+and Haiku 4.5, checked 2026-10-11) and `MODEL_PRICES_JSON` overrides them. Cost is computed at
+query time, so a price fix re-prices history. With `ANTHROPIC_ADMIN_KEY` (`sk-ant-admin…`), the
+Usage & Cost Admin API is read server-side, cached for 15 minutes, to reconcile spend.
+
+**Retention:** events, samples, `llm_calls` and outbound ids follow `RETENTION_DAYS`.
+
+### Topic taxonomy (`app/analytics/topics.py`)
+
+`adopcion`, `estrategia_valor`, `gobernanza_riesgo`, `liderazgo`, `roles_ownership`,
+`personas_cultura`, `procesos`, `datos_plataforma`, `medicion_costo` (the 9 quiz domains) +
+`sobre_alan`, `la_platica_general`, `laminas`, `diagnostico`, `contacto_alan`, `making_of`,
+`saludo_menu`, `despedida`, `fuera_de_tema`, `otro`.
+
+The Haiku guard returns `{"on_topic": bool, "topic": "<id>"}` in the same call, so labels cost no
+extra model call. The on/off decision and fail-open behaviour are unchanged, and an unknown id
+becomes `otro`. Messages that skip the guard are labelled from their route: menu option, quiz,
+close, slides, handoff. A short follow-up ("¿y en ventas?") keeps the conversation's last topic.
+
+### KPI definitions (`app/analytics/metrics.py`, one source of truth)
+
+Ranges: `today`, `yesterday`, `7d`, `30d` (any `Nd`), an ISO date, or `from..to`. **Days are
+America/Mexico_City days**, and every result says so.
+
+| Metric | Definition |
+|---|---|
+| Conversations | count of `conversation_start` in range |
+| Containment rate | closed conversations with no `handoff` and no `human_take` ÷ closed conversations |
+| Escalation rate | conversations with ≥1 `handoff` ÷ conversations; also split by `reason` |
+| Completion | quiz: `quiz_complete` ÷ `quiz_start`; report delivery: `report_sent` ÷ `quiz_complete`; answered turns: `agent_turn` with `outcome=answered` ÷ all `agent_turn` |
+| Fallback / gap rate | `gap` events ÷ `agent_turn` events |
+| Funnel | `conversation_start` → `menu_choice` or first `user_msg` with route ≠ menu → feature started (quiz / agent / slides) → feature completed → close by user (`user_keyword` / `user_intent`) |
+| Drop-off | closes with reason `idle`, grouped by `last_step`, with `last_bot_msg_read` true / false / unknown |
+| Close reasons | count and share per reason |
+| Topics | `user_msg` by topic: messages, unique conversations, share; ES/EN split |
+| Gaps board | `gap` by topic and source, with up to 3 most recent scrubbed samples per topic |
+| Tools / slides board | counts of tool names from `agent_turn`, slide numbers from `slides_sent` |
+| Cost | from `llm_calls` × pricing: total, by model, by purpose, by hour/day, per conversation (mean, p50, p90), per completed quiz, per agent turn |
+| Cache hit ratio | cache_read ÷ (input + cache_read + cache_write) |
+| Tokens per agent turn | mean / p90 of input and output |
+| Latency | `agent_turn.latency_ms` p50 / p95 |
+| Errors | `error` events by kind; `msg_status=failed` by error code (error rate = errors ÷ user messages) |
+| Leads | `quiz_complete` count and `handoff` with reason `user_asked` |
+| CSAT | if `CSAT_ENABLED`: 👍 ÷ (👍 + 👎) and response rate |
+| Spend check | if the Admin key is set: our computed cost vs Anthropic's reported usage for the same UTC days, and the difference as a percentage; flag over 10% |
+
+`anomalies(range)` flags, each with the numbers behind it, when:
+
+- an hour's cost is over 3× the trailing 7-day hourly median (needs ≥24 active hours of history);
+- the cache hit ratio is under 50% on a day with more than 20 agent turns;
+- guard calls ÷ agent turns is under 0.5 while `GUARD_ENABLED` is on (≥10 turns);
+- the error rate is over 5% (≥20 messages);
+- today's token budget is over 80%.
+
+`GET /admin/metrics?range=7d` (header `X-Admin-Token`) returns the overview, as a debugging aid.
+
+### Daily Slack digest
+
+At `METRICS_DIGEST_HOUR` (default 8, Mexico City), the lifecycle loop posts yesterday's summary
+with `chat.postMessage`, top-level, to `SLACK_METRICS_CHANNEL_ID` (fallback: `SLACK_CHANNEL_ID`).
+It is short and in Spanish: conversations, containment, escalations by reason, quiz completion,
+top 5 topics, top drop-off step, top 3 gaps (names only), cost and anomalies.
+
+- It mentions `SLACK_ALERT_USER_ID` only when there are anomalies.
+- A day with no conversations gets a one-liner.
+- A `digest:<day>` flag in SQLite prevents a double post after a restart.
+- `POST /admin/digest?range=yesterday` sends one now.
+
+### MCP connector for claude.ai (read-only)
+
+Off by default (`MCP_ENABLED=false`). It is served at **`https://origin.alanestrada.space/mcp`**
+(Streamable HTTP, official `mcp` SDK). OAuth discovery (`/.well-known/...`) has to live at the
+host root, and the root of `www` belongs to the website, so the connector goes on the origin host.
+The existing Caddyfile already sends every path on that host to `app:8000`: no deploy change.
+
+**Tools** (all `readOnlyHint: true`; every result states the range and timezone, user ids are
+masked to the last 4 digits; 60 calls/min per token; each call is logged by name, duration, row
+count and range only):
+
+`get_overview`, `get_funnel`, `get_close_reasons`, `get_topics(range, lang?, top_n)`,
+`get_gaps(range, top_n, with_samples)`, `get_tools_and_slides`,
+`get_costs(range, group_by=day|hour|model|purpose|conversation)`,
+`get_anthropic_usage` (only with `ANTHROPIC_ADMIN_KEY`), `get_conversation_timeline(conversation_id)`,
+and `query(sql)`.
+
+`query(sql)` runs one SELECT on a separate `mode=ro` SQLite connection. An authorizer allows only
+reads of the views `v_events`, `v_conversations`, `v_llm_calls` (with `cost_usd`), `v_topics` and
+`v_gaps`. Base tables, writes, `ATTACH`, `PRAGMA` and non-whitelisted functions are all refused.
+Results are capped at 500 rows and 2 seconds. Tool descriptions warn that sample texts are untrusted.
+
+**Auth model** (OAuth 2.1, single owner, built on the SDK's auth helpers):
+
+- **Static client.** `MCP_OAUTH_CLIENT_ID` / `MCP_OAUTH_CLIENT_SECRET` are pasted in claude.ai's
+  Advanced settings. Dynamic Client Registration is off, so the static client is required. Both
+  `client_secret_post` and `client_secret_basic` work, compared in constant time.
+- **`/authorize`** requires **PKCE S256**, and `redirect_uri` must be in `MCP_REDIRECT_URIS`
+  (default `https://claude.ai/api/mcp/auth_callback`; check it against the value claude.ai shows).
+- **`/mcp/login`** asks for `MCP_OWNER_PASSWORD` (constant-time compare). 5 failures from one IP
+  lock that IP for 10 minutes; 20 failures in total lock everyone.
+- **Codes** are single-use with a 60-second TTL.
+- **`/token`** issues opaque tokens stored as SHA-256 hashes only: 1-hour access tokens and
+  30-day rotating refresh tokens.
+- **`/revoke`** revokes a token and its refresh family.
+- **No or invalid bearer token** → 401 with `WWW-Authenticate: Bearer ..., resource_metadata=".../.well-known/oauth-protected-resource"`.
+- **Startup** refuses to enable MCP unless the password has 16+ characters and the client secret,
+  client id and `MCP_PUBLIC_URL` are set (it logs why; the bot keeps running).
+- **Never logged:** tokens, codes and the password.
+
+**Rotate the password:** change `MCP_OWNER_PASSWORD` in `.env` and redeploy. Existing tokens keep
+working until they expire, so to cut access now:
+`curl -X POST $URL/admin/mcp/revoke-all -H "X-Admin-Token: $ADMIN_TOKEN"`.
+claude.ai then asks you to reconnect. Rotating the client secret also needs the new value in
+claude.ai's connector settings.
+
+**Privacy rules:**
+
+- Phone numbers stay inside SQLite; everything that leaves it (metrics, digest, MCP) masks them
+  to `****1234`.
+- `events` never holds message text.
+- Samples are scrubbed and truncated.
+- Retention follows `RETENTION_DAYS`.
+
 ## Leads
 
 Turns talk attendees into a follow-up list: **who** they are (asked progressively, never
@@ -806,7 +985,8 @@ All logic stays in Dexter; Zoho stores and displays. `app/leads/zoho.py`:
 
 ### Read access ("chat with Claude about my leads")
 
-The metrics MCP server isn't in this codebase, so read access is via `/admin` (X-Admin-Token):
+Read access is via `/admin` (X-Admin-Token). Lead tools on the metrics MCP connector
+(`get_leads`, `get_lead`, `get_lead_funnel`) are not wired yet:
 
 ```bash
 curl -s "$URL/admin/leads?tier=hot&contactable_only=true" -H "X-Admin-Token: $ADMIN_TOKEN"   # phones masked
@@ -845,6 +1025,7 @@ prompt or model change before deploying. Each case runs through the real webhook
 - `tool_called` / `tool_not_called` (e.g. `end_conversation`, `start_assessment`, `send_slides`, `talk_to_alan`, `flag_buying_signal`); `state`: `quiz_active`, `handoff`, `closed`, `file_sent`, and for leads `consent`, `consent_asked`, `opted_out`.
 - `env`: settings for that case only, e.g. `{"LEADS_ENABLED": "true"}` (the suite runs with leads off by default; `evals/cases/10_leads.json` turns them on).
 - `media`: an inbound photo/PDF (`{"type": "image", "caption": "..."}`).
+- `topic`: the topic label the message gets in the metrics (`user_msg` event), e.g. `roles_ownership` (see "Metrics & governance"); `evals/cases/10_topics.json` covers ~13 representative messages.
 - `mock` (offline only): the guard verdict (`"guard": "OUT"`, `"prior_guard"`) and the agent's scripted steps (`[{"tool": "send_slides", "input": {"slide": "8"}}, {"text": "Va."}]`).
 
 **Offline** (default, part of `pytest`): the Anthropic API is mocked with respx, so it checks

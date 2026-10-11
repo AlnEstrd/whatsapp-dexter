@@ -19,6 +19,8 @@ A case (``evals/cases/*.json``, a list of objects):
         "must_contain": ["..."], "must_not_contain": ["..."],   case-insensitive substrings
         "tool_called": "end_conversation",                      optional
         "language": "es" | "en",                                language of the reply
+        "topic": "roles_ownership",                             topic label of the message
+                                                                (user_msg event, app/analytics/topics.py)
         "state": {"quiz_active": true, "handoff": true, "closed": true, "file_sent": true,
                   "consent": true, "consent_asked": true, "opted_out": true}   (the last three: leads)
       }
@@ -86,6 +88,10 @@ def validate(case: dict) -> list[str]:
         errs.append(f"bad route {exp.get('route')!r}")
     if exp.get("language") not in (None, "es", "en"):
         errs.append("language must be es|en")
+    if exp.get("topic") is not None:
+        from app.analytics import topics
+        if exp["topic"] not in topics.TOPICS:
+            errs.append(f"unknown topic {exp['topic']!r}")
     return errs
 
 
@@ -150,6 +156,7 @@ class Result:
     passed: bool
     reasons: list[str] = field(default_factory=list)
     route: Optional[str] = None
+    topic: Optional[str] = None
     tools: list[str] = field(default_factory=list)
     replies: list[str] = field(default_factory=list)
 
@@ -159,7 +166,7 @@ class Result:
 
     def as_dict(self) -> dict:
         return {"id": self.id, "passed": self.passed, "reason": self.reason, "route": self.route,
-                "tools": self.tools, "replies": self.replies}
+                "topic": self.topic, "tools": self.tools, "replies": self.replies}
 
 
 def _replies(calls: list) -> tuple[list[str], bool]:
@@ -228,17 +235,20 @@ def _run(case: dict, make_client: Callable[..., Any], live: bool, api_key: str) 
             client.post("/webhooks/meta", json=meta_payload(f"wamid.{run}.final", case["message"], case.get("media")))
             replies, file_sent = _replies(list(meta.calls)[n_before:])
             state = _state(file_sent)
+            topic = _last_topic()
         finally:
             from app import db
             db.close()
             shutil.rmtree(tmp, ignore_errors=True)
 
-    res = Result(case["id"], True, route=main.last_route.get(USER),
+    res = Result(case["id"], True, route=main.last_route.get(USER), topic=topic,
                  tools=list(agent.tools_called.get(USER, [])), replies=replies)
     exp = case["expect"]
     routes = exp["route"] if isinstance(exp["route"], list) else [exp["route"]]
     if res.route not in routes:
         res.reasons.append(f"route {res.route!r} not in {routes}")
+    if exp.get("topic") and res.topic != exp["topic"]:
+        res.reasons.append(f"topic {res.topic!r} != {exp['topic']!r}")
     if exp.get("tool_called") and exp["tool_called"] not in res.tools:
         res.reasons.append(f"tool {exp['tool_called']!r} not called (called: {res.tools or 'none'})")
     if exp.get("tool_not_called") and exp["tool_not_called"] in res.tools:
@@ -276,6 +286,16 @@ def _run(case: dict, make_client: Callable[..., Any], live: bool, api_key: str) 
             res.reasons.append("attachment did not reach the agent")
     res.passed = not res.reasons
     return res
+
+
+def _last_topic() -> Optional[str]:
+    """Topic of the scored message: the newest user_msg event (metrics log)."""
+    from app import db
+    from app.analytics import events
+    events.drain()
+    rows = db.query("SELECT data_json FROM events WHERE type = 'user_msg' AND user_id = ? "
+                    "ORDER BY id DESC LIMIT 1", (USER,))
+    return json.loads(rows[0][0]).get("topic") if rows else None
 
 
 def _state(file_sent: bool) -> dict[str, bool]:

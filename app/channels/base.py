@@ -54,6 +54,9 @@ class ProviderEvent:
 class ParsedWebhook:
     messages: list[InboundMessage] = field(default_factory=list)
     events: list[ProviderEvent] = field(default_factory=list)
+    # Meta "statuses" (sent / delivered / read / failed for our outbound messages): metrics
+    # only, never turned into InboundMessages.
+    statuses: list[dict] = field(default_factory=list)
 
 
 class Channel(Protocol):
@@ -73,7 +76,7 @@ class Channel(Protocol):
 
     # Optional capabilities, looked up with getattr() by the caller:
     #   send_options(to, body, button, options)           interactive list (Meta)
-    #   send_buttons(to, body, options)                   interactive reply buttons, max 3 (Meta)
+    #   send_buttons(to, body, [(id, title)])             up to 3 reply buttons (Meta)
     #   send_document(to, data, filename, caption="")     PDF as a document message (Meta)
     #   send_image(to, data, filename, caption="", mime)  image message (Meta)
     #   download_media(media_id, max_bytes) -> (bytes, mime)  fetch an inbound file (Meta)

@@ -31,6 +31,7 @@ from typing import Any, Optional
 import httpx
 
 from . import store
+from .analytics import events
 from .channels import InboundMessage, SendError, get_channel
 from .config import get_settings
 from .resilience import with_retry
@@ -293,6 +294,7 @@ async def take_control(user_id: str, by: str) -> None:
         return  # already human; no duplicate confirmation
     store.start_handoff(user_id, "slack")
     store.set_mode(user_id, "human")
+    events.record("human_take", user_id, step="human")
     await _thread_post(user_id, f"✋ <@{by}> took control. Messages in this thread go to the "
                                 "customer. Type `bot` to hand back.")
 
@@ -301,6 +303,8 @@ async def release_control(user_id: str, note: bool = True) -> None:
     was_human = store.get_mode(user_id) == "human" or store.in_handoff(user_id)
     store.end_handoff(user_id)
     store.set_mode(user_id, "bot")
+    if was_human:
+        events.record("human_release", user_id)
     # The agent keeps its own history untouched; the Claude message format has
     # no system turns, so no context note is injected here.
     if note and was_human:

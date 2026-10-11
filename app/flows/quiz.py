@@ -25,6 +25,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Optional
 
 from .. import db
+from ..analytics import events
 from .types import Option, Outgoing
 
 # Each option: (title <= 24 chars, description <= 72 chars), scored 0..3 in order.
@@ -378,14 +379,21 @@ def start(user_id: str, lang: str = "es", known: Optional[dict] = None) -> list[
     if not st.known:
         _states[user_id] = st
         _save_state(user_id)
+        events.record("quiz_start", user_id, step=_step(st), known=0)
         return [Outgoing(text=T["intro"][st.lang]), _question(st)]
     intro = Outgoing(text=_known_intro(st))
     _skip_known(st)
+    events.record("quiz_start", user_id, step=_step(st), known=len(st.known))
     if st.index >= len(QUESTIONS):
         return [intro, *_finish(user_id, st)]
     _states[user_id] = st
     _save_state(user_id)
     return [intro, _question(st)]
+
+
+def _step(st: QuizState) -> str:
+    """Funnel step for the question on screen: quiz_q1 ... quiz_q9 (by question number)."""
+    return f"quiz_q{min(st.index, len(QUESTIONS) - 1) + 1}"
 
 
 def _parse(st: QuizState, text: str, reply_id: Optional[str]) -> Optional[int]:
@@ -422,17 +430,21 @@ def answer(user_id: str, text: str, reply_id: Optional[str] = None) -> list[Outg
     if st is None:
         return []
     if is_exit(text) and not reply_id:
+        events.record("quiz_exit", user_id, step="quiz_exit", q=st.index + 1)
         discard(user_id)
         return [Outgoing(text=T["cancelled"][st.lang])]
     choice = _parse(st, text, reply_id)
     if choice is None:
         return [Outgoing(text=T["invalid"][st.lang]), _question(st)]
+    answered = st.index + 1
     st.answers.append(choice - 1)
     st.index += 1
     _skip_known(st)
     if st.index < len(QUESTIONS):
+        events.record("quiz_answer", user_id, step=_step(st), q=answered)
         _save_state(user_id)
         return [_question(st)]
+    events.record("quiz_answer", user_id, q=answered)
     return _finish(user_id, st)
 
 
@@ -444,6 +456,8 @@ def _finish(user_id: str, st: QuizState) -> list[Outgoing]:
     result = score(full, st.lang, inferred=[k for k in KEYS if k in st.known])
     _results[user_id] = result
     _save_result(user_id)
+    events.record("quiz_complete", user_id, step="quiz_result", level=result.level,
+                  inferred=len(result.inferred))
     return [Outgoing(text=render(result)), Outgoing(text=T["outro"][st.lang])]
 
 
