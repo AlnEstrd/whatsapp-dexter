@@ -38,6 +38,8 @@ class InboundMessage:
     reply_id: Optional[str] = None  # id of the tapped interactive button / list row
     # Inbound file (image, document, audio...): {"id", "mime", "filename"}. ``text`` then holds the caption.
     media: Optional[dict] = None
+    # True when ``text`` is the transcript of a voice note (app/voice.py), not typed.
+    transcribed: bool = False
 
 
 @dataclass
