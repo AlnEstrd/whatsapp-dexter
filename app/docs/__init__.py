@@ -4,6 +4,7 @@
     make_slide_image(key)   one slide as a PNG (inline preview in WhatsApp)
     make_topic(spec)        a one-pager on a talk topic, content written by the agent
     make_assessment(result) multipage report of a finished AI-maturity assessment
+    make_dossier(entry)     an on-request entry (with live status) as a multipage PDF
 
 Every function returns a ``Doc`` (bytes + filename + caption). Rendering is
 pure Python (reportlab, built-in fonts): nothing to install on the server.
@@ -16,6 +17,7 @@ from typing import Optional
 
 from ..flows import quiz
 from . import assessment as _assessment
+from . import dossier as _dossier
 from . import slides as _slides
 from . import topic as _topic
 from .common import slugify
@@ -75,6 +77,17 @@ def make_assessment(result: quiz.Result, name: Optional[str] = None) -> Doc:
     return Doc(_assessment.build_assessment_pdf(result, name), filename, caption)
 
 
+def make_dossier(entry, lang: str = "es") -> Doc:
+    """``entry``: an on_request.Entry. Rendered now, so the live status is current."""
+    from .. import on_request
+    lang = "en" if lang == "en" else "es"
+    data = _dossier.build_dossier_pdf(entry.title, on_request.response_for(entry, lang),
+                                      on_request.detail_for(entry, lang), lang)
+    caption = "📁 El expediente completo." if lang == "es" else "📁 The full dossier."
+    return Doc(data, f"{slugify(entry.title)}.pdf", caption)
+
+
 slide_index_text = _slides.index_text
 
-__all__ = ["Doc", "make_deck", "make_slide_image", "make_topic", "make_assessment", "slide_index_text"]
+__all__ = ["Doc", "make_deck", "make_slide_image", "make_topic", "make_assessment", "make_dossier",
+           "slide_index_text"]

@@ -37,4 +37,4 @@ if (( WITH_ENV )); then
 fi
 
 # Same server-side script CI uses: build whatsapp-bot:$TAG, health check, roll back on failure.
-ssh "$HOST" "chmod 600 $DEST/.env 2>/dev/null; bash $DEST/deploy/remote-deploy.sh '$TAG'"
+ssh "$HOST" "chmod 600 $DEST/.env 2>/dev/null; bash $DEST/deploy/remote-deploy.sh '$TAG' '' manual"

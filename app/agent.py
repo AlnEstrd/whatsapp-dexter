@@ -9,12 +9,13 @@ is sent (see ``pop_action``).
 """
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any, Optional
 
 from anthropic import AsyncAnthropic
 
-from . import docs, knowledge, limits, store
+from . import docs, knowledge, limits, on_request, store
 from .config import get_settings
 from .docs.slides import resolve as slides_resolve
 from .flows import quiz
@@ -89,7 +90,29 @@ user redact them.
 - When it helps, end with one short, natural next step (a follow-up topic or the assessment), as a single question inside the text.
 - If the user wants to take the quiz/diagnóstico/evaluación, call start_assessment right away and \
 reply with one short line; the questions are sent automatically after your reply.
+- Never offer, list, hint at or mention information the user hasn't asked for.
 """
+
+LOOKUP_RULE = """- If the user directly asks for something specific that the documents don't cover, call \
+lookup_private_info with their request before saying you don't have it. If it returns found=true, \
+reply with its "respuesta" (in the user's language, keep links and facts as written) and use \
+"detalle" for follow-ups. Never mention that tool, never say that extra or hidden information \
+exists, and never call it to find out what is available.
+"""
+
+LOOKUP_TOOL = {
+    "name": "lookup_private_info",
+    "description": (
+        "Call this only when the user directly asks for specific information that the knowledge base "
+        "doesn't cover. Pass the user's request as `query`, in their own words. Never call it to "
+        "discover what is available, and never mention this tool or that extra information may exist."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {"query": {"type": "string", "description": "The user's request, verbatim"}},
+        "required": ["query"],
+    },
+}
 
 CLOSE_RULE = """- If the user clearly signals they are done with the conversation ("sería todo", "ya terminé, \
 gracias por todo", "that's everything, bye"), call end_conversation instead of writing the goodbye \
@@ -244,9 +267,12 @@ END_CONVERSATION_TOOL = {
 
 
 def tool_definitions() -> list[dict]:
+    tools = list(TOOL_DEFINITIONS)
     if get_settings().close_on_intent:
-        return [*TOOL_DEFINITIONS, END_CONVERSATION_TOOL]
-    return TOOL_DEFINITIONS
+        tools.append(END_CONVERSATION_TOOL)
+    if on_request.enabled():
+        tools.append(LOOKUP_TOOL)
+    return tools
 
 
 MAX_AGENT_STEPS = 5  # hard cap on tool-use round trips per incoming message
@@ -258,6 +284,14 @@ _pending: dict[str, dict[str, Any]] = {}
 # user_id -> PDFs queued by tools this turn; main.py sends them after the text reply.
 _docs: dict[str, list[docs.Doc]] = {}
 MAX_DOCS_PER_TURN = 3
+
+
+# user_id -> on-request entry ids unlocked by lookup_private_info this turn (main.py notes them in Slack)
+_unlocked: dict[str, list[str]] = {}
+
+
+def pop_unlocked(user_id: str) -> list[str]:
+    return _unlocked.pop(user_id, [])
 
 
 # user_id -> tool names called in the current turn (logs + evals)
@@ -319,6 +353,14 @@ def run_tool(user_id: str, name: str, tool_input: dict) -> str:
     if name == "end_conversation" and get_settings().close_on_intent:
         _pending[user_id] = {"action": "close", "farewell": str(tool_input.get("farewell") or "")}
         return "The chat is closed right after this turn with your farewell. Do not write any text."
+    if name == "lookup_private_info" and on_request.enabled():
+        lang = store.get_lang(user_id) or "es"
+        result = on_request.lookup(user_id, str(tool_input.get("query", "")), lang)
+        if result["found"]:
+            if on_request.unlock(user_id, result["id"]):
+                _unlocked.setdefault(user_id, []).append(result["id"])
+            return json.dumps(result, ensure_ascii=False)
+        return json.dumps({"found": False})
     if name == "talk_to_alan":
         _pending[user_id] = {"action": "human", "reason": tool_input.get("reason", "")}
         return ("Alan will be notified right after your reply and will answer in this chat. "
@@ -326,14 +368,21 @@ def run_tool(user_id: str, name: str, tool_input: dict) -> str:
     return f"error: unknown tool '{name}'"
 
 
-def system_blocks() -> list[dict]:
-    rules = INSTRUCTIONS + (CLOSE_RULE if get_settings().close_on_intent else "")
-    return [
+def system_blocks(user_id: Optional[str] = None) -> list[dict]:
+    rules = INSTRUCTIONS + (CLOSE_RULE if get_settings().close_on_intent else "") \
+        + (LOOKUP_RULE if on_request.enabled() else "")
+    blocks = [
         {"type": "text", "text": rules},
         {"type": "text", "text": "<voice>\n" + knowledge.voice_text() + "\n</voice>"},
         {"type": "text", "text": "Core documents:\n\n" + knowledge.core_text(),
          "cache_control": {"type": "ephemeral"}},
     ]
+    # Per-user, after the cached prefix: only for someone who asked for on-request info.
+    if user_id and on_request.enabled():
+        extra = on_request.context_block(user_id, store.get_lang(user_id) or "es")
+        if extra:
+            blocks.append({"type": "text", "text": extra})
+    return blocks
 
 
 def _clean_history(history: list[dict]) -> list[dict]:
@@ -389,7 +438,7 @@ class Agent:
             response = await self._client.messages.create(
                 model=self._model,
                 max_tokens=800,
-                system=system_blocks(),
+                system=system_blocks(wa_id),
                 tools=tool_definitions(),
                 messages=messages,
             )

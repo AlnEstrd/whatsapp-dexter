@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     guard_model: str = "claude-haiku-4-5"   # cheap classifier run before the main agent
     offtopic_max_warnings: int = 2          # the next off-topic message escalates to Alan
 
+    # --- On-request information (app/on_request.py) ---------------------------
+    # Entries Dexter only gives to people who explicitly ask (never in the menu or prompt).
+    on_request_enabled: bool = True
+    on_request_dir: str = ""                    # "" = app/kb/on_request (shipped with the code)
+    on_request_extra_dir: str = "data/on_request"  # optional, on the volume (not in git); wins on same id
+    # Fallback text for the live status when no Meta verification webhook has arrived yet.
+    meta_verification_status: str = ""
+
     # --- Twilio WhatsApp (Sandbox or production sender) ---------------------
     twilio_account_sid: Optional[str] = None
     twilio_auth_token: Optional[str] = None
