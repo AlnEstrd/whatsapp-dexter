@@ -89,3 +89,19 @@ async def test_reply_is_sanitized_before_sending(make_client):
     make_client()
     assert await main.send_reply(Chan(), Msg(), "**Hola** equipo\n\n- uno") is True
     assert sent == ["*Hola* equipo\n\n• uno"]
+
+
+@pytest.mark.parametrize("raw, expected", [
+    ("¡Hola!\n\nAlan Estrada es líder.", "Alan Estrada es líder."),
+    ("Hola, Ana. La regla es 10-20-70.", "La regla es 10-20-70."),
+    ("Hola, Alan Estrada es líder.", "Alan Estrada es líder."),
+    ("Hi there! She was at NASA.", "She was at NASA."),
+    ("Buenas tardes, la idea central", "La idea central"),
+    ("Hola mundo es un programa", "Hola mundo es un programa"),
+    ("Holanda es un país.", "Holanda es un país."),
+    ("¡Hola! 👋", "¡Hola! 👋"),      # nothing else to say: keep it
+    ("", ""),
+])
+def test_strip_greeting(raw, expected):
+    from app.formatting import strip_greeting
+    assert strip_greeting(raw) == expected
