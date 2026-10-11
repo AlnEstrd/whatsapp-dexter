@@ -11,11 +11,13 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any, Optional
 
 from anthropic import AsyncAnthropic
 
 from . import docs, knowledge, limits, on_request, store
+from .analytics import events, topics
 from .config import get_settings
 from .docs.slides import resolve as slides_resolve
 from .flows import quiz
@@ -131,6 +133,11 @@ yourself; put a short goodbye in its farewell. A bare "gracias" / "thanks" / "ok
 reply briefly, or ask "¿Algo más en lo que te pueda ayudar?". After you've fully answered, asking \
 that is fine. If you asked it and the user answers "no" / "no, gracias", call end_conversation.
 """
+
+GAP_RULE = """- Call note_gap (silently, then keep answering) when the documents and search_sources don't \
+cover what the user asked, or when your answer had to be partial.
+"""
+
 
 def _domain_scale() -> str:
     """The quiz's own answer options, so the agent scores a story on the same 0-3 scale."""
@@ -295,8 +302,30 @@ END_CONVERSATION_TOOL = {
 }
 
 
+NOTE_GAP_TOOL = {
+    "name": "note_gap",
+    "description": (
+        "Internal note for Alan, never shown to the user and it does not end your turn: call it when "
+        "the knowledge base and search_sources don't cover what the user asked, or your answer had to "
+        "be partial. Then answer the user as usual (say plainly what isn't covered)."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "topic": {"type": "string", "enum": list(topics.TOPICS),
+                      "description": "Closest topic id"},
+            "summary": {"type": "string",
+                        "description": "One short line: what was asked that the KB doesn't cover (no personal data)"},
+        },
+        "required": ["topic", "summary"],
+    },
+}
+
+
 def tool_definitions() -> list[dict]:
     tools = list(TOOL_DEFINITIONS)
+    if events.enabled():
+        tools.append(NOTE_GAP_TOOL)
     if get_settings().close_on_intent:
         tools.append(END_CONVERSATION_TOOL)
     if on_request.enabled():
@@ -325,6 +354,16 @@ def pop_unlocked(user_id: str) -> list[str]:
 
 # user_id -> tool names called in the current turn (logs + evals)
 tools_called: dict[str, list[str]] = {}
+
+# user_id -> this turn's model calls and tokens (main.py logs them as the agent_turn event)
+turn_stats: dict[str, dict[str, Any]] = {}
+
+# user_id -> gaps the agent noted this turn (note_gap); main.py records them after the turn
+_gaps: dict[str, list[dict[str, str]]] = {}
+
+
+def pop_gaps(user_id: str) -> list[dict[str, str]]:
+    return _gaps.pop(user_id, [])
 
 
 def pop_action(user_id: str) -> Optional[dict[str, Any]]:
@@ -386,6 +425,10 @@ def run_tool(user_id: str, name: str, tool_input: dict) -> str:
             return "This user hasn't completed the assessment yet; offer start_assessment."
         _pending[user_id] = {"action": "report"}
         return "The report PDF is sent right after your reply. Reply with one short line only."
+    if name == "note_gap":
+        _gaps.setdefault(user_id, []).append({"topic": topics.valid(str(tool_input.get("topic") or "")),
+                                              "summary": str(tool_input.get("summary") or "")[:300]})
+        return "Noted for Alan (the user doesn't see this). Continue your answer to the user normally."
     if name == "end_conversation" and get_settings().close_on_intent:
         _pending[user_id] = {"action": "close", "farewell": str(tool_input.get("farewell") or "")}
         return "The chat is closed right after this turn with your farewell. Do not write any text."
@@ -405,7 +448,8 @@ def run_tool(user_id: str, name: str, tool_input: dict) -> str:
 
 
 def system_blocks(user_id: Optional[str] = None) -> list[dict]:
-    rules = INSTRUCTIONS + (CLOSE_RULE if get_settings().close_on_intent else "") \
+    rules = INSTRUCTIONS + (GAP_RULE if events.enabled() else "") \
+        + (CLOSE_RULE if get_settings().close_on_intent else "") \
         + (LOOKUP_RULE if on_request.enabled() else "")
     blocks = [
         {"type": "text", "text": rules},
@@ -466,18 +510,32 @@ class Agent:
             user_text = f"{_attachment_note(attachments)} {user_text or '(no message)'}".strip()
         store.append_message(wa_id, "user", user_text)
         tools_called[wa_id] = []
+        _gaps.pop(wa_id, None)
+        stats = turn_stats[wa_id] = {"steps": 0, "input_tokens": 0, "output_tokens": 0, "exhausted": False}
 
         for _ in range(MAX_AGENT_STEPS):
             messages = _clean_history(store.get_history(wa_id))
             if blocks:
                 messages = _with_attachments(messages, blocks)
-            response = await self._client.messages.create(
-                model=self._model,
-                max_tokens=800,
-                system=system_blocks(wa_id),
-                tools=tool_definitions(),
-                messages=messages,
-            )
+            t0 = time.monotonic()
+            try:
+                response = await self._client.messages.create(
+                    model=self._model,
+                    max_tokens=800,
+                    system=system_blocks(wa_id),
+                    tools=tool_definitions(),
+                    messages=messages,
+                )
+            except Exception as exc:
+                events.llm_call(wa_id, "agent", self._model, latency_ms=int((time.monotonic() - t0) * 1000),
+                                error=exc)
+                raise
+            events.llm_call(wa_id, "agent", self._model, response, int((time.monotonic() - t0) * 1000))
+            u = limits.usage_of(response)
+            stats["steps"] += 1
+            stats["input_tokens"] += u.get("input_tokens", 0) + u.get("cache_read_tokens", 0) + \
+                u.get("cache_write_tokens", 0)
+            stats["output_tokens"] += u.get("output_tokens", 0)
             await limits.record(wa_id, response, "agent")
 
             if response.stop_reason != "tool_use":
@@ -502,6 +560,7 @@ class Agent:
             if _pending.get(wa_id, {}).get("action") == "close":
                 return ""  # end_conversation ends the turn; main.py sends the farewell
 
+        stats["exhausted"] = True
         return ("No pude terminar esa respuesta. ¿Puedes reformular la pregunta? "
                 "/ I couldn't finish that answer — could you rephrase?")
 

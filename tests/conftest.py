@@ -31,6 +31,19 @@ BASE_ENV = {
     "SLACK_STATE_FILE": "",
     "LIMITS_ENABLED": "true",
     "RUN_LIVE_EVALS": "",
+    # Metrics: on (the default), every optional extra off; never the real Admin API.
+    "ANALYTICS_ENABLED": "true",
+    "ENTRY_SOURCES": "",
+    "MODEL_PRICES_JSON": "",
+    "ANTHROPIC_ADMIN_KEY": "",
+    "METRICS_DIGEST_ENABLED": "true",
+    "SLACK_METRICS_CHANNEL_ID": "",
+    "MCP_ENABLED": "false",
+    "MCP_OAUTH_CLIENT_ID": "",
+    "MCP_OAUTH_CLIENT_SECRET": "",
+    "MCP_OWNER_PASSWORD": "",
+    "MCP_PUBLIC_URL": "",
+    "CSAT_ENABLED": "false",
 }
 
 
@@ -46,10 +59,12 @@ def make_client(monkeypatch, tmp_path):
             monkeypatch.setenv(k, v)
 
         from app import agent, db, guard, limits, main, on_request, sessions, slack_bridge, status, store
+        from app.analytics import anthropic_usage, digest, events, mcp_server
         from app.flows import quiz
         from app.channels import reset_channels
         from app.config import get_settings
 
+        events.drain()  # queued analytics writes belong to the previous test's DB
         get_settings.cache_clear()
         reset_channels()
         agent._agent = None
@@ -65,6 +80,12 @@ def make_client(monkeypatch, tmp_path):
         slack_bridge.reset()
         sessions.reset()
         guard.reset()
+        agent.turn_stats.clear()
+        agent._gaps.clear()
+        main._turn_topic.clear()
+        digest.reset()
+        anthropic_usage.reset()
+        mcp_server.reset()
         on_request.reset()
         status.reset()
         agent._unlocked.clear()
@@ -73,6 +94,8 @@ def make_client(monkeypatch, tmp_path):
         return TestClient(app)
 
     yield _make
+    from app.analytics import events
+    events.drain()
     from app import db
     from app.config import get_settings
     db.close()

@@ -11,7 +11,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore",
+                                      protected_namespaces=("settings_",))
 
     # --- Channel selection -------------------------------------------------
     # Provider used for *outbound-initiated* messages (e.g. /admin/send).
@@ -109,6 +110,30 @@ class Settings(BaseSettings):
     slack_thread_idle_hours: float = 24        # new thread after this long w/o customer msgs
     slack_state_file: str = ".slack_threads.json"  # survives restarts/--reload; "" = memory only
     admin_token: Optional[str] = None        # protects /admin/* endpoints
+
+    # --- Metrics & governance (app/analytics/) --------------------------------
+    # false = no events, question samples or llm_calls rows; everything else as before.
+    analytics_enabled: bool = True
+    # QR prefill text -> entry source, JSON: {"hola dexter": "qr_talk"} (matched normalised).
+    entry_sources: str = ""
+    # Price override, JSON {model: {"input":..,"output":..,"cache_write":..,"cache_read":..}} USD/MTok.
+    model_prices_json: str = ""
+    # Admin API key (sk-ant-admin...) for the optional Anthropic usage reconciliation.
+    anthropic_admin_key: Optional[str] = None
+    metrics_digest_enabled: bool = True
+    metrics_digest_hour: int = 8               # America/Mexico_City
+    slack_metrics_channel_id: Optional[str] = None  # falls back to SLACK_CHANNEL_ID
+
+    # --- Read-only MCP connector for claude.ai (app/analytics/mcp_server.py) --
+    mcp_enabled: bool = False
+    mcp_oauth_client_id: Optional[str] = None
+    mcp_oauth_client_secret: Optional[str] = None
+    mcp_owner_password: Optional[str] = None
+    mcp_redirect_uris: str = "https://claude.ai/api/mcp/auth_callback"  # comma-separated allowlist
+    mcp_public_url: str = ""                   # e.g. https://origin.alanestrada.space (no path)
+
+    # --- One-tap CSAT after a user-initiated close (Meta only) ----------------
+    csat_enabled: bool = False
 
     # --- App -----------------------------------------------------------------
     allowed_senders: str = ""

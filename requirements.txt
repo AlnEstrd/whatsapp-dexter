@@ -6,3 +6,5 @@ pydantic-settings==2.5.2
 python-dotenv==1.0.1
 reportlab==5.0.1
 pypdfium2==5.14.0
+mcp==1.12.4          # read-only metrics connector for claude.ai (app/analytics/mcp_server.py)
+pydantic==2.13.5     # mcp 1.12.x imports a pydantic internal removed in 2.14; newer mcp needs uvicorn>=0.31

@@ -73,6 +73,10 @@ TEXT = {
         "es": "Cerré la conversación por inactividad. Si quieres retomarla, escribe *hola* y empezamos de nuevo.",
         "en": "I closed the conversation due to inactivity. Type *hi* to start again.",
     },
+    "close_system": {
+        "es": "Cerré esta conversación. Si necesitas algo más, escribe *hola*.",
+        "en": "I closed this conversation. If you need anything else, type *hi*.",
+    },
     "close_admin": {
         "es": "Alan cerró esta conversación. ¡Gracias por tu tiempo! Si necesitas algo más, escribe *hola*.",
         "en": "Alan closed this conversation. Thanks for your time! If you need anything else, type *hi*.",
@@ -214,10 +218,15 @@ def touch_user(user_id: str, channel_name: str, reply_to: str, profile_name: Opt
     s = _sessions.get(user_id)
     t = now()
     if not s or s.get("state") != "open":
-        s = {"state": "open", "opened_at": t, "offtopic": 0, "context": False, "quiz": False, "unlocked": []}
+        old = s or {}
+        s = {"state": "open", "opened_at": t, "offtopic": 0, "context": False, "quiz": False, "unlocked": [],
+             "conversation_id": new_conversation_id(), "turns": 0}
+        if old.get("csat_pending"):   # a 👍/👎 for the previous conversation may still arrive
+            s["csat_pending"] = old["csat_pending"]
         _sessions[user_id] = s
         from . import status
         status.bump("conversations")
+    s["turns"] = s.get("turns", 0) + 1
     s.update(channel_name=channel_name, reply_to=reply_to, last_activity=t, warned=False,
              boot=BOOT_ID)
     if profile_name:
@@ -269,6 +278,57 @@ def mark_closed(user_id: str, by: str, reason: Optional[str] = None) -> Optional
         s["closed_reason"] = reason
     save(user_id)
     return s
+
+
+# --------------------------------------------------------------------------- #
+# Metrics bookkeeping (app/analytics): conversation id, last step, last bot message
+# --------------------------------------------------------------------------- #
+def new_conversation_id() -> str:
+    return uuid.uuid4().hex[:12]
+
+
+def conversation_id(user_id: str) -> Optional[str]:
+    """Id of the user's current (or last) conversation; rotates on every new session and is
+    kept in the session state, so it survives restarts. Sessions from older versions get one
+    on first use."""
+    s = _sessions.get(user_id)
+    if s is None:
+        return None
+    if not s.get("conversation_id"):
+        s["conversation_id"] = new_conversation_id()
+        save(user_id)
+    return s["conversation_id"]
+
+
+def note_step(user_id: str, step: str) -> None:
+    """Most recent funnel step (menu, quiz_q4, agent_turn, slides, report, handoff, ...)."""
+    s = _sessions.get(user_id)
+    if s is not None and s.get("state") == "open" and s.get("last_step") != step:
+        s["last_step"] = step
+        save(user_id)
+
+
+def note(user_id: str, **fields: Any) -> None:
+    """Store small metrics fields on the session (last_topic, last_sample_id, ...)."""
+    s = _sessions.get(user_id)
+    if s is not None:
+        s.update(fields)
+        save(user_id)
+
+
+def note_bot_msg(user_id: str, wamid: str) -> None:
+    """A content message went out (not idle/close notices): track its read receipt."""
+    s = _sessions.get(user_id)
+    if s is not None and s.get("state") == "open":
+        s.update(last_bot_wamid=wamid, last_bot_read=False)
+        save(user_id)
+
+
+def note_read(user_id: str, wamid: str) -> None:
+    s = _sessions.get(user_id)
+    if s is not None and wamid and s.get("last_bot_wamid") == wamid and not s.get("last_bot_read"):
+        s["last_bot_read"] = True
+        save(user_id)
 
 
 def mark_warned(user_id: str) -> None:

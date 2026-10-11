@@ -54,6 +54,9 @@ class ProviderEvent:
 class ParsedWebhook:
     messages: list[InboundMessage] = field(default_factory=list)
     events: list[ProviderEvent] = field(default_factory=list)
+    # Meta "statuses" (sent / delivered / read / failed for our outbound messages): metrics
+    # only, never turned into InboundMessages.
+    statuses: list[dict] = field(default_factory=list)
 
 
 class Channel(Protocol):
