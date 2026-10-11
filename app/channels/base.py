@@ -73,6 +73,7 @@ class Channel(Protocol):
 
     # Optional capabilities, looked up with getattr() by the caller:
     #   send_options(to, body, button, options)           interactive list (Meta)
+    #   send_buttons(to, body, options)                   interactive reply buttons, max 3 (Meta)
     #   send_document(to, data, filename, caption="")     PDF as a document message (Meta)
     #   send_image(to, data, filename, caption="", mime)  image message (Meta)
     #   download_media(media_id, max_bytes) -> (bytes, mime)  fetch an inbound file (Meta)

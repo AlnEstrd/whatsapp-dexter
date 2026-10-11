@@ -9,6 +9,9 @@
     POST /slack/events           Slack Events API (thread replies, take/bot)
     POST /admin/send             Bot-initiated message via WA_PROVIDER
     GET  /admin/usage            Today's token usage + top users (X-Admin-Token)
+    GET  /admin/leads[.csv]      Leads (X-Admin-Token); see app/leads/web.py for the rest
+    POST /contact                Web form "Que Alan me contacte"
+    GET  /dashboard              Owner dashboard (DASHBOARD_ENABLED)
     GET  /                       Health: enabled channels, provider, agent
 
 Inbound messages are answered on the channel they arrived on, so Twilio and
@@ -30,7 +33,7 @@ from typing import Optional
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, Response
 from pydantic import BaseModel
 
-from . import attachments, db, docs, guard, limits, on_request, sessions, slack_bridge, status, store, voice
+from . import attachments, db, docs, guard, leads, limits, on_request, sessions, slack_bridge, status, store, voice
 from .agent import get_agent, pop_action, pop_documents, pop_unlocked
 from .channels import (
     Channel,
@@ -47,6 +50,8 @@ from .flows import menu, quiz
 from .flows.types import Outgoing
 from .formatting import strip_greeting, to_whatsapp
 from .handoff import hand_off
+from .leads import flows as lead_flows
+from .leads import web as leads_web
 from .resilience import with_retry
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -99,6 +104,7 @@ def run_retention() -> int:
     for uid in users or []:
         store.forget(uid)
         sessions.forget(uid)
+    leads.purge()  # leads have their own retention (consented: LEAD_RETENTION_DAYS)
     return len(users or [])
 
 
@@ -112,12 +118,15 @@ async def lifespan(_app: FastAPI):
         tasks.append(asyncio.create_task(slack_bridge.window_watcher()))
     tasks.append(asyncio.create_task(lifecycle_watcher()))
     tasks.append(asyncio.create_task(recover_after_restart()))
+    if leads.enabled():
+        tasks.append(asyncio.create_task(leads.watcher()))  # reminders, digest, Zoho outbox
     yield
     for t in tasks:
         t.cancel()
 
 
 app = FastAPI(title="WhatsApp Agentic Bot POC", lifespan=lifespan)
+app.include_router(leads_web.router)
 
 FALLBACK_REPLY = "Sorry, something went wrong on my end handling that. Please try again."
 
@@ -226,20 +235,28 @@ async def send_reply(channel: Channel, msg: InboundMessage, text: str) -> bool:
 
 
 async def send_out(channel: Channel, msg: InboundMessage, out: Outgoing) -> bool:
-    """Send text, as an interactive list when the channel supports it.
+    """Send text, as an interactive list (or reply buttons) when the channel supports it.
     Falls back to plain text (which already numbers the options)."""
     send_options = getattr(channel, "send_options", None)
-    if out.options and send_options:
+    send_buttons = getattr(channel, "send_buttons", None)
+    body = out.interactive_text or out.text
+    if out.options and out.buttons and send_buttons:
+        sender = lambda: send_buttons(msg.reply_to, body, out.options)  # noqa: E731
+    elif out.options and send_options:
+        sender = lambda: send_options(msg.reply_to, body, out.button, out.options)  # noqa: E731
+    else:
+        sender = None
+    if sender is not None:
         try:
             await with_retry(
-                lambda: send_options(msg.reply_to, out.text, out.button, out.options),
+                sender,
                 attempts=2,
                 is_retryable=lambda e: isinstance(e, SendError) and e.retryable,
                 label=f"{channel.name}.send_options",
             )
-            store.log_turn(msg.user_id, "bot", out.text)
+            store.log_turn(msg.user_id, "bot", body)
             sessions.touch_bot(msg.user_id)
-            await slack_bridge.mirror_bot(msg.user_id, out.text)
+            await slack_bridge.mirror_bot(msg.user_id, body)
             return True
         except Exception:  # noqa: BLE001
             logger.warning("Interactive send failed for %s; falling back to text", msg.user_id)
@@ -278,6 +295,7 @@ async def send_file(channel: Channel, msg: InboundMessage, doc: docs.Doc) -> boo
         await _thread_note(msg, f"⚠️ Could not deliver {doc.filename}: {exc}")
         return False
     note = f"📎 {doc.filename}"
+    leads.engage(msg.user_id, "file_sent", msg.profile_name)
     store.log_turn(msg.user_id, "bot", note)
     await slack_bridge.mirror_bot(msg.user_id, note)
     return True
@@ -291,13 +309,17 @@ async def _send_deck(channel: Channel, msg: InboundMessage, lang: str, slide: Op
     except ValueError:
         await send_reply(channel, msg, f"{UNKNOWN_SLIDE[lang]}\n\n{docs.slide_index_text(lang)}")
         return
-    if await send_file(channel, msg, doc) and slide is None:
+    sent = await send_file(channel, msg, doc)
+    if sent:
+        leads.signal(msg.user_id, "pdf_requested", {"slide": slide or "all"}, topic=f"slides:{slide or 'all'}")
+    if sent and slide is None:
         await send_reply(channel, msg, docs.slide_index_text(lang))
 
 
 async def _send_assessment_pdf(channel: Channel, msg: InboundMessage, result: quiz.Result) -> bool:
     try:
-        doc = docs.make_assessment(result, msg.profile_name)
+        # "Preparado para: Name, Company" once the lead gave them; the WhatsApp name otherwise (as before)
+        doc = docs.make_assessment(result, leads.report_name(msg.user_id) or msg.profile_name)
     except Exception:  # noqa: BLE001
         logger.exception("Assessment PDF failed to build for %s", msg.user_id)
         await _thread_note(msg, "⚠️ The assessment PDF failed to build.")
@@ -332,14 +354,84 @@ def _handoff_reply(user_id: str) -> str:
     return HANDOFF_REPLY
 
 
-async def _to_human(channel: Channel, msg: InboundMessage, reason: str) -> None:
+async def _to_human(channel: Channel, msg: InboundMessage, reason: str, user_asked: bool = False) -> None:
     reply = _handoff_reply(msg.user_id)  # before the handoff: it doesn't change, but be explicit
+    if user_asked:
+        await _lead_handoff(channel, msg, reason)
     await hand_off(msg, reason)
     await send_reply(channel, msg, reply)
 
 
+# --------------------------------------------------------------------------- #
+# Leads (app/leads/): consent, profiling, contact form. All no-ops with LEADS_ENABLED=false.
+# --------------------------------------------------------------------------- #
+async def _ask_consent(channel: Channel, msg: InboundMessage, moment: str) -> bool:
+    if not leads.enabled():
+        return False
+    out = leads.safe("consent ask", lambda: lead_flows.ask_consent(msg.user_id, _lang_of(msg.user_id), moment))
+    if out is None:
+        return False
+    await send_out(channel, msg, out)
+    return True
+
+
+async def _lead_handoff(channel: Channel, msg: InboundMessage, reason: str) -> None:
+    """The user asked for Alan: record it (+intent) and ask for follow-up consent first."""
+    if not leads.enabled():
+        return
+    leads.handoff(msg.user_id, reason, msg.profile_name)
+    await _ask_consent(channel, msg, "handoff")
+
+
+def _contact_form_on() -> bool:
+    return leads.enabled() and get_settings().contact_form_enabled
+
+
+async def _apply_flow(channel: Channel, msg: InboundMessage, res: lead_flows.FlowResult) -> None:
+    uid = msg.user_id
+    for out in res.outs:
+        await send_out(channel, msg, out)
+    if res.report_name and (result := quiz.last_result(uid)) is not None:
+        await _send_assessment_pdf(channel, msg, result)
+    if res.contact:
+        lead = leads.safe("lead", lambda: leads.core.by_user(uid))
+        if lead:
+            await leads.contact_confirmed(lead["lead_id"], res.contact, lead_flows.CONTACT_FORM_VERSION,
+                                          "whatsapp_form")
+    if res.handoff:
+        _route(msg, "handoff")
+        await _to_human(channel, msg, "User asked to talk to Alan", user_asked=True)
+        return
+    if res.ask_consent:
+        await _ask_consent(channel, msg, res.ask_consent)
+    sessions.touch_bot(uid)
+
+
+async def _start_contact(channel: Channel, msg: InboundMessage, lang: str) -> None:
+    _route(msg, "lead_form")
+    leads.engage(msg.user_id, "contact_form", msg.profile_name)
+    res = leads.safe("contact form", lambda: lead_flows.start_contact(msg.user_id, lang))
+    if res is not None:
+        await _apply_flow(channel, msg, res)
+
+
+async def _opt_out(channel: Channel, msg: InboundMessage) -> None:
+    """BAJA / STOP: zero tokens, any mode (bot, quiz, human). Recorded, confirmed once."""
+    uid = msg.user_id
+    _route(msg, "opt_out")
+    human = store.in_handoff(uid)
+    quiz.discard(uid)
+    leads.safe("clear flow", lambda: lead_flows.clear(uid))
+    lead = leads.opt_out(uid)
+    lang = menu.detect_lang(msg.text, store.get_lang(uid)) if not human else _lang_of(uid)
+    store.log_turn(uid, "user", msg.text)
+    await send_reply(channel, msg, lead_flows.TEXT["opted_out"][lang])
+    await leads.opt_out_effects(lead, human)
+
+
 async def _start_quiz(channel: Channel, msg: InboundMessage, lang: str,
                       known: Optional[dict] = None) -> None:
+    leads.engage(msg.user_id, "quiz_start", msg.profile_name)
     before = quiz.last_result(msg.user_id)
     await _send_quiz(channel, msg, quiz.start(msg.user_id, lang, known=known), before)
 
@@ -362,6 +454,12 @@ async def _send_quiz(channel: Channel, msg: InboundMessage, outs: list, before) 
         status.bump("assessments")
         await _thread_note(msg, quiz.summary_for_slack(result))
     sessions.touch_bot(msg.user_id, quiz=quiz.active(msg.user_id), context=finished or None)
+    if finished and leads.enabled():
+        # Never gates the result: optional role / size / name questions, then the consent ask.
+        leads.quiz_done(msg.user_id, result, msg.profile_name)
+        res = leads.safe("profiling", lambda: lead_flows.start_profile(msg.user_id, result.lang))
+        if res is not None:
+            await _apply_flow(channel, msg, res)
 
 
 TYPING_REFRESH_SECONDS = 20  # WhatsApp drops the indicator after ~25 s
@@ -585,6 +683,7 @@ async def _run_agent(channel: Channel, msg: InboundMessage, text: str,
         await _limit_notice(channel, msg, blocked)
         return True
     _route(msg, "agent")
+    leads.engage(msg.user_id, "agent_question", msg.profile_name)
     if msg.transcribed and text == msg.text:
         text = VOICE_PREFIX + text
     try:
@@ -625,16 +724,26 @@ async def _run_agent(channel: Channel, msg: InboundMessage, text: str,
                 await send_reply(channel, msg, cta)
                 store.add_to_last_reply(msg.user_id, cta)  # so the model knows it was just offered
     for doc in documents:
-        await send_file(channel, msg, doc)
+        if await send_file(channel, msg, doc):
+            leads.signal(msg.user_id, "pdf_requested", {"file": doc.filename}, topic=f"pdf:{doc.filename[:40]}")
+    signal = leads.pop_signal(msg.user_id)
+    contact = leads.pop_contact(msg.user_id)
     if action and action["action"] == "report":
         result = quiz.last_result(msg.user_id)
         if result is not None:
+            leads.signal(msg.user_id, "report_requested")
             await _send_assessment_pdf(channel, msg, result)
     elif action and action["action"] == "quiz":
         await _start_quiz(channel, msg, action.get("lang") or store.get_lang(msg.user_id) or "es",
                           known=action.get("known"))
     elif action and action["action"] == "human":
-        await hand_off(msg, f"Talk to Alan: {action.get('reason', '')}".strip())
+        reason = f"Talk to Alan: {action.get('reason', '')}".strip()
+        await _lead_handoff(channel, msg, reason)
+        await hand_off(msg, reason)
+    elif contact and _contact_form_on() and not quiz.active(msg.user_id):
+        await _start_contact(channel, msg, _lang_of(msg.user_id))
+    elif signal:
+        await _ask_consent(channel, msg, "buying_signal")
     return True
 
 
@@ -649,6 +758,25 @@ async def _route_flows(channel: Channel, msg: InboundMessage, is_new: bool) -> b
         _route(msg, "quiz")
         await _quiz_step(channel, msg)
         return True
+
+    if leads.enabled():  # a lead form in progress (profiling, contact request, menu 4 choice)
+        res = None
+        if lead_flows.current(uid):
+            try:
+                res = await lead_flows.step(uid, msg.text, msg.reply_id)
+            except Exception:  # noqa: BLE001
+                logger.exception("lead flow step failed")
+                lead_flows.clear(uid)
+        elif (msg.reply_id or "").startswith("contact:choice:"):  # tapped an older menu-4 list
+            lead_flows.contact_choice(uid, lang)
+            res = await lead_flows.step(uid, msg.text, msg.reply_id)
+        if res is not None:
+            _route(msg, "lead_form")
+            await _apply_flow(channel, msg, res)
+            return True
+        if _contact_form_on() and not msg.reply_id and lead_flows.is_contact_request(msg.text):
+            await _start_contact(channel, msg, lang)
+            return True
 
     # On-request info: only for people who explicitly ask (no model call, works over budget).
     if on_request.enabled() and not msg.reply_id:
@@ -672,6 +800,7 @@ async def _route_flows(channel: Channel, msg: InboundMessage, is_new: bool) -> b
         _route(msg, "file_reply")
         result = quiz.last_result(uid)
         if result is not None:
+            leads.signal(uid, "report_requested")
             await _send_assessment_pdf(channel, msg, result)
         else:
             await send_reply(channel, msg, NO_RESULT[lang])
@@ -683,9 +812,12 @@ async def _route_flows(channel: Channel, msg: InboundMessage, is_new: bool) -> b
         await send_out(channel, msg, menu.talk_overview(lang))
     elif choice == "menu:about":
         await _run_agent(channel, msg, "¿Quién es Alan Estrada?" if lang == "es" else "Who is Alan Estrada?")
+    elif choice == "menu:human" and _contact_form_on() and (msg.reply_id == "menu:human" or msg.text.strip() == "4"):
+        _route(msg, "menu")  # option 4: talk now or be contacted later
+        await send_out(channel, msg, lead_flows.contact_choice(uid, lang))
     elif choice == "menu:human":
         _route(msg, "handoff")
-        await _to_human(channel, msg, "User asked to talk to Alan")
+        await _to_human(channel, msg, "User asked to talk to Alan", user_asked=True)
     elif menu.is_greeting(msg.text):
         _route(msg, "menu")
         await send_out(channel, msg, menu.welcome(lang, msg.profile_name))
@@ -701,7 +833,8 @@ async def _route_flows(channel: Channel, msg: InboundMessage, is_new: bool) -> b
         else:
             ok = await _run_agent(channel, msg, msg.text)
             if ok and is_new and last_route.get(uid) == "agent" and sessions.is_open(uid) \
-                    and not store.in_handoff(uid) and not quiz.active(uid):
+                    and not store.in_handoff(uid) and not quiz.active(uid) \
+                    and not (leads.enabled() and lead_flows.current(uid)):  # a question/form is pending
                 await send_reply(channel, msg, menu.menu_offer(lang))
     return True
 
@@ -709,6 +842,9 @@ async def _route_flows(channel: Channel, msg: InboundMessage, is_new: bool) -> b
 async def _note_disclosure(msg: InboundMessage, entry_id: str) -> None:
     """Silent owner note + public counter, the first time an entry is given in a conversation."""
     status.bump("curious")
+    if leads.enabled():
+        leads.engage(msg.user_id, "making_of", msg.profile_name)
+        leads.signal(msg.user_id, "making_of", {"entry": entry_id}, topic=f"on_request:{entry_id}")
     entry = on_request.get(entry_id)
     if entry is not None and entry.notify_slack:
         lead = " · 🔥 possible lead: they were told they can talk to you" if entry.lead else ""
@@ -829,6 +965,7 @@ async def _close_from_slack(user_id: str) -> None:
 
 
 slack_bridge.close_hook = _close_from_slack
+slack_bridge.lead_command_hook = leads.alerts.handle_command
 
 
 async def _send_restart_notice(user_id: str) -> None:
@@ -907,7 +1044,8 @@ async def _off_topic(channel: Channel, msg: InboundMessage, lang: str) -> None:
 
 
 # Last route taken per user (also logged): menu | quiz | agent | close | handoff |
-# offtopic_warning | file_reply | file_note | limited | human | unsupported | on_request. Used by the evals.
+# offtopic_warning | file_reply | file_note | limited | human | unsupported | on_request |
+# consent | opt_out | lead_form. Used by the evals.
 last_route: dict[str, str] = {}
 
 
@@ -951,6 +1089,7 @@ async def _closer_or_human(channel: Channel, msg: InboundMessage) -> bool:
     if msg.text and wants_human(msg.text):
         _route(msg, "handoff")
         reply = _handoff_reply(msg.user_id)
+        await _lead_handoff(channel, msg, "User asked for a human")
         await hand_off(msg, "User asked for a human")
         await send_reply(channel, msg, reply)
         return True
@@ -958,6 +1097,13 @@ async def _closer_or_human(channel: Channel, msg: InboundMessage) -> bool:
 
 
 async def handle_inbound(channel: Channel, msg: InboundMessage) -> None:
+    try:
+        await _handle_inbound(channel, msg)
+    finally:
+        await leads.effects(msg.user_id)  # hot alert etc., after the replies; never raises
+
+
+async def _handle_inbound(channel: Channel, msg: InboundMessage) -> None:
     try:
         await channel.mark_as_read(msg)
     except Exception:  # noqa: BLE001
@@ -971,6 +1117,13 @@ async def handle_inbound(channel: Channel, msg: InboundMessage) -> None:
     if bridge:  # mirror every customer message, whatever the mode
         await slack_bridge.ensure_thread(msg)
         await slack_bridge.mirror_customer(msg)
+
+    lead_on = leads.enabled()
+    if lead_on:
+        leads.on_inbound(msg.user_id)
+        if msg.text and msg.media is None and lead_flows.is_opt_out(msg.text):
+            await _opt_out(channel, msg)
+            return
 
     target = store.handoff_target(msg.user_id)
     if target == "flex":
@@ -987,6 +1140,13 @@ async def handle_inbound(channel: Channel, msg: InboundMessage) -> None:
             )
         store.log_turn(msg.user_id, "user", msg.text or f"({msg.msg_type})")
         _route(msg, "human")  # a person is in charge: never rate-limited
+        if lead_on and msg.text:  # the consent question asked right before the handoff
+            handled, _ = leads.safe("consent", lambda: lead_flows.answer_consent(
+                msg.user_id, msg.text, msg.reply_id), default=(False, None)) or (False, None)
+            if handled:
+                lead = leads.safe("lead", lambda: leads.core.by_user(msg.user_id))
+                await _thread_note(msg, "✅ Consentimiento de seguimiento: "
+                                        + ("sí" if lead and lead.get("consent_followup") else "no"))
         return
 
     if restart_notice and get_settings().restart_notice:
@@ -994,6 +1154,14 @@ async def handle_inbound(channel: Channel, msg: InboundMessage) -> None:
 
     is_new = not store.transcript(msg.user_id)
     store.log_turn(msg.user_id, "user", msg.text or f"({msg.msg_type})")
+
+    if lead_on and msg.text and msg.media is None:  # answer to the consent question (zero tokens)
+        handled, ack = leads.safe("consent", lambda: lead_flows.answer_consent(
+            msg.user_id, msg.text, msg.reply_id), default=(False, None)) or (False, None)
+        if handled:
+            _route(msg, "consent")
+            await send_reply(channel, msg, ack)
+            return
 
     if await _closer_or_human(channel, msg):
         return

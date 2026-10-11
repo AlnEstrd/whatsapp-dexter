@@ -7,6 +7,7 @@ A case (``evals/cases/*.json``, a list of objects):
       "lang": "es",                     language of the user
       "prior": ["hola"],                optional earlier user turns (replies ignored)
       "message": "lámina 8",            the user message being scored
+      "env": {"LEADS_ENABLED": "true"}  optional settings for this case (e.g. turn leads on)
       "media": {"type": "image", "caption": "..."}       optional inbound file (Meta)
       "mock": {"guard": "IN" | "OUT",                    offline only: guard verdict and the
                "prior_guard": "OUT",                     (verdict for the prior turns, default IN)
@@ -18,7 +19,8 @@ A case (``evals/cases/*.json``, a list of objects):
         "must_contain": ["..."], "must_not_contain": ["..."],   case-insensitive substrings
         "tool_called": "end_conversation",                      optional
         "language": "es" | "en",                                language of the reply
-        "state": {"quiz_active": true, "handoff": true, "closed": true, "file_sent": true}
+        "state": {"quiz_active": true, "handoff": true, "closed": true, "file_sent": true,
+                  "consent": true, "consent_asked": true, "opted_out": true}   (the last three: leads)
       }
     }
 
@@ -47,7 +49,7 @@ RESULTS_DIR = Path(__file__).parent / "results"
 # file_reply = the bot answered with a file (slides, report); file_note = a static reply about an
 # inbound file (too big, wait for the quiz...); limited = a usage cap; human = Alan is in charge.
 ROUTES = {"menu", "quiz", "agent", "close", "handoff", "offtopic_warning", "file_reply",
-          "file_note", "limited", "human", "unsupported", "on_request"}
+          "file_note", "limited", "human", "unsupported", "on_request", "consent", "opt_out", "lead_form"}
 
 GRAPH = "https://graph.facebook.com/v20.0"
 META_SEND = f"{GRAPH}/111/messages"
@@ -216,7 +218,7 @@ def _run(case: dict, make_client: Callable[..., Any], live: bool, api_key: str) 
         try:
             client = make_client(FLOWS_ENABLED="true", AGENT_MODE="claude", ANTHROPIC_API_KEY=api_key,
                                  GUARD_ENABLED="true", USER_MSG_PER_MINUTE="100",
-                                 DB_PATH=f"{tmp}/bot.sqlite3")
+                                 DB_PATH=f"{tmp}/bot.sqlite3", **case.get("env", {}))
             for i, prior in enumerate(case.get("prior", [])):
                 client.post("/webhooks/meta", json=meta_payload(f"wamid.{run}.p{i}", prior))
             n_before = len(meta.calls)
@@ -279,8 +281,13 @@ def _run(case: dict, make_client: Callable[..., Any], live: bool, api_key: str) 
 def _state(file_sent: bool) -> dict[str, bool]:
     from app import sessions, store
     from app.flows import quiz
+    from app.leads import core, flows
+    lead = core.by_user(USER) if core.enabled() else None
+    pending = flows.current(USER) or {}
     return {"quiz_active": quiz.active(USER), "handoff": store.in_handoff(USER),
-            "closed": not sessions.is_open(USER), "file_sent": file_sent}
+            "closed": not sessions.is_open(USER), "file_sent": file_sent,
+            "consent": bool(lead and lead["consent_followup"]), "opted_out": bool(lead and lead["opted_out_at"]),
+            "consent_asked": pending.get("kind") == "consent"}
 
 
 def table(results: list[Result]) -> str:

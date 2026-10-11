@@ -1,0 +1,244 @@
+[
+  {
+    "id": "leads-consent-yes-after-quiz",
+    "lang": "es",
+    "env": {
+      "LEADS_ENABLED": "true"
+    },
+    "prior": [
+      "diagnóstico",
+      "3",
+      "3",
+      "3",
+      "3",
+      "3",
+      "3",
+      "3",
+      "3",
+      "3",
+      "omitir",
+      "omitir",
+      "omitir"
+    ],
+    "message": "sí",
+    "expect": {
+      "route": "consent",
+      "must_contain": [
+        "Anotado",
+        "BAJA"
+      ],
+      "language": "es",
+      "state": {
+        "consent": true
+      }
+    }
+  },
+  {
+    "id": "leads-consent-no-after-quiz",
+    "lang": "es",
+    "env": {
+      "LEADS_ENABLED": "true"
+    },
+    "prior": [
+      "diagnóstico",
+      "3",
+      "3",
+      "3",
+      "3",
+      "3",
+      "3",
+      "3",
+      "3",
+      "3",
+      "omitir",
+      "omitir",
+      "omitir"
+    ],
+    "message": "No, gracias",
+    "expect": {
+      "route": "consent",
+      "must_contain": [
+        "sin problema"
+      ],
+      "state": {
+        "consent": false,
+        "closed": false
+      }
+    }
+  },
+  {
+    "id": "leads-profiling-skip-asks-consent",
+    "lang": "es",
+    "env": {
+      "LEADS_ENABLED": "true"
+    },
+    "prior": [
+      "diagnóstico",
+      "3",
+      "3",
+      "3",
+      "3",
+      "3",
+      "3",
+      "3",
+      "3",
+      "3",
+      "omitir",
+      "omitir"
+    ],
+    "message": "omitir",
+    "expect": {
+      "route": "lead_form",
+      "must_contain": [
+        "Puedes darte de baja",
+        "Aviso de privacidad"
+      ],
+      "state": {
+        "consent_asked": true
+      }
+    }
+  },
+  {
+    "id": "leads-baja",
+    "lang": "es",
+    "env": {
+      "LEADS_ENABLED": "true"
+    },
+    "prior": [
+      "¿De qué trata la plática?"
+    ],
+    "message": "BAJA",
+    "expect": {
+      "route": "opt_out",
+      "must_contain": [
+        "ya no te escribiremos"
+      ],
+      "language": "es",
+      "state": {
+        "opted_out": true
+      }
+    }
+  },
+  {
+    "id": "leads-stop-mid-quiz",
+    "lang": "en",
+    "env": {
+      "LEADS_ENABLED": "true"
+    },
+    "prior": [
+      "assessment"
+    ],
+    "message": "STOP",
+    "expect": {
+      "route": "opt_out",
+      "must_contain": [
+        "won't write to you"
+      ],
+      "state": {
+        "opted_out": true,
+        "quiz_active": false
+      }
+    }
+  },
+  {
+    "id": "leads-buying-signal",
+    "lang": "es",
+    "env": {
+      "LEADS_ENABLED": "true"
+    },
+    "message": "¿Alan nos puede ayudar a implementar IA en el área de ventas de mi empresa?",
+    "mock": {
+      "agent": [
+        {
+          "tool": "flag_buying_signal",
+          "input": {
+            "kind": "wants_help_implementing",
+            "note": "IA en ventas"
+          }
+        },
+        {
+          "text": "Sí, ese es justo el tipo de proyecto que Alan acompaña."
+        }
+      ]
+    },
+    "expect": {
+      "route": "agent",
+      "tool_called": "flag_buying_signal",
+      "must_not_contain": [
+        "score",
+        "puntaje"
+      ],
+      "state": {
+        "consent_asked": true
+      }
+    }
+  },
+  {
+    "id": "leads-cuanto-cobra",
+    "lang": "es",
+    "env": {
+      "LEADS_ENABLED": "true"
+    },
+    "message": "¿cuánto cobra Alan por una consultoría?",
+    "mock": {
+      "agent": [
+        {
+          "tool": "flag_buying_signal",
+          "input": {
+            "kind": "asked_services_or_price",
+            "note": "preguntó precio de consultoría"
+          }
+        },
+        {
+          "text": "Eso te lo platica Alan directamente; si quieres, te paso con él."
+        }
+      ]
+    },
+    "expect": {
+      "route": "agent",
+      "tool_called": "flag_buying_signal",
+      "must_not_contain": [
+        "$",
+        "MXN",
+        "USD"
+      ]
+    }
+  },
+  {
+    "id": "leads-menu-4-choice",
+    "lang": "es",
+    "env": {
+      "LEADS_ENABLED": "true"
+    },
+    "prior": [
+      "hola"
+    ],
+    "message": "4",
+    "expect": {
+      "route": "menu",
+      "must_contain": [
+        "¿Cómo prefieres?"
+      ],
+      "state": {
+        "handoff": false
+      }
+    }
+  },
+  {
+    "id": "leads-que-me-llame",
+    "lang": "es",
+    "env": {
+      "LEADS_ENABLED": "true"
+    },
+    "message": "que me llame",
+    "expect": {
+      "route": "lead_form",
+      "must_contain": [
+        "¿Por dónde prefieres?"
+      ],
+      "state": {
+        "handoff": false
+      }
+    }
+  }
+]

@@ -83,6 +83,18 @@ class MetaChannel:
         }
         await self._post("/messages", payload)
 
+    async def send_buttons(self, to: str, body: str, options: list) -> None:
+        """Interactive reply buttons (up to 3, titles <= 20 chars). ``options``: flows.types.Option."""
+        buttons = [{"type": "reply", "reply": {"id": o.id[:256], "title": o.title[:20]}} for o in options[:3]]
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": normalize_user_id(to),
+            "type": "interactive",
+            "interactive": {"type": "button", "body": {"text": body[:1024]}, "action": {"buttons": buttons}},
+        }
+        await self._post("/messages", payload)
+
     async def send_document(self, to: str, data: bytes, filename: str, caption: str = "") -> None:
         """Upload ``data`` as WhatsApp media, then send it as a document message.
 

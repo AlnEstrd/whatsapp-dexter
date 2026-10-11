@@ -31,6 +31,17 @@ BASE_ENV = {
     "SLACK_STATE_FILE": "",
     "LIMITS_ENABLED": "true",
     "RUN_LIVE_EVALS": "",
+    # Leads (app/leads/) off by default so the legacy suite runs unchanged; tests/test_leads*.py turn it on.
+    "LEADS_ENABLED": "false",
+    "DASHBOARD_ENABLED": "false",
+    "DASHBOARD_PASSWORD": "",
+    "ZOHO_ENABLED": "false",
+    "SLACK_LEADS_CHANNEL_ID": "",
+    "TEMPLATE_FOLLOWUP_ES": "",
+    "TEMPLATE_FOLLOWUP_EN": "",
+    "LEAD_SCORING_JSON": "",
+    "CONTACT_FORM_ENABLED": "true",
+    "CONSENT_TEXT_VERSION": "",
 }
 
 
@@ -45,7 +56,8 @@ def make_client(monkeypatch, tmp_path):
         for k, v in env.items():
             monkeypatch.setenv(k, v)
 
-        from app import agent, db, guard, limits, main, on_request, sessions, slack_bridge, status, store
+        from app import agent, db, guard, leads, limits, main, on_request, sessions, slack_bridge, status, store
+        from app.leads import web as leads_web
         from app.flows import quiz
         from app.channels import reset_channels
         from app.config import get_settings
@@ -68,6 +80,8 @@ def make_client(monkeypatch, tmp_path):
         on_request.reset()
         status.reset()
         agent._unlocked.clear()
+        leads.reset()
+        leads_web.reset()
 
         from app.main import app
         return TestClient(app)

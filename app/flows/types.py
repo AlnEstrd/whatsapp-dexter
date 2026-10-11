@@ -22,3 +22,7 @@ class Outgoing:
     text: str
     options: Optional[list[Option]] = None
     button: str = "Opciones"  # list-message button label, <= 20 chars
+    # Up to 3 short options (titles <= 20 chars) as WhatsApp reply buttons instead of a list.
+    buttons: bool = False
+    # Body for the interactive message when ``text`` (the plain-text fallback) also numbers the options.
+    interactive_text: Optional[str] = None
