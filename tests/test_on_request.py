@@ -374,3 +374,130 @@ def test_dossier_pdf_is_multipage_with_status():
     text = "\n".join(p.extract_text() for p in reader.pages)
     assert len(reader.pages) >= 3
     assert "Estado ahora" in text and "Twilio" in text and "{{" not in text and "<b>" not in text
+
+
+# --------------------------------------------------------------------------- #
+# Lead generation: generous content, Alan always one message away
+# --------------------------------------------------------------------------- #
+CTA_ES = "Escribe *hablar con Alan*"
+
+
+def test_fast_path_ends_with_the_invitation(make_client, env):
+    c = make_client(**CLAUDE)
+    install(lambda *_: _text("x"))
+    env.say(c, "¿Cómo se hizo Dexter?")
+    out = env.texts()
+    assert CTA_ES in out[-1] and REPO not in out[-1]          # its own bubble, after the content
+    assert CTA_ES in json.dumps(store.get_history(USER), ensure_ascii=False)   # the model knows
+    assert any("possible lead" in t for t in env.slack_texts())
+
+
+def test_invitation_in_english(make_client, env):
+    c = make_client(**CLAUDE)
+    install(lambda *_: _text("x"))
+    env.say(c, "How was Dexter built?")
+    assert "Type *talk to Alan*" in env.texts()[-1]
+
+
+def test_pdf_is_followed_by_the_invitation(make_client, env):
+    c = make_client(**CLAUDE)
+    install(lambda *_: _text("x"))
+    env.say(c, "¿Cómo se hizo Dexter?")
+    n = len(env.meta.calls)
+    env.say(c, "pdf")
+    sent = [m for m in (json.loads(x.request.content) for x in env.meta.calls[n:]) if m.get("type")]
+    assert [m["type"] for m in sent] == ["document", "text"] and CTA_ES in sent[-1]["text"]["body"]
+
+
+def test_bot_reminds_every_few_answers(make_client, env):
+    c = make_client(**CLAUDE)
+    install(lambda *_: _text("Es un droplet de 6 USD al mes."))
+    env.say(c, "¿Cómo se hizo Dexter?")
+    reminders = []
+    for i in range(6):
+        n = len(env.meta.calls)
+        env.say(c, f"¿y cuánto cuesta el hosting, pregunta {i}?")
+        reminders.append(any(CTA_ES in t for t in env.texts(n)))
+    assert reminders == [False, False, True, False, False, True]
+
+
+def test_model_invitation_resets_the_count(make_client, env):
+    c = make_client(**CLAUDE)
+    answers = iter(["Uno.", "Dos. Si quieres, escribe *hablar con Alan* y te responde él.", "Tres.", "Cuatro.", "Cinco."])
+    install(lambda *_: _text(next(answers)))
+    env.say(c, "¿Cómo se hizo Dexter?")
+    extra = []
+    for i in range(5):
+        n = len(env.meta.calls)
+        env.say(c, f"otra pregunta sobre el hosting {i}")
+        extra.append(sum("hablar con Alan" in t for t in env.texts(n)))
+    assert extra == [0, 1, 0, 0, 1]      # the model's own line (2nd), then the bot's after 3 quiet ones
+
+
+def test_no_reminders_for_people_who_did_not_ask(make_client, env):
+    c = make_client(**CLAUDE)
+    install(lambda *_: _text("Respuesta de la plática."))
+    for i in range(5):
+        env.say(c, f"¿qué dice la plática sobre los roles, parte {i}?")
+    assert not any(CTA_ES in t for t in env.texts())
+
+
+def test_lead_rule_only_for_lead_entries(make_client):
+    make_client(**CLAUDE)
+    from app import agent
+    sessions.touch_user(USER, "meta", "5213312345678")
+    on_request.unlock(USER, ENTRY)
+    assert on_request.LEAD_RULE in agent.system_blocks(USER)[-1]["text"]
+    make_client(**CLAUDE, ON_REQUEST_DIR=str(FIXTURES), ON_REQUEST_EXTRA_DIR="")
+    sessions.touch_user(USER, "meta", "5213312345678")
+    on_request.unlock(USER, "fake-entry")
+    block = agent.system_blocks(USER)[-1]["text"]
+    assert "unlocked_info" in block and on_request.LEAD_RULE not in block
+
+
+@pytest.mark.parametrize("ask", ["hablar con Alan", "humano"])
+def test_lead_handoff_is_personal_and_alan_gets_context(make_client, env, ask):
+    c = make_client(**CLAUDE)
+    install(lambda *_: _text("x"))
+    env.say(c, "¿Cómo se hizo Dexter?")
+    n = len(env.meta.calls)
+    env.say(c, ask)
+    from app import main
+    assert env.texts(n) == [main.LEAD_HANDOFF_REPLY["es"]] and store.in_handoff(USER)
+    assert any(f"🔥 Lead (read: {ENTRY})" in t for t in env.slack_texts())
+
+
+def test_regular_handoff_unchanged(make_client, env):
+    c = make_client(**CLAUDE)
+    install(lambda *_: _text("x"))
+    env.say(c, "humano")
+    from app.escalation import HANDOFF_REPLY
+    assert env.texts() == [HANDOFF_REPLY]
+    assert not any("🔥 Lead" in t for t in env.slack_texts())
+
+
+def test_agent_talk_to_alan_carries_the_lead_note(make_client, env):
+    c = make_client(**CLAUDE)
+
+    def decide(user, _):
+        if user and "contratar" in user:
+            return _tool("talk_to_alan", {"reason": "wants a bot like this"}, "Le aviso a Alan.")
+        return _text("x")
+
+    install(decide)
+    env.say(c, "¿Cómo se hizo Dexter?")
+    env.say(c, "Me interesa contratar a Alan para hacer uno igual en mi empresa")
+    assert store.in_handoff(USER)
+    assert any(f"🔥 Lead (read: {ENTRY}) · Talk to Alan: wants a bot like this" in t for t in env.slack_texts())
+
+
+def test_close_clears_the_lead(make_client, env):
+    c = make_client(**CLAUDE)
+    install(lambda *_: _text("x"))
+    env.say(c, "¿Cómo se hizo Dexter?")
+    env.say(c, "adiós")
+    n = len(env.meta.calls)
+    env.say(c, "humano")
+    from app.escalation import HANDOFF_REPLY
+    assert env.texts(n)[-1] == HANDOFF_REPLY
+    assert sessions.get(USER).get("lead_quiet", 0) == 0

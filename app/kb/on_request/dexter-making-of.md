@@ -38,11 +38,14 @@ triggers:
 min_score: 0.75
 notify_slack: true
 pdf: true
+lead: true
 ---
 
 <!--
 "## Respuesta" is sent as-is on an explicit ask (Spanish); "## Response" is the English version.
 Keep both under ~1,000 characters after rendering.
+"## Contacto" / "## Contact" is the invitation to talk to Alan: sent as its own bubble right after the
+reply and after the PDF, and the bot repeats it every few follow-up answers (lead: true).
 "## Detalle" joins the asker's agent context after disclosure, so follow-up questions
 ("¿y por qué no Twilio?", "¿cuánto cuesta?", "¿qué sigue?") get real answers, and goes into the PDF.
 {{status_line}} and {{status}} are rendered live by app/status.py at disclosure time.
@@ -74,6 +77,12 @@ The interesting part wasn't the code but the decisions: why not Twilio, how to r
 The code is here as a starting point: https://github.com/AlnEstrd/whatsapp-dexter
 
 Ask me about any part: hosting, domain, Meta and verification, Twilio, costs, current status or the repo. Type *pdf* and I'll send you the full dossier.
+
+## Contacto
+Y si prefieres platicarlo con una persona: Alan está del otro lado. Escribe *hablar con Alan* y te responde él mismo por este chat, ya sea para tu empresa, para armar algo así o solo para platicar de tecnología. 🤝
+
+## Contact
+And if you'd rather talk it through with a person: Alan is right here. Type *talk to Alan* and he'll answer you himself in this chat, whether it's about your company, building something like this, or just to talk shop. 🤝
 
 ## Detalle
 
@@ -200,4 +209,9 @@ Qué incluye cada pieza. Cuáles ya están activas lo dice "Estado actual".
   4. Correr las pruebas.
   5. Cambiar a tu propio número y a tu base de conocimiento en `app/kb/`.
 - Lo que tendrías que cambiar: la base de conocimiento, el diagnóstico (`app/flows/quiz.py`), la persona del bot y el destino de escalamiento.
-- Para dudas o para hacer algo parecido en tu empresa, escribe *humano* y Alan te contacta.
+- Para dudas o para hacer algo parecido en tu empresa, escribe *hablar con Alan*: te responde él mismo por este chat, no un formulario ni otro bot.
+
+### Hablar con Alan
+- Todo lo de arriba se comparte sin restricciones; si algo no queda claro o quieres aplicarlo en tu empresa, lo mejor es platicarlo con Alan directamente.
+- Escribe *hablar con Alan* (o *talk to Alan*) en cualquier momento: Dexter le avisa en Slack con el contexto de lo que leíste y él te contesta personalmente aquí mismo.
+- Temas típicos: implementar un bot así, la adopción de IA en tu empresa, gobernanza de IA, o la plática.

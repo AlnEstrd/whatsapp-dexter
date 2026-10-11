@@ -93,6 +93,19 @@ def append_message(wa_id: str, role: str, content: Any) -> None:
     _save_history(wa_id)
 
 
+def add_to_last_reply(wa_id: str, text: str) -> None:
+    """Append a line the bot sent on its own (e.g. an invitation) to the last assistant turn."""
+    history = _conversations.get(wa_id) or []
+    if not history or history[-1]["role"] != "assistant":
+        return
+    content = history[-1]["content"]
+    if isinstance(content, str):
+        history[-1]["content"] = f"{content}\n\n{text}"
+    else:
+        content.append({"type": "text", "text": text})
+    _save_history(wa_id)
+
+
 def reset(wa_id: str) -> None:
     """Drop the agent history (e.g. after a failed, half-written tool turn)."""
     _conversations.pop(wa_id, None)

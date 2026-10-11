@@ -8,7 +8,8 @@
       "must_contain": [
         "puerta trasera",
         "github.com/AlnEstrd/whatsapp-dexter",
-        "Estado ahora"
+        "Estado ahora",
+        "hablar con Alan"
       ],
       "language": "es",
       "tool_not_called": "lookup_private_info"
@@ -38,7 +39,8 @@
       "must_contain": [
         "back door",
         "github.com/AlnEstrd/whatsapp-dexter",
-        "Status right now"
+        "Status right now",
+        "talk to Alan"
       ],
       "language": "en"
     }
@@ -184,6 +186,41 @@
         "curiosos",
         "making of"
       ]
+    }
+  },
+  {
+    "id": "onreq-lead-handoff",
+    "lang": "es",
+    "prior": [
+      "¿Cómo se hizo Dexter?"
+    ],
+    "message": "hablar con Alan",
+    "expect": {
+      "route": "handoff",
+      "must_contain": [
+        "te va a escribir él mismo"
+      ],
+      "language": "es",
+      "state": {
+        "handoff": true
+      }
+    }
+  },
+  {
+    "id": "onreq-pdf-then-invite",
+    "lang": "es",
+    "prior": [
+      "¿Cómo se hizo Dexter?"
+    ],
+    "message": "expediente",
+    "expect": {
+      "route": "file_reply",
+      "must_contain": [
+        "hablar con Alan"
+      ],
+      "state": {
+        "file_sent": true
+      }
     }
   }
 ]

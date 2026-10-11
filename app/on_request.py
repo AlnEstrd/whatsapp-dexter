@@ -58,6 +58,9 @@ class Entry:
     notify_slack: bool = True
     pdf: bool = False
     topic: str = ""                # one line for the off-topic guard once unlocked
+    lead: bool = False             # lead magnet: keep reminding the reader they can talk to Alan
+    cta: str = ""                  # "## Contacto": the invitation to talk to Alan (Spanish)
+    cta_en: str = ""               # "## Contact": same, in English
     title: str = ""                # PDF title
     source: str = ""               # file it came from (logs)
 
@@ -161,6 +164,7 @@ def parse_entry(text: str, source: str = "") -> Optional[Entry]:
         min_score=min(1.0, max(0.3, min_score)), notify_slack=meta.get("notify_slack", True) is not False,
         pdf=meta.get("pdf", False) is True, topic=str(meta.get("topic") or ""),
         title=str(meta.get("title") or eid), source=source,
+        lead=meta.get("lead", False) is True, cta=sec.get("contacto", ""), cta_en=sec.get("contact", ""),
     )
 
 
@@ -306,6 +310,12 @@ def detail_for(entry: Entry, lang: str) -> str:
     return render(entry.detalle, lang)
 
 
+def cta_for(entry: Entry, lang: str) -> str:
+    """The entry's invitation to talk to Alan, in the user's language ('' if it has none)."""
+    raw = entry.cta_en if (lang == "en" and entry.cta_en) else entry.cta
+    return render(raw, lang)
+
+
 # --------------------------------------------------------------------------- #
 # Per-conversation unlocks (kept in the session record: wiped on close, never shared)
 # --------------------------------------------------------------------------- #
@@ -338,11 +348,73 @@ def context_block(user_id: str, lang: str) -> str:
         parts.append(f"<unlocked_info id=\"{eid}\">\n{response_for(e, lang)}\n\n{detail_for(e, lang)}\n</unlocked_info>")
     if not parts:
         return ""
+    ids = unlocked(user_id)
     return ("The user explicitly asked for the information below in this conversation, so for THIS "
             "user you may answer follow-up questions from it and suggest its sub-topics. Same voice "
             "and length rules as always. Never share secrets, IDs or anything not written here."
-            + (" If they ask for it as a PDF, tell them to type *pdf*." if any(load()[i].pdf for i in unlocked(user_id)) else "")
+            + (" If they ask for it as a PDF, tell them to type *pdf*." if any(load()[i].pdf for i in ids) else "")
+            + (LEAD_RULE if any(load()[i].lead for i in ids) else "")
             + "\n\n" + "\n\n".join(parts))
+
+
+# --------------------------------------------------------------------------- #
+# Lead generation: generous with the content, and Alan is always one message away
+# --------------------------------------------------------------------------- #
+LEAD_RULE = (
+    " Be generous: share all the detail they want, nothing here is gated. This person is a potential "
+    "lead, so make the human route easy: when they ask about costs, building something similar, their "
+    "own company or project, or working with Alan, and otherwise every two or three answers, close with "
+    "ONE short line saying they can talk to Alan himself in this same chat by typing *hablar con Alan* "
+    "(English: *talk to Alan*); if they ask for it, call talk_to_alan. Never pressure, never more than "
+    "one line, and don't repeat it in back-to-back answers."
+)
+LEAD_EVERY = 3  # agent answers in a row without the invitation before the bot adds it itself
+_CTA_HINTS = ("hablar con alan", "talk to alan", "platicar con alan", "platicarlo con alan")
+
+
+def lead_entries(user_id: str) -> list[Entry]:
+    return [load()[i] for i in unlocked(user_id) if load()[i].lead]
+
+
+def is_lead(user_id: str) -> bool:
+    return bool(lead_entries(user_id))
+
+
+def lead_cta(user_id: str, lang: str) -> str:
+    """Invitation of the most recently unlocked lead entry ('' when none)."""
+    for e in reversed(lead_entries(user_id)):
+        if (text := cta_for(e, lang)):
+            return text
+    return ""
+
+
+def lead_note(user_id: str) -> str:
+    """Prefix for Alan's handoff alert: what this person read before asking for him."""
+    ids = [e.id for e in lead_entries(user_id)]
+    return f"🔥 Lead (read: {', '.join(ids)}) · " if ids else ""
+
+
+def mentions_cta(text: str) -> bool:
+    t = normalize(text)
+    return any(h in t for h in _CTA_HINTS)
+
+
+def lead_tick(user_id: str, reply: str) -> bool:
+    """After an agent answer to a lead: True when the bot should add the invitation itself
+    (LEAD_EVERY answers in a row without it). The model's own invitation resets the count."""
+    from . import sessions
+    s = sessions.get(user_id)
+    if s is None or not is_lead(user_id):
+        return False
+    if mentions_cta(reply):
+        s["lead_quiet"] = 0
+    else:
+        s["lead_quiet"] = int(s.get("lead_quiet") or 0) + 1
+    due = s["lead_quiet"] >= LEAD_EVERY
+    if due:
+        s["lead_quiet"] = 0
+    sessions.save(user_id)
+    return due
 
 
 def guard_topics(user_id: str) -> list[str]:

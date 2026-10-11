@@ -264,7 +264,7 @@ def mark_closed(user_id: str, by: str, reason: Optional[str] = None) -> Optional
     if not s or s.get("state") != "open":
         return None
     s.update(state="closed", closed_by=by, closed_at=now(), offtopic=0, context=False,
-             quiz=False, warned=False, unlocked=[])
+             quiz=False, warned=False, unlocked=[], lead_quiet=0)
     if reason:
         s["closed_reason"] = reason
     save(user_id)
