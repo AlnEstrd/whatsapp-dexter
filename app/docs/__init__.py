@@ -10,6 +10,7 @@ pure Python (reportlab, built-in fonts): nothing to install on the server.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Optional
@@ -27,6 +28,15 @@ class Doc:
     filename: str
     caption: str
     mime: str = "application/pdf"
+    kind: str = ""        # slides | topic_pdf | report (metrics event on delivery)
+    slide: str = ""       # slide id or "all" (kind=slides)
+
+    @property
+    def pages(self) -> int:
+        """Page count of a PDF (1 for an image); a cheap scan, no rendering."""
+        if not self.mime.endswith("pdf"):
+            return 1
+        return len(re.findall(rb"/Type\s*/Page(?![s\w])", self.data)) or 1
 
 
 @lru_cache(maxsize=32)
@@ -40,7 +50,8 @@ def make_deck(slide: Optional[str] = None, lang: str = "es") -> Doc:
     Raises ValueError for an unknown slide.
     """
     key = _slides.resolve(slide)
-    return Doc(_deck_bytes(key), _slides.filename(key), _slides.caption(key, lang))
+    return Doc(_deck_bytes(key), _slides.filename(key), _slides.caption(key, lang),
+               kind="slides", slide=key or "all")
 
 
 @lru_cache(maxsize=32)
@@ -53,14 +64,15 @@ def make_slide_image(slide: str, lang: str = "es") -> Doc:
     key = _slides.resolve(slide)
     if key is None:
         raise ValueError("a single slide id is required for an image (1-10, A, B, 90)")
-    return Doc(_slide_png(key), _slides.filename(key, "png"), _slides.image_caption(key, lang), "image/png")
+    return Doc(_slide_png(key), _slides.filename(key, "png"), _slides.image_caption(key, lang), "image/png",
+               kind="slides", slide=key)
 
 
 def make_topic(spec: dict) -> Doc:
     """Raises ValueError (with a message meant for the agent) when the spec is unusable."""
     clean = _topic.validate(spec)
     data = _topic.build_topic_pdf(clean)
-    return Doc(data, f"{slugify(clean['title'])}.pdf", f"📄 {clean['title']}")
+    return Doc(data, f"{slugify(clean['title'])}.pdf", f"📄 {clean['title']}", kind="topic_pdf")
 
 
 def make_assessment(result: quiz.Result, name: Optional[str] = None) -> Doc:
@@ -72,7 +84,7 @@ def make_assessment(result: quiz.Result, name: Optional[str] = None) -> Doc:
     else:
         caption = f"📊 Your AI maturity report: {level} ({result.average:.1f}/3)."
         filename = "AI-maturity-report.pdf"
-    return Doc(_assessment.build_assessment_pdf(result, name), filename, caption)
+    return Doc(_assessment.build_assessment_pdf(result, name), filename, caption, kind="report")
 
 
 slide_index_text = _slides.index_text

@@ -1,0 +1,155 @@
+[
+  {
+    "id": "topic-greeting",
+    "lang": "es",
+    "message": "hola",
+    "expect": {
+      "route": "menu",
+      "topic": "saludo_menu"
+    }
+  },
+  {
+    "id": "topic-menu-quiz",
+    "lang": "es",
+    "prior": [
+      "hola"
+    ],
+    "message": "2",
+    "expect": {
+      "route": "quiz",
+      "topic": "diagnostico"
+    }
+  },
+  {
+    "id": "topic-slide",
+    "lang": "es",
+    "message": "lámina 8",
+    "expect": {
+      "route": "file_reply",
+      "topic": "laminas"
+    }
+  },
+  {
+    "id": "topic-menu-about",
+    "lang": "es",
+    "prior": [
+      "hola"
+    ],
+    "message": "3",
+    "expect": {
+      "route": "agent",
+      "topic": "sobre_alan"
+    }
+  },
+  {
+    "id": "topic-ownership",
+    "lang": "es",
+    "message": "¿Quién debe ser el dueño de un agente de IA en compras?",
+    "mock": {
+      "guard": "{\"on_topic\": true, \"topic\": \"roles_ownership\"}"
+    },
+    "expect": {
+      "route": "agent",
+      "topic": "roles_ownership"
+    }
+  },
+  {
+    "id": "topic-measure-en",
+    "lang": "en",
+    "message": "How do we measure the ROI of our AI pilots?",
+    "mock": {
+      "guard": "{\"on_topic\": true, \"topic\": \"medicion_costo\"}"
+    },
+    "expect": {
+      "route": "agent",
+      "topic": "medicion_costo"
+    }
+  },
+  {
+    "id": "topic-governance",
+    "lang": "es",
+    "message": "¿Qué marcos de gobernanza de IA recomiendas, como NIST o ISO 42001?",
+    "mock": {
+      "guard": "{\"on_topic\": true, \"topic\": \"gobernanza_riesgo\"}"
+    },
+    "expect": {
+      "route": "agent",
+      "topic": "gobernanza_riesgo"
+    }
+  },
+  {
+    "id": "topic-making-of",
+    "lang": "es",
+    "message": "¿Cómo construyeron este bot de WhatsApp, Dexter?",
+    "mock": {
+      "guard": "{\"on_topic\": true, \"topic\": \"making_of\"}"
+    },
+    "expect": {
+      "route": "agent",
+      "topic": "making_of"
+    }
+  },
+  {
+    "id": "topic-offtopic",
+    "lang": "es",
+    "message": "Dame una receta de pozole rojo por favor",
+    "mock": {
+      "guard": "{\"on_topic\": false, \"topic\": \"fuera_de_tema\"}"
+    },
+    "expect": {
+      "route": "offtopic_warning",
+      "topic": "fuera_de_tema",
+      "must_contain": [
+        "Aviso 1 de 2"
+      ]
+    }
+  },
+  {
+    "id": "topic-goodbye",
+    "lang": "es",
+    "prior": [
+      "hola"
+    ],
+    "message": "Sería todo, gracias",
+    "expect": {
+      "route": "close",
+      "topic": "despedida"
+    }
+  },
+  {
+    "id": "topic-human",
+    "lang": "es",
+    "message": "humano",
+    "expect": {
+      "route": "handoff",
+      "topic": "contacto_alan"
+    }
+  },
+  {
+    "id": "topic-follow-up-inherits",
+    "lang": "es",
+    "prior": [
+      "¿Cómo rediseño los procesos de compras con IA?"
+    ],
+    "message": "¿y en ventas?",
+    "mock": {
+      "prior_guard": "{\"on_topic\": true, \"topic\": \"procesos\"}"
+    },
+    "expect": {
+      "route": "agent",
+      "topic": "procesos"
+    }
+  },
+  {
+    "id": "topic-unknown-label",
+    "lang": "es",
+    "message": "¿Qué opinas de la IA en la agricultura de precisión?",
+    "mock": {
+      "guard": "{\"on_topic\": true, \"topic\": \"agricultura\"}"
+    },
+    "expect": {
+      "route": "agent",
+      "topic": "otro"
+    }
+  }
+]

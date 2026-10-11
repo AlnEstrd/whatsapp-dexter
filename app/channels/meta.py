@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+from typing import Optional
 
 import httpx
 from fastapi import Request
@@ -63,7 +64,7 @@ class MetaChannel:
             "type": "text",
             "text": {"preview_url": False, "body": body[:4096]},
         }
-        await self._post("/messages", payload)
+        return _wamid(await self._post("/messages", payload))
 
     async def send_options(self, to: str, body: str, button: str, options: list) -> None:
         """Interactive list message (up to 10 rows). ``options``: flows.types.Option."""
@@ -81,7 +82,23 @@ class MetaChannel:
                 "action": {"button": button[:20], "sections": [{"title": "Opciones", "rows": rows}]},
             },
         }
-        await self._post("/messages", payload)
+        return _wamid(await self._post("/messages", payload))
+
+    async def send_buttons(self, to: str, body: str, buttons: list[tuple[str, str]]) -> Optional[str]:
+        """Text with up to 3 reply buttons, as ONE message. ``buttons``: [(id, title <= 20)]."""
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": normalize_user_id(to),
+            "type": "interactive",
+            "interactive": {
+                "type": "button",
+                "body": {"text": body[:1024]},
+                "action": {"buttons": [{"type": "reply", "reply": {"id": i[:256], "title": t[:20]}}
+                                       for i, t in buttons[:3]]},
+            },
+        }
+        return _wamid(await self._post("/messages", payload))
 
     async def send_document(self, to: str, data: bytes, filename: str, caption: str = "") -> None:
         """Upload ``data`` as WhatsApp media, then send it as a document message.
@@ -101,7 +118,7 @@ class MetaChannel:
             "type": "document",
             "document": document,
         }
-        await self._post("/messages", payload)
+        return _wamid(await self._post("/messages", payload))
 
     async def send_image(self, to: str, data: bytes, filename: str, caption: str = "",
                          mime: str = "image/png") -> None:
@@ -117,7 +134,7 @@ class MetaChannel:
             "type": "image",
             "image": image,
         }
-        await self._post("/messages", payload)
+        return _wamid(await self._post("/messages", payload))
 
     async def download_media(self, media_id: str, max_bytes: int) -> tuple[bytes, str]:
         """Fetch an inbound file: ask Graph for a short-lived URL, then stream it.
@@ -195,7 +212,7 @@ class MetaChannel:
             },
         )
 
-    async def _post(self, path: str, payload: dict) -> None:
+    async def _post(self, path: str, payload: dict) -> Optional[dict]:
         headers = {"Authorization": f"Bearer {self._token}", "Content-Type": "application/json"}
         try:
             async with httpx.AsyncClient(timeout=20) as client:
@@ -204,6 +221,18 @@ class MetaChannel:
             raise SendError(self.name, 0, repr(exc)) from exc
         if resp.status_code >= 400:
             raise SendError(self.name, resp.status_code, resp.text)
+        try:
+            return resp.json()
+        except ValueError:
+            return None
+
+
+def _wamid(resp: Optional[dict]) -> Optional[str]:
+    """Outbound message id ("wamid....") from a /messages response, for status callbacks."""
+    try:
+        return str(resp["messages"][0]["id"]) if resp else None
+    except (KeyError, IndexError, TypeError):
+        return None
 
 
 def parse_meta_payload(payload: dict) -> ParsedWebhook:
@@ -218,6 +247,7 @@ def parse_meta_payload(payload: dict) -> ParsedWebhook:
                 continue
 
             for status in value.get("statuses", []):
+                out.statuses.append(status)
                 if status.get("status") == "failed":
                     out.events.append(
                         ProviderEvent(channel="meta", kind="message_failed", data=status)

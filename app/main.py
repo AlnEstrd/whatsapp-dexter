@@ -6,6 +6,10 @@
     POST /admin/reply            Human replies to a user (X-Admin-Token)
     POST /admin/release          Hand a user back to the bot
     POST /admin/close            Close a conversation (user gets a closing message)
+    GET  /admin/metrics          KPIs overview, ?range=7d (X-Admin-Token; debugging aid)
+    POST /admin/digest           Post the metrics digest to Slack now, ?range=yesterday
+    POST /admin/mcp/revoke-all   Revoke every MCP connector token
+    /mcp, /authorize, /token...  Read-only MCP connector for claude.ai (MCP_ENABLED)
     POST /slack/events           Slack Events API (thread replies, take/bot)
     POST /admin/send             Bot-initiated message via WA_PROVIDER
     GET  /admin/usage            Today's token usage + top users (X-Admin-Token)
@@ -25,13 +29,16 @@ import json
 import logging
 import re
 import time
+import unicodedata
 from typing import Optional
 
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from . import attachments, db, docs, guard, limits, sessions, slack_bridge, store, voice
-from .agent import get_agent, pop_action, pop_documents
+from .agent import get_agent, pop_action, pop_documents, pop_gaps, turn_stats
+from .agent import tools_called as agent_tools_called
+from .analytics import digest, events, metrics, mcp_server, pricing, topics
 from .channels import (
     Channel,
     InboundMessage,
@@ -64,6 +71,7 @@ def restore_state() -> bool:
     imported = imported_threads = 0
     try:  # a broken legacy JSON file must not stop the SQLite restore
         db.conn()
+        pricing.sync_table()
         imported = sessions.import_legacy(s.sessions_file)
         imported_threads = store.import_legacy_threads(s.slack_state_file)
     except Exception:  # noqa: BLE001
@@ -111,9 +119,11 @@ async def lifespan(_app: FastAPI):
         tasks.append(asyncio.create_task(slack_bridge.window_watcher()))
     tasks.append(asyncio.create_task(lifecycle_watcher()))
     tasks.append(asyncio.create_task(recover_after_restart()))
-    yield
+    async with mcp_server.running():   # no-op unless MCP_ENABLED (and its secrets are strong)
+        yield
     for t in tasks:
         t.cancel()
+    events.drain()
 
 
 app = FastAPI(title="WhatsApp Agentic Bot POC", lifespan=lifespan)
@@ -183,6 +193,8 @@ async def _ingest(channel_name: str, request: Request, background_tasks: Backgro
     for event in parsed.events:
         logger.info("Provider event %s/%s", event.channel, event.kind)
         background_tasks.add_task(alert_provider_event, event)
+    for status in parsed.statuses:  # metrics only (msg_status, read receipts)
+        background_tasks.add_task(events.status, status)
 
     # Only real messages get here: Meta "statuses" (sent/delivered/read) never become
     # InboundMessages (failed ones are surfaced as provider events above).
@@ -204,18 +216,21 @@ async def _ingest(channel_name: str, request: Request, background_tasks: Backgro
 async def send_reply(channel: Channel, msg: InboundMessage, text: str) -> bool:
     text = to_whatsapp(text)  # markdown -> WhatsApp (** -> *), before send, log and Slack mirror
     try:
-        await with_retry(
+        wamid = await with_retry(
             lambda: channel.send_text(msg.reply_to, text),
             attempts=3,
             is_retryable=lambda e: isinstance(e, SendError) and e.retryable,
             label=f"{channel.name}.send",
         )
+        events.outbound(msg.user_id, wamid)
         store.log_turn(msg.user_id, "bot", text)
         sessions.touch_bot(msg.user_id)
         await slack_bridge.mirror_bot(msg.user_id, text)
         return True
     except Exception as exc:  # noqa: BLE001
         logger.exception("Could not deliver reply to %s", msg.user_id)
+        events.record("error", msg.user_id, kind=exc.__class__.__name__, where="send")
+        events.record("handoff", msg.user_id, step="handoff", reason="delivery_failure")
         reason = f"Reply delivery failed on {channel.name}: {exc}"
         if not (slack_bridge.enabled() and await slack_bridge.escalate_in_thread(msg, reason)):
             await escalate(msg, reason)
@@ -228,12 +243,13 @@ async def send_out(channel: Channel, msg: InboundMessage, out: Outgoing) -> bool
     send_options = getattr(channel, "send_options", None)
     if out.options and send_options:
         try:
-            await with_retry(
+            wamid = await with_retry(
                 lambda: send_options(msg.reply_to, out.text, out.button, out.options),
                 attempts=2,
                 is_retryable=lambda e: isinstance(e, SendError) and e.retryable,
                 label=f"{channel.name}.send_options",
             )
+            events.outbound(msg.user_id, wamid)
             store.log_turn(msg.user_id, "bot", out.text)
             sessions.touch_bot(msg.user_id)
             await slack_bridge.mirror_bot(msg.user_id, out.text)
@@ -263,7 +279,7 @@ async def send_file(channel: Channel, msg: InboundMessage, doc: docs.Doc) -> boo
         return False
     extra = {"mime": doc.mime} if is_image else {}
     try:
-        await with_retry(
+        wamid = await with_retry(
             lambda: sender(msg.reply_to, doc.data, doc.filename, doc.caption, **extra),
             attempts=2,
             is_retryable=lambda e: isinstance(e, SendError) and e.retryable,
@@ -271,13 +287,28 @@ async def send_file(channel: Channel, msg: InboundMessage, doc: docs.Doc) -> boo
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception("Could not deliver %s to %s", doc.filename, msg.user_id)
+        events.record("error", msg.user_id, kind=exc.__class__.__name__, where="send_file")
         await send_reply(channel, msg, DOC_FAILED[lang])
         await _thread_note(msg, f"⚠️ Could not deliver {doc.filename}: {exc}")
         return False
+    events.outbound(msg.user_id, wamid)
+    _record_doc(msg.user_id, doc)
     note = f"📎 {doc.filename}"
     store.log_turn(msg.user_id, "bot", note)
     await slack_bridge.mirror_bot(msg.user_id, note)
     return True
+
+
+DOC_EVENTS = {"slides": ("slides_sent", "slides"), "topic_pdf": ("topic_pdf_sent", "topic_pdf"),
+              "report": ("report_sent", "report")}
+
+
+def _record_doc(user_id: str, doc: docs.Doc) -> None:
+    if doc.kind in DOC_EVENTS:
+        etype, step = DOC_EVENTS[doc.kind]
+        extra = {"slide": doc.slide, "format": "image" if doc.mime.startswith("image/") else "pdf"} \
+            if doc.kind == "slides" else {}
+        events.record(etype, user_id, step=step, pages=doc.pages, **extra)
 
 
 async def _send_deck(channel: Channel, msg: InboundMessage, lang: str, slide: Optional[str] = None,
@@ -313,8 +344,8 @@ async def _thread_note(msg: InboundMessage, text: str) -> None:
         await notify_slack(f"{msg.profile_name or msg.user_id}: {text}")
 
 
-async def _to_human(channel: Channel, msg: InboundMessage, reason: str) -> None:
-    await hand_off(msg, reason)
+async def _to_human(channel: Channel, msg: InboundMessage, reason: str, kind: str = "other") -> None:
+    await hand_off(msg, reason, kind)
     await send_reply(channel, msg, HANDOFF_REPLY)
 
 
@@ -470,14 +501,17 @@ async def _handle_media(channel: Channel, msg: InboundMessage) -> None:
         async with typing(channel, msg):  # downloading/validating can take a few seconds
             att = await attachments.load(channel, msg.media)
     except attachments.Rejected as exc:
+        events.record("file_in", uid, kind=msg.msg_type, accepted=False, reject_reason=exc.reason)
         _route(msg, "file_note")
         await send_reply(channel, msg, _media_note(exc.reason, lang))
         return
     except Exception:  # noqa: BLE001
         logger.exception("Media download failed for %s", uid)
+        events.record("file_in", uid, kind=msg.msg_type, accepted=False, reject_reason="fetch_failed")
         _route(msg, "file_note")
         await send_reply(channel, msg, MEDIA_NOTE["failed"][lang])
         return
+    events.record("file_in", uid, kind=att.kind, accepted=True, reject_reason=None)
     await _run_agent(channel, msg, msg.text, attachments=[att])
 
 
@@ -498,10 +532,12 @@ async def _handle_voice(channel: Channel, msg: InboundMessage, is_new: bool) -> 
         async with typing(channel, msg):
             transcript = await voice.load_transcript(channel, msg.media)
     except attachments.Rejected as exc:
+        events.record("file_in", uid, kind="audio", accepted=False, reject_reason=exc.reason)
         _route(msg, "file_note")
         await send_reply(channel, msg, VOICE_NOTE[exc.reason][lang])
         return
     except Exception:  # noqa: BLE001  (download or transcription service failed)
+        events.record("file_in", uid, kind="audio", accepted=False, reject_reason="failed")
         logger.exception("Voice note failed for %s", uid)
         _route(msg, "file_note")
         await send_reply(channel, msg, VOICE_NOTE["failed"][lang])
@@ -510,6 +546,7 @@ async def _handle_voice(channel: Channel, msg: InboundMessage, is_new: bool) -> 
         _route(msg, "file_note")
         await send_reply(channel, msg, VOICE_NOTE["empty"][lang])
         return
+    events.record("file_in", uid, kind="audio", accepted=True, reject_reason=None)
     store.log_turn(uid, "user", f"🎙️ {transcript}")
     await _thread_note(msg, f"🎙️ Transcript: {transcript}")
     voiced = dataclasses.replace(msg, text=transcript, media=None, transcribed=True)
@@ -557,15 +594,25 @@ async def send_bubbles(channel: Channel, msg: InboundMessage, text: str) -> bool
 
 
 async def _run_agent(channel: Channel, msg: InboundMessage, text: str,
-                     attachments: Optional[list] = None) -> bool:
-    """Agent turn + any action a tool requested. False if the agent failed (handed off)."""
+                     attachments: Optional[list] = None, topic: Optional[str] = None) -> bool:
+    """Agent turn + any action a tool requested. False if the agent failed (handed off).
+    ``topic``: label for this turn when the caller knows it (menu option, guard)."""
     blocked = limits.model_block(msg.user_id)
     if blocked:
         await _limit_notice(channel, msg, blocked)
         return True
     _route(msg, "agent")
+    uid = msg.user_id
+    if topic:
+        _turn_topic[uid] = topic
+    topic = _turn_topic.get(uid) or topics.from_route("agent", (sessions.get(uid) or {}).get("last_topic"))
+    _turn_topic[uid] = topic
+    lang = store.get_lang(uid) or "es"
+    # Attendee text only (not the synthetic "¿Quién es Alan?" of a menu option), scrubbed.
+    sample_id = events.sample(uid, msg.text, topic, lang) if (text == msg.text or attachments) else None
     if msg.transcribed and text == msg.text:
         text = VOICE_PREFIX + text
+    t0 = time.monotonic()
     try:
         # The Anthropic SDK already retries transient API errors (429/5xx), so
         # no outer retry here: re-running would duplicate history entries.
@@ -579,12 +626,23 @@ async def _run_agent(channel: Channel, msg: InboundMessage, text: str,
         store.reset(msg.user_id)  # drop possibly half-written tool-use history
         pop_action(msg.user_id)
         pop_documents(msg.user_id)
-        await _to_human(channel, msg, f"Agent error: {exc}")
+        pop_gaps(msg.user_id)
+        events.record("error", uid, kind=exc.__class__.__name__, where="agent")
+        _agent_turn(uid, "error", t0, topic, sample_id)
+        events.record("gap", uid, topic=topic, source="handoff", sample_id=sample_id)
+        await _to_human(channel, msg, f"Agent error: {exc}", "agent_error")
         return False
 
     sessions.touch_bot(msg.user_id, context=True)
     action = pop_action(msg.user_id)
     documents = pop_documents(msg.user_id)
+    outcome = {"close": "closed", "human": "handoff"}.get((action or {}).get("action"), "answered")
+    if outcome == "answered" and turn_stats.get(uid, {}).get("exhausted"):
+        outcome = "error"
+    _agent_turn(uid, outcome, t0, topic, sample_id)
+    for gap in pop_gaps(uid):
+        note_id = events.sample(uid, gap["summary"], gap["topic"], lang, kind="gap_note")
+        events.record("gap", uid, topic=gap["topic"], source="tool", sample_id=sample_id, note_id=note_id)
     if action and action["action"] == "close":
         # end_conversation: the agent's own text is dropped, the farewell is the only message
         for doc in documents:
@@ -604,8 +662,21 @@ async def _run_agent(channel: Channel, msg: InboundMessage, text: str,
         await _start_quiz(channel, msg, action.get("lang") or store.get_lang(msg.user_id) or "es",
                           known=action.get("known"))
     elif action and action["action"] == "human":
-        await hand_off(msg, f"Talk to Alan: {action.get('reason', '')}".strip())
+        await hand_off(msg, f"Talk to Alan: {action.get('reason', '')}".strip(), "user_asked")
     return True
+
+
+def _agent_turn(user_id: str, outcome: str, t0: float, topic: str, sample_id: Optional[str]) -> None:
+    """agent_turn event: tools, model steps, tokens, latency and outcome of one user turn."""
+    stats = turn_stats.pop(user_id, {})
+    events.record("agent_turn", user_id, step="agent_turn", outcome=outcome, topic=topic,
+                  tools=list(agent_tools_called.get(user_id, [])), steps=stats.get("steps", 0),
+                  latency_ms=int((time.monotonic() - t0) * 1000),
+                  input_tokens=stats.get("input_tokens", 0), output_tokens=stats.get("output_tokens", 0))
+    fields = {"last_sample_id": sample_id}
+    if topic in topics.SUBSTANTIVE:
+        fields["last_topic"] = topic
+    sessions.note(user_id, **fields)
 
 
 async def _route_flows(channel: Channel, msg: InboundMessage, is_new: bool) -> bool:
@@ -622,7 +693,11 @@ async def _route_flows(channel: Channel, msg: InboundMessage, is_new: bool) -> b
 
     choice = msg.reply_id if (msg.reply_id or "").startswith("menu:") else menu.typed_choice(msg.text)
     slide = menu.slide_request(msg.text)
+    if choice:
+        _turn_topic[uid] = topics.MENU.get(choice, topics.OTHER)
+        events.record("menu_choice", uid, option=choice)
     if slide:
+        _turn_topic[uid] = "laminas"
         _route(msg, "file_reply")
         await _send_deck(channel, msg, lang, *slide)
     elif choice == "menu:slides":
@@ -640,14 +715,18 @@ async def _route_flows(channel: Channel, msg: InboundMessage, is_new: bool) -> b
         await _start_quiz(channel, msg, lang)
     elif choice == "menu:talk":
         _route(msg, "menu")
+        events.record("menu_shown", uid, step="talk_overview", menu="talk")
         await send_out(channel, msg, menu.talk_overview(lang))
     elif choice == "menu:about":
-        await _run_agent(channel, msg, "¿Quién es Alan Estrada?" if lang == "es" else "Who is Alan Estrada?")
+        await _run_agent(channel, msg, "¿Quién es Alan Estrada?" if lang == "es" else "Who is Alan Estrada?",
+                         topic="sobre_alan")
     elif choice == "menu:human":
         _route(msg, "handoff")
-        await _to_human(channel, msg, "User asked to talk to Alan")
-    elif menu.is_greeting(msg.text):
+        await _to_human(channel, msg, "User asked to talk to Alan", "user_asked")
+    elif menu.is_greeting(msg.text) or entry_source(msg.text) != "organic":  # QR prefill = "hola"
         _route(msg, "menu")
+        _turn_topic[uid] = "saludo_menu"
+        events.record("menu_shown", uid, step="menu", menu="welcome")
         await send_out(channel, msg, menu.welcome(lang, msg.profile_name))
     elif (blocked := limits.model_block(uid)):
         await _limit_notice(channel, msg, blocked)   # no guard / agent call; menu still works
@@ -656,7 +735,10 @@ async def _route_flows(channel: Channel, msg: InboundMessage, is_new: bool) -> b
         # menu (not the menu itself; it goes out on a greeting, "menu" or "opciones").
         if is_new:
             await send_reply(channel, msg, menu.intro(lang, msg.profile_name))
-        if not await guard.on_topic(uid, msg.text):
+        verdict = await guard.classify(uid, msg.text)
+        if verdict.topic:
+            _turn_topic[uid] = verdict.topic
+        if not verdict.on_topic:
             await _off_topic(channel, msg, lang)
         else:
             ok = await _run_agent(channel, msg, msg.text)
@@ -679,13 +761,23 @@ def _lang_of(user_id: str) -> str:
     return store.get_lang(user_id) or s.get("lang") or "es"
 
 
-async def _notify(user_id: str, text: str) -> bool:
-    """System message to the user on their last channel (doesn't count as activity)."""
+async def _notify(user_id: str, text: str, buttons: Optional[list] = None) -> bool:
+    """System message to the user on their last channel (doesn't count as activity).
+    ``buttons``: reply buttons in the same message where the channel supports them (CSAT)."""
     s = sessions.get(user_id) or {}
     channel = get_channel(s.get("channel_name", ""))
     if channel is None or not s.get("reply_to"):
         logger.warning("Cannot notify %s: no channel/address on record", user_id)
         return False
+    send_buttons = getattr(channel, "send_buttons", None) if buttons else None
+    if send_buttons:
+        try:
+            await send_buttons(s["reply_to"], text, buttons)
+            store.log_turn(user_id, "bot", text)
+            await slack_bridge.mirror_bot(user_id, text)
+            return True
+        except Exception:  # noqa: BLE001
+            logger.warning("Button message failed for %s; sending plain text", user_id)
     try:
         await with_retry(
             lambda: channel.send_text(s["reply_to"], text),
@@ -701,25 +793,57 @@ async def _notify(user_id: str, text: str) -> bool:
     return True
 
 
-# reason -> who closed it (closing message key, Slack label)
-CLOSE_REASONS = {"user_keyword": "user", "user_intent": "user", "idle": "bot", "admin": "admin"}
+# reason -> who closed it (closing message key, Slack label). The last four are for the
+# metrics' close-reason vocabulary; today nothing but idle/user/admin closes a chat.
+CLOSE_REASONS = {"user_keyword": "user", "user_intent": "user", "idle": "bot", "admin": "admin",
+                 "offtopic_handoff": "bot", "limit": "bot", "error": "bot", "window_expired": "bot"}
+CSAT_BUTTONS = [("csat:up", "👍"), ("csat:down", "👎")]
+CSAT_THANKS = {"es": "¡Gracias!", "en": "Thanks!"}
+CSAT_WINDOW = 24 * 3600
+
+
+def _record_close(user_id: str, reason: str, sess: dict, **extra) -> None:
+    """conversation_close event: reason, last step, turns, duration and whether the last bot
+    message was read (Meta read receipts; None when unknown, e.g. Twilio)."""
+    t = sess.get("closed_at") or sessions.now()
+    read = sess.get("last_bot_read") if sess.get("last_bot_wamid") else None
+    events.record("conversation_close", user_id, conversation_id=sess.get("conversation_id"),
+                  reason=reason, last_step=sess.get("last_step"), turns=sess.get("turns", 0),
+                  duration_s=int(t - (sess.get("opened_at") or t)), last_bot_msg_read=read, **extra)
+    if reason == "idle" and sess.get("last_step") == "agent_turn" and read:
+        # Read the answer and left without a word: count it as a (soft) gap.
+        events.record("gap", user_id, conversation_id=sess.get("conversation_id"),
+                      topic=sess.get("last_topic") or topics.OTHER, source="idle_after_answer",
+                      sample_id=sess.get("last_sample_id"))
 
 
 async def close_chat(user_id: str, reason: str, slack_cleanup: bool = True, *,
                      farewell: Optional[str] = None, user_text: Optional[str] = None) -> bool:
-    """The one close routine (reason = "user_keyword" | "user_intent" | "idle" | "admin"):
-    closing message to the user, then wipe agent memory, quiz, transcript, handoff and idle
-    timers. The next message starts fresh. ``farewell``: the agent's goodbye (user_intent)."""
+    """The one close routine (reason = "user_keyword" | "user_intent" | "idle" | "admin" | ...,
+    see CLOSE_REASONS): closing message to the user, then wipe agent memory, quiz, transcript,
+    handoff and idle timers. The next message starts fresh. ``farewell``: the agent's goodbye
+    (user_intent). Logs the conversation_close event."""
     by = CLOSE_REASONS[reason]
-    if not sessions.is_open(user_id) and by != "admin":
+    was_open = sessions.is_open(user_id)
+    if not was_open and by != "admin":
         return False
     lang = _lang_of(user_id)
     if reason == "user_intent":
         closing = sessions.farewell_text(to_whatsapp(farewell or ""), lang)
+    elif by == "bot" and reason != "idle":
+        closing = sessions.text("close_system", lang)
     else:
         closing = sessions.text(f"close_{by}", lang)
-    await _notify(user_id, closing)
+    sess = sessions.get(user_id) or {}
+    csat = bool(get_settings().csat_enabled and by == "user" and was_open
+                and getattr(get_channel(sess.get("channel_name", "")), "send_buttons", None))
+    await _notify(user_id, closing, buttons=CSAT_BUTTONS if csat else None)
     sessions.mark_closed(user_id, by, reason)
+    if was_open:
+        _record_close(user_id, reason, sess, csat_offered=csat)
+    if csat:
+        sessions.note(user_id, csat_pending={"conversation_id": sess.get("conversation_id"),
+                                             "at": sessions.now(), "lang": lang})
     pop_action(user_id)
     pop_documents(user_id)
     store.wipe_conversation(user_id)  # agent history + quiz progress, one DB transaction
@@ -770,7 +894,8 @@ async def recover_after_restart() -> None:
         for uid, sess in list(sessions.all_sessions().items()):
             if sess.get("state") == "open" and sess.get("boot") != sessions.BOOT_ID \
                     and stale > 0 and sessions.now() - sess.get("last_activity", 0) > stale:
-                sessions.mark_closed(uid, "bot")  # would have been closed while we were down
+                sessions.mark_closed(uid, "bot", "idle")  # would have been closed while we were down
+                _record_close(uid, "idle", sess, while_down=True)
         if not s.restart_notice:
             return
         for uid in sessions.lost_by_restart(RESTART_NOTICE_MAX_AGE):
@@ -806,6 +931,10 @@ async def lifecycle_watcher() -> None:  # started from the app lifespan
             await check_idle()
         except Exception:  # noqa: BLE001
             logger.exception("Idle check failed")
+        try:
+            await digest.maybe_send()   # once a day at METRICS_DIGEST_HOUR; never raises
+        except Exception:  # noqa: BLE001
+            logger.exception("Metrics digest check failed")
         if time.monotonic() - last_purge >= RETENTION_INTERVAL:
             last_purge = time.monotonic()
             await asyncio.to_thread(run_retention)
@@ -815,13 +944,15 @@ async def _off_topic(channel: Channel, msg: InboundMessage, lang: str) -> None:
     """Off-topic message: static warning (no main-agent tokens); escalate after the max."""
     n = sessions.bump_offtopic(msg.user_id)
     mx = get_settings().offtopic_max_warnings
+    _turn_topic[msg.user_id] = "fuera_de_tema"
     if n <= mx:
         _route(msg, "offtopic_warning")
+        events.record("offtopic_warning", msg.user_id, step="offtopic_warning", n=n)
         await send_reply(channel, msg, sessions.text("offtopic_warn", lang, n=n, max=mx))
         await _thread_note(msg, f"🚧 Off-topic warning {n}/{mx}.")
     else:
         _route(msg, "handoff")
-        await hand_off(msg, f"Off-topic after {mx} warnings")
+        await hand_off(msg, f"Off-topic after {mx} warnings", "offtopic")
         await send_reply(channel, msg, sessions.text("offtopic_escalate", lang))
 
 
@@ -838,6 +969,7 @@ def _route(msg: InboundMessage, name: str) -> None:
 async def _limit_notice(channel: Channel, msg: InboundMessage, kind: str) -> None:
     """A limit was hit: one static message per window (no model call) + a silent Slack note."""
     _route(msg, "limited")
+    events.record("limit_hit", msg.user_id, limit=kind)
     if not limits.should_notify(msg.user_id, kind):
         return
     lang = menu.detect_lang(msg.text, store.get_lang(msg.user_id)) if msg.text else _lang_of(msg.user_id)
@@ -869,21 +1001,92 @@ async def _closer_or_human(channel: Channel, msg: InboundMessage) -> bool:
         return True
     if msg.text and wants_human(msg.text):
         _route(msg, "handoff")
-        await hand_off(msg, "User asked for a human")
+        await hand_off(msg, "User asked for a human", "user_asked")
         await send_reply(channel, msg, HANDOFF_REPLY)
         return True
     return False
 
 
+# user_id -> topic label of the message being handled (guard label or route); see _record_user_msg
+_turn_topic: dict[str, str] = {}
+
+
+def _norm_entry(text: str) -> str:
+    t = unicodedata.normalize("NFKD", (text or "").lower())
+    t = "".join(c for c in t if not unicodedata.combining(c))
+    return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", " ", t)).strip()
+
+
+def entry_source(text: str) -> str:
+    """ENTRY_SOURCES maps a QR prefill text to a source ({"hola dexter": "qr_talk"});
+    matched ignoring case, accents and punctuation. Anything else is "organic"."""
+    raw = get_settings().entry_sources
+    if raw:
+        try:
+            table = {_norm_entry(k): str(v) for k, v in json.loads(raw).items()}
+        except (ValueError, AttributeError):
+            logger.error("ENTRY_SOURCES is not a JSON object; ignoring it")
+            table = {}
+        hit = table.get(_norm_entry(text))
+        if hit:
+            return hit
+    return "organic"
+
+
+async def _csat_reply(channel: Channel, msg: InboundMessage) -> bool:
+    """👍 / 👎 under the farewell: record it, thank once, don't reopen the chat. True if handled."""
+    rid = msg.reply_id or ""
+    if not rid.startswith("csat:"):
+        return False
+    pend = (sessions.get(msg.user_id) or {}).get("csat_pending")
+    if not pend or sessions.now() - pend.get("at", 0) > CSAT_WINDOW:
+        return False  # stale button: a normal message
+    if pend.get("done"):
+        return True   # already counted and thanked
+    sessions.note(msg.user_id, csat_pending={**pend, "done": True})
+    events.record("csat", msg.user_id, conversation_id=pend.get("conversation_id"),
+                  value="up" if rid == "csat:up" else "down")
+    try:
+        await channel.send_text(msg.reply_to, CSAT_THANKS.get(pend.get("lang"), CSAT_THANKS["es"]))
+    except Exception:  # noqa: BLE001
+        logger.warning("CSAT thanks failed for %s", limits.mask(msg.user_id))
+    return True
+
+
+def _record_user_msg(msg: InboundMessage) -> None:
+    """One user_msg event per inbound message: the route it took and its topic."""
+    uid = msg.user_id
+    route = last_route.get(uid, "unknown")
+    topic = _turn_topic.pop(uid, None) or \
+        topics.from_route(route, (sessions.get(uid) or {}).get("last_topic"))
+    events.record("user_msg", uid, topic=topic, route=route, lang=store.get_lang(uid) or "es",
+                  kind=msg.msg_type)
+
+
 async def handle_inbound(channel: Channel, msg: InboundMessage) -> None:
+    if await _csat_reply(channel, msg):
+        return
+    last_route.pop(msg.user_id, None)
+    _turn_topic.pop(msg.user_id, None)
+    try:
+        await _handle_inbound(channel, msg)
+    finally:
+        _record_user_msg(msg)
+
+
+async def _handle_inbound(channel: Channel, msg: InboundMessage) -> None:
     try:
         await channel.mark_as_read(msg)
     except Exception:  # noqa: BLE001
         logger.warning("mark_as_read failed for %s", msg.message_id)
 
     restart_notice = sessions.needs_restart_notice(msg.user_id)
+    was_open = sessions.is_open(msg.user_id)
     sessions.touch_user(msg.user_id, channel.name, msg.reply_to, msg.profile_name)
     store.touch_contact(msg.user_id, channel.name, msg.reply_to, msg.profile_name)
+    if not was_open:
+        events.record("conversation_start", msg.user_id, step="start", source=entry_source(msg.text),
+                      lang=menu.detect_lang(msg.text, store.get_lang(msg.user_id)), channel=channel.name)
 
     bridge = slack_bridge.enabled()
     if bridge:  # mirror every customer message, whatever the mode
@@ -1010,6 +1213,34 @@ async def admin_usage(x_admin_token: Optional[str] = Header(None)) -> dict:
     return await asyncio.to_thread(limits.summary)
 
 
+@app.get("/admin/metrics")
+async def admin_metrics(range: str = "7d", x_admin_token: Optional[str] = Header(None)) -> dict:
+    """KPI overview (America/Mexico_City days), user ids masked. Debugging aid; Claude reads the
+    same numbers through the MCP connector."""
+    _check_admin(x_admin_token)
+    try:
+        return await asyncio.to_thread(metrics.overview, range)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/admin/digest")
+async def admin_digest(range: str = "yesterday", x_admin_token: Optional[str] = Header(None)) -> dict:
+    """Post the metrics digest to Slack now (doesn't mark the day as sent)."""
+    _check_admin(x_admin_token)
+    try:
+        return {"posted": await digest.send(range)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/admin/mcp/revoke-all")
+async def admin_mcp_revoke_all(x_admin_token: Optional[str] = Header(None)) -> dict:
+    """Revoke every MCP access and refresh token (claude.ai must reconnect)."""
+    _check_admin(x_admin_token)
+    return {"revoked": await asyncio.to_thread(mcp_server.revoke_all)}
+
+
 @app.post("/admin/close")
 async def admin_close(body: ReleaseIn, x_admin_token: Optional[str] = Header(None)) -> dict:
     _check_admin(x_admin_token)
@@ -1043,3 +1274,10 @@ async def slack_events(request: Request, background_tasks: BackgroundTasks) -> R
     elif payload.get("type") == "event_callback":
         background_tasks.add_task(slack_bridge.handle_slack_event, payload)
     return Response(content='{"ok":true}', media_type="application/json")
+
+
+# --------------------------------------------------------------------------- #
+# Read-only MCP connector (app/analytics/mcp_server.py). The paths are always routed; they
+# answer 404 unless MCP_ENABLED and the lifespan started the server.
+# --------------------------------------------------------------------------- #
+mcp_server.mount(app)

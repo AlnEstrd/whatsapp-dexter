@@ -62,6 +62,80 @@ MIGRATIONS: list[list[str]] = [
         # one-time flags: "limit notice sent today", "80% budget alert sent", ...
         "CREATE TABLE flags (key TEXT PRIMARY KEY, created_at REAL NOT NULL)",
     ],
+    # 2 - metrics & governance (app/analytics/). ts columns are UTC ISO-8601 strings
+    #     ("2026-10-11T14:05:09.123456Z"), so range filters are plain string compares.
+    [
+        """CREATE TABLE events (
+            id INTEGER PRIMARY KEY,
+            ts TEXT NOT NULL, user_id TEXT, conversation_id TEXT,
+            type TEXT NOT NULL, step TEXT,
+            data_json TEXT NOT NULL DEFAULT '{}')""",  # never free message text
+        "CREATE INDEX events_ts ON events(ts)",
+        "CREATE INDEX events_conversation ON events(conversation_id)",
+        "CREATE INDEX events_type_ts ON events(type, ts)",
+        # Scrubbed attendee questions that reached the agent (kind=question) and the agent's
+        # own note_gap summaries (kind=gap_note). Text is untrusted data.
+        """CREATE TABLE question_samples (
+            id TEXT PRIMARY KEY, ts TEXT NOT NULL, conversation_id TEXT,
+            topic TEXT, lang TEXT, kind TEXT NOT NULL DEFAULT 'question', text TEXT NOT NULL)""",
+        "CREATE INDEX question_samples_ts ON question_samples(ts)",
+        """CREATE TABLE llm_calls (
+            id INTEGER PRIMARY KEY,
+            ts TEXT NOT NULL, user_id TEXT, conversation_id TEXT,
+            purpose TEXT NOT NULL, model TEXT,
+            input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0,
+            cache_read_tokens INTEGER NOT NULL DEFAULT 0, cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+            latency_ms INTEGER, stop_reason TEXT, error TEXT)""",
+        "CREATE INDEX llm_calls_ts ON llm_calls(ts)",
+        # Meta message id (wamid) of each bot send -> conversation, for status callbacks.
+        """CREATE TABLE outbound_messages (
+            wamid TEXT PRIMARY KEY, ts TEXT NOT NULL, user_id TEXT, conversation_id TEXT)""",
+        # USD per million tokens; rewritten from app/analytics/pricing.py on every start, so a
+        # price fix re-prices history (cost is computed at query time, never stored).
+        """CREATE TABLE model_prices (
+            model TEXT PRIMARY KEY, input REAL NOT NULL, output REAL NOT NULL,
+            cache_write REAL NOT NULL, cache_read REAL NOT NULL)""",
+        # MCP OAuth tokens, stored as SHA-256 hashes only.
+        """CREATE TABLE mcp_tokens (
+            token_hash TEXT PRIMARY KEY, kind TEXT NOT NULL, family TEXT NOT NULL,
+            client_id TEXT NOT NULL, scopes TEXT NOT NULL DEFAULT '',
+            expires_at REAL NOT NULL, created_at REAL NOT NULL)""",
+        # Read-only views: the only thing the MCP `query` tool may read. User ids masked.
+        """CREATE VIEW v_events AS
+            SELECT id, ts, '****' || substr(user_id, -4) AS user, conversation_id, type, step, data_json
+            FROM events""",
+        """CREATE VIEW v_conversations AS
+            SELECT conversation_id,
+                   '****' || substr(MAX(user_id), -4) AS user,
+                   MIN(CASE WHEN type = 'conversation_start' THEN ts END) AS started_at,
+                   MAX(CASE WHEN type = 'conversation_close' THEN ts END) AS closed_at,
+                   MAX(CASE WHEN type = 'conversation_close' THEN json_extract(data_json, '$.reason') END) AS close_reason,
+                   MAX(CASE WHEN type = 'conversation_close' THEN json_extract(data_json, '$.last_step') END) AS last_step,
+                   MAX(CASE WHEN type = 'conversation_close' THEN json_extract(data_json, '$.turns') END) AS turns,
+                   MAX(CASE WHEN type = 'conversation_start' THEN json_extract(data_json, '$.source') END) AS source,
+                   MAX(CASE WHEN type = 'conversation_start' THEN json_extract(data_json, '$.lang') END) AS lang,
+                   MAX(type = 'handoff') AS handoff
+            FROM events WHERE conversation_id IS NOT NULL GROUP BY conversation_id""",
+        """CREATE VIEW v_llm_calls AS
+            SELECT l.id, l.ts, '****' || substr(l.user_id, -4) AS user, l.conversation_id, l.purpose,
+                   l.model, l.input_tokens, l.output_tokens, l.cache_read_tokens, l.cache_write_tokens,
+                   l.latency_ms, l.stop_reason, l.error,
+                   ROUND((l.input_tokens * p.input + l.output_tokens * p.output
+                          + l.cache_write_tokens * p.cache_write + l.cache_read_tokens * p.cache_read)
+                         / 1000000.0, 6) AS cost_usd
+            FROM llm_calls l LEFT JOIN model_prices p ON p.model = l.model""",
+        """CREATE VIEW v_topics AS
+            SELECT ts, conversation_id, json_extract(data_json, '$.topic') AS topic,
+                   json_extract(data_json, '$.route') AS route, json_extract(data_json, '$.lang') AS lang
+            FROM events WHERE type = 'user_msg'""",
+        """CREATE VIEW v_gaps AS
+            SELECT e.ts, e.conversation_id, json_extract(e.data_json, '$.topic') AS topic,
+                   json_extract(e.data_json, '$.source') AS source, s.text AS sample, n.text AS note
+            FROM events e
+            LEFT JOIN question_samples s ON s.id = json_extract(e.data_json, '$.sample_id')
+            LEFT JOIN question_samples n ON n.id = json_extract(e.data_json, '$.note_id')
+            WHERE e.type = 'gap'""",
+    ],
 ]
 
 _lock = threading.RLock()
@@ -260,6 +334,11 @@ def purge(retention_days: float, processed_days: float = 7) -> list[str]:
         c.execute("DELETE FROM processed_messages WHERE received_at < ?", (t - processed_days * 86400,))
         c.execute("DELETE FROM usage WHERE day < ?", (day_cutoff,))
         c.execute("DELETE FROM flags WHERE created_at < ?", (cutoff,))
+        # Metrics: same RETENTION_DAYS for events, samples and model calls.
+        iso_cutoff = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(cutoff))
+        for table in ("events", "question_samples", "llm_calls", "outbound_messages"):
+            c.execute(f"DELETE FROM {table} WHERE ts < ?", (iso_cutoff,))
+        c.execute("DELETE FROM mcp_tokens WHERE expires_at < ?", (t,))
     if users:
         logger.info("Retention: purged %d conversation(s) older than %s days", len(users), retention_days)
     return users
