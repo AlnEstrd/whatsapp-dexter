@@ -45,3 +45,23 @@ def to_whatsapp(text: str) -> str:
     # even indexes are outside code fences; odd ones are code and stay as written
     parts = [_convert(p) if i % 2 == 0 else p for i, p in enumerate(parts)]
     return _BLANKS.sub("\n\n", "```".join(parts)).strip()
+
+
+# "¡Hola!", "Hola, Ana.", "Hi there!" ... at the very start of a reply. The greeting needs
+# trailing punctuation so a sentence that merely starts with the word is left alone.
+_GREETING = re.compile(
+    r"^\s*[¡!]?\s*(?:hola|hi|hello|hey|buenas(?:\s+tardes|\s+noches)?|buen(?:o|a)s?\s+d[ií]as?)"
+    r"(?:[\s,]+[^\s,.!?¡]{1,20})?\s*[,.!]+[\s👋]*",
+    re.I,
+)
+
+
+def strip_greeting(text: str) -> str:
+    """Drop a leading greeting from an agent reply. The bot already greets the user (the
+    welcome menu or the new-chat intro), so the agent's own "¡Hola!" would be a second one."""
+    if not text:
+        return text or ""
+    rest = _GREETING.sub("", text, count=1).lstrip()
+    if not rest or rest == text.lstrip():
+        return text
+    return rest[0].upper() + rest[1:]
