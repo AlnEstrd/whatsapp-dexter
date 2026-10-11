@@ -139,6 +139,76 @@ cover what the user asked, or when your answer had to be partial.
 """
 
 
+LEADS_RULE = """- Silent notes for Alan's follow-up (never mention them, never say you're taking notes or \
+scoring, and keep answering normally in the same turn):
+  • When the user volunteers their name, company, role, company size, industry or email, call \
+update_lead_profile with just those facts. Never interrogate: at most one light profiling question \
+per conversation outside the assessment, and only when it flows naturally. Never record sensitive data \
+(health, finances, personal matters).
+  • When the user expresses intent to get help for their OWN organisation (wants help implementing, \
+asks about Alan's services or prices, asks for a meeting, mentions a timeline or budget, or describes a \
+team/process pain they want solved), call flag_buying_signal. Never pitch, never ask about budget \
+unprompted. Questions about prices or availability: Alan answers those himself; offer talk_to_alan.
+  • If they want help but not right now, or prefer that Alan reaches out later (call, email, WhatsApp), \
+call request_contact: a short form follows your reply automatically.
+"""
+
+LEAD_TOOLS = [
+    {
+        "name": "update_lead_profile",
+        "description": (
+            "Silently save facts the user volunteered about themselves for Alan's follow-up. Only pass "
+            "what they actually said. Invisible to the user; continue your answer normally."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"}, "company": {"type": "string"},
+                "role": {"type": "string", "description": "Job title as they said it"},
+                "role_level": {"type": "string", "enum": ["owner_exec", "director", "manager", "individual"]},
+                "company_size": {"type": "string", "enum": ["1-10", "11-50", "51-250", "251+"],
+                                 "description": "Number of employees"},
+                "industry": {"type": "string"},
+                "email": {"type": "string"},
+                "interest_note": {"type": "string",
+                                  "description": "<= 200 chars: what they want help with, no personal data"},
+            },
+        },
+    },
+    {
+        "name": "flag_buying_signal",
+        "description": (
+            "Silently note that the user expressed intent to get help for their own organisation. "
+            "Invisible to the user; continue your answer normally. Never pitch or mention it."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "kind": {"type": "string", "enum": ["wants_help_implementing", "asked_services_or_price",
+                                                    "asked_meeting", "timeline_or_budget_mentioned",
+                                                    "team_or_process_pain"]},
+                "note": {"type": "string", "description": "<= 200 chars, what they need, no personal data"},
+            },
+            "required": ["kind", "note"],
+        },
+    },
+    {
+        "name": "request_contact",
+        "description": (
+            "Start the short 'have Alan contact me later' form (channel, best time, topic) right after "
+            "your reply. Use when the user wants help but not right now, or asks Alan to reach out. "
+            "Reply with one short line; the form questions are sent automatically."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+]
+
+
+def _leads_on() -> bool:
+    from . import leads
+    return leads.enabled()
+
+
 def _domain_scale() -> str:
     """The quiz's own answer options, so the agent scores a story on the same 0-3 scale."""
     lines = []
@@ -330,6 +400,8 @@ def tool_definitions() -> list[dict]:
         tools.append(END_CONVERSATION_TOOL)
     if on_request.enabled():
         tools.append(LOOKUP_TOOL)
+    if _leads_on():
+        tools += LEAD_TOOLS if get_settings().contact_form_enabled else LEAD_TOOLS[:2]
     return tools
 
 
@@ -440,6 +512,19 @@ def run_tool(user_id: str, name: str, tool_input: dict) -> str:
                 _unlocked.setdefault(user_id, []).append(result["id"])
             return json.dumps(result, ensure_ascii=False)
         return json.dumps({"found": False})
+    if name == "update_lead_profile" and _leads_on():
+        from . import leads
+        fields = {k: v for k, v in tool_input.items() if isinstance(v, str)}
+        leads.update_profile(user_id, fields)
+        return "Saved. Don't mention it; continue your answer normally."
+    if name == "flag_buying_signal" and _leads_on():
+        from . import leads
+        leads.buying_signal(user_id, str(tool_input.get("kind", "")), str(tool_input.get("note", "")))
+        return "Noted. Don't mention it; continue your answer normally (no pitch)."
+    if name == "request_contact" and _leads_on():
+        from . import leads
+        leads.request_contact(user_id)
+        return "The contact form starts right after your reply. Reply with one short line only."
     if name == "talk_to_alan":
         _pending[user_id] = {"action": "human", "reason": tool_input.get("reason", "")}
         return ("Alan will be notified right after your reply and will answer in this chat. "
@@ -450,7 +535,7 @@ def run_tool(user_id: str, name: str, tool_input: dict) -> str:
 def system_blocks(user_id: Optional[str] = None) -> list[dict]:
     rules = INSTRUCTIONS + (GAP_RULE if events.enabled() else "") \
         + (CLOSE_RULE if get_settings().close_on_intent else "") \
-        + (LOOKUP_RULE if on_request.enabled() else "")
+        + (LOOKUP_RULE if on_request.enabled() else "") + (LEADS_RULE if _leads_on() else "")
     blocks = [
         {"type": "text", "text": rules},
         {"type": "text", "text": "<voice>\n" + knowledge.voice_text() + "\n</voice>"},

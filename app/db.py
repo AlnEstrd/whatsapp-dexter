@@ -140,6 +140,59 @@ MIGRATIONS: list[list[str]] = [
             LEFT JOIN question_samples n ON n.id = json_extract(e.data_json, '$.note_id')
             WHERE e.type = 'gap'""",
     ],
+    # 4 - leads: consent, scoring audit trail, Zoho outbox, contact requests, dashboard (app/leads/)
+    [
+        """CREATE TABLE leads (
+            lead_id TEXT PRIMARY KEY,
+            user_id TEXT,                                -- normalised phone; NULL for email-only web leads
+            wa_profile_name TEXT, name TEXT, company TEXT, role TEXT,
+            role_level TEXT NOT NULL DEFAULT 'unknown',  -- owner_exec | director | manager | individual | unknown
+            company_size TEXT NOT NULL DEFAULT 'unknown',  -- 1-10 | 11-50 | 51-250 | 251+ | unknown
+            industry TEXT, email TEXT, lang TEXT,
+            source TEXT NOT NULL DEFAULT 'organic',      -- organic (WhatsApp) | web_form
+            first_seen REAL, last_seen REAL, last_inbound_at REAL,
+            sessions INTEGER NOT NULL DEFAULT 1, last_session_at REAL,
+            quiz_level INTEGER, quiz_scores_json TEXT, weakest_domains_json TEXT,
+            topics_json TEXT NOT NULL DEFAULT '{}', interest_note TEXT,
+            consent_followup INTEGER NOT NULL DEFAULT 0, consent_ts REAL, consent_text_version TEXT,
+            consent_asked_count INTEGER NOT NULL DEFAULT 0, consent_last_asked_at REAL,
+            consent_declined_at REAL, opted_out_at REAL,
+            fit_score INTEGER NOT NULL DEFAULT 0, intent_score INTEGER NOT NULL DEFAULT 0,
+            score INTEGER NOT NULL DEFAULT 0, tier TEXT NOT NULL DEFAULT 'cold', tier_override TEXT,
+            contactable INTEGER NOT NULL DEFAULT 0,
+            stage TEXT NOT NULL DEFAULT 'new', stage_updated_at REAL,
+            stage_source TEXT NOT NULL DEFAULT 'dexter',  -- dexter | slack | zoho | admin | dashboard
+            hot_alerted_at REAL, sla_reminded_at REAL, window_reminded_at REAL,
+            slack_alert_channel TEXT, slack_alert_ts TEXT, last_template_at REAL,
+            zoho_id TEXT, zoho_synced_at REAL, zoho_dirty INTEGER NOT NULL DEFAULT 0,
+            created_at REAL NOT NULL, updated_at REAL NOT NULL)""",
+        "CREATE UNIQUE INDEX leads_user ON leads(user_id) WHERE user_id IS NOT NULL",
+        "CREATE UNIQUE INDEX leads_email ON leads(email) WHERE email IS NOT NULL",
+        "CREATE INDEX leads_tier ON leads(tier, stage)",
+        """CREATE TABLE lead_activity (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lead_id TEXT NOT NULL, ts REAL NOT NULL, type TEXT NOT NULL,
+            points INTEGER NOT NULL DEFAULT 0, data_json TEXT NOT NULL DEFAULT '{}')""",
+        "CREATE INDEX lead_activity_lead ON lead_activity(lead_id, ts)",
+        """CREATE TABLE zoho_outbox (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lead_id TEXT NOT NULL, op TEXT NOT NULL,     -- upsert | note | delete
+            payload_json TEXT NOT NULL DEFAULT '{}',
+            attempts INTEGER NOT NULL DEFAULT 0, next_attempt_at REAL NOT NULL, last_error_kind TEXT)""",
+        "CREATE INDEX zoho_outbox_due ON zoho_outbox(next_attempt_at)",
+        """CREATE TABLE contact_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lead_id TEXT NOT NULL, ts REAL NOT NULL,
+            channel TEXT, best_time TEXT, topic TEXT, note TEXT,
+            status TEXT NOT NULL DEFAULT 'open',         -- open | done | cancelled
+            done_at REAL)""",
+        "CREATE INDEX contact_requests_lead ON contact_requests(lead_id, status)",
+        # Opt-out survives retention and erase: never contact these again.
+        "CREATE TABLE lead_suppressions (key TEXT PRIMARY KEY, opted_out_at REAL NOT NULL)",
+        """CREATE TABLE dashboard_sessions (
+            token_hash TEXT PRIMARY KEY, csrf TEXT NOT NULL,
+            created_at REAL NOT NULL, expires_at REAL NOT NULL)""",
+    ],
 ]
 
 _lock = threading.RLock()

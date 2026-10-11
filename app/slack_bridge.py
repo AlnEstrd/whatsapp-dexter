@@ -313,6 +313,8 @@ async def release_control(user_id: str, note: bool = True) -> None:
 
 # Set by main.py: sends the customer a closing message and resets the session.
 close_hook = None
+# Set by main.py (app/leads/alerts.handle_command): lead commands typed in a thread.
+lead_command_hook = None
 
 
 async def close_thread(user_id: str, note: str) -> None:
@@ -402,6 +404,11 @@ async def handle_slack_event(payload: dict) -> None:
             thread_ts, ts = event.get("thread_ts"), event.get("ts")
             if not thread_ts or thread_ts == ts:
                 return  # top-level channel message, not a conversation reply
+            # Lead commands (contacted, meeting, note ..., followup) in a conversation thread or
+            # a hot-alert thread of the leads channel; never forwarded to the customer.
+            if lead_command_hook is not None and await lead_command_hook(
+                    event.get("channel"), thread_ts, (event.get("text") or "").strip(), event.get("user", "")):
+                return
             if event.get("channel") and event["channel"] != settings.slack_channel_id:
                 return
             user_id = store.user_for_thread(thread_ts)

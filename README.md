@@ -403,6 +403,7 @@ app/
   resilience.py        Retry with exponential backoff
   tools.py             Tool definitions + implementations
   on_request.py        On-request entries: load, trigger matching, unlocks, lookup tool
+  leads/               Leads: consent, scoring, Slack speed-to-lead, templates, Zoho, dashboard, web form
   status.py            Live status for on-request entries (build info, uptime, features, Meta state)
   kb/on_request/       Entries Dexter only shares when explicitly asked (see its README.md)
   docs/                PDF generation (reportlab): slides.py, topic.py, assessment.py, dossier.py, common/theme
@@ -815,6 +816,199 @@ claude.ai's connector settings.
 - Samples are scrubbed and truncated.
 - Retention follows `RETENTION_DAYS`.
 
+## Leads
+
+Turns talk attendees into a follow-up list: **who** they are (asked progressively, never
+gating anything), **whether they agreed** to be contacted (provable consent, `BAJA` opt-out),
+**how warm** they are (explainable score → hot / warm / cold) and **what they care about**
+(quiz result, weakest domains, topics, a short need note). Code in `app/leads/`.
+`LEADS_ENABLED=false` behaves exactly as before.
+
+Dexter's SQLite is the **system of record**. Zoho CRM (Free) is Alan's sales workspace
+(one-way push + daily status pull). Hot leads reach Alan in Slack within a minute, and the
+owner dashboard (`/dashboard`) lets him write to them from his **personal** WhatsApp.
+
+### Data model (migration 3 in `app/db.py`)
+
+| Table | What |
+|---|---|
+| `leads` | one row per person: identity (`user_id` = normalised phone, nullable for email-only web leads; `name`, `company`, `role`, `role_level`, `company_size`, `industry`, `email`, `lang`, `source` `organic`/`web_form`), engagement (`first_seen`, `last_seen`, `last_inbound_at`, `sessions`, quiz level / per-domain scores / weakest domains, `topics_json`, `interest_note`), consent (`consent_followup`, `consent_ts`, `consent_text_version`, asks, `consent_declined_at`, `opted_out_at`), scoring (`fit_score`, `intent_score`, `score`, `tier`, `tier_override`, `contactable`), pipeline (`stage`, `stage_source`, `hot_alerted_at`, `sla_reminded_at`, Slack alert ts), Zoho (`zoho_id`, `zoho_synced_at`, `zoho_dirty`) |
+| `lead_activity` | the audit trail: every point earned or lost, consent answers, stage moves, notes, alerts, templates. "Why is this lead hot?" = these rows |
+| `contact_requests` | "Que Alan me contacte" (WhatsApp or web): channel, best time, topic, note, `open`/`done`/`cancelled` |
+| `zoho_outbox` | pending Zoho upserts / notes / deletes with attempts and backoff |
+| `lead_suppressions` | opt-outs (`wa:<phone>`, `email:<address>`): survive retention and erase |
+| `dashboard_sessions` | dashboard logins (token stored as a SHA-256 hash) + CSRF token |
+
+A lead row is created on the first **meaningful engagement**: quiz start, first question to the
+agent, asking for Alan, a file sent by Dexter, the on-request "making of", or the contact form.
+Never on a bare greeting or a menu view. Closing a conversation wipes the chat (as before) but
+never the lead.
+
+### Consent and opt-out
+
+The consent question (WhatsApp reply buttons `Sí, escríbeme` / `No, gracias`; numbered text on
+Twilio) lives in one place, `app/leads/flows.py` (`CONSENT_TEXT`, `CONSENT_TEXT_VERSION`; the
+version is stored with every answer). It covers Dexter **and Alan from his own WhatsApp**, and
+links the privacy notice.
+
+- **When:** after the quiz result + report (and the optional profiling questions), after the
+  agent records a buying signal, or when the user asks for Alan (before the handoff message).
+  At most once per conversation; never during the quiz questions, a form, or human mode.
+- **Rules:** "no" → not asked again for 30 days; max 2 asks per lead without a yes; a free-text
+  "sí / yes / claro" right after the question counts; anything else is no answer (not re-asked in
+  that conversation). Asking for Alan is consent for *that* conversation only.
+- **Opt-out:** `baja`, `stop`, `unsubscribe`, `no me escriban`, `no me contacten`, `darme de baja`
+  (whole message) — zero tokens, before the guard, in any mode (bot, quiz, human). Records
+  `opted_out_at`, stage `opted_out`, suppression record, Zoho update, a Slack thread note (in
+  human mode with a warning for Alan), and one confirmation. A later explicit yes (button or
+  contact form) lifts it.
+
+### Progressive profiling (never gates value)
+
+After the quiz result and report (quiz scoring unchanged): role level and company size as list
+messages, each with `Omitir`, then "¿Pongo tu nombre y empresa en el reporte?". A name/company
+answer is split deterministically (`Ana López, Acme`) or, without a separator, with one small
+Haiku call (recorded in `usage`); the report is resent with "Preparado para: Ana López, Acme".
+Skipped → the report stays as today. Typing anything else ends the questions and is answered
+normally. In conversation, the agent fills `update_lead_profile` silently when people volunteer
+facts (never interrogates; sensitive data never stored; `interest_note` is scrubbed of phones,
+emails, URLs and long digit runs).
+
+### Scoring (`app/leads/scoring.py`, override with `LEAD_SCORING_JSON`)
+
+| Fit (0–40) | Points | | Intent (0–60, capped) | Points |
+|---|---|---|---|---|
+| owner / general management | 20 | | asked for Alan about their own company | 25 |
+| area director | 15 | | buying signal (agent tool) | 20 each, max 2 |
+| manager | 8 | | quiz completed | 10 |
+| 11–50 or 51–250 people | 15 | | quiz L0/L1 (clear need) | 5 |
+| 251+ | 10 | | personalised report requested | 5 |
+| 1–10 | 5 | | returning visit (new conversation, another day) | 10 (max 3) |
+| company or name known | 5 | | topic PDF / slides | 3 each, max 6 |
+| | | | on-request "making of" | 3 |
+
+Intent older than 30 days counts 50%, older than 60 days 0 (recomputed on every change and in
+the background loop). **Tier:** hot ≥ 60, warm 30–59, cold < 30; an explicit ask for a meeting or
+for help implementing, or a confirmed contact request, makes it hot. Every lead gets a tier; only
+`contactable` (consent and no opt-out) leads are actionable.
+
+`flag_buying_signal(kind, note)` — `wants_help_implementing | asked_services_or_price | asked_meeting |
+timeline_or_budget_mentioned | team_or_process_pain` — is invisible and never ends the turn; the
+prompt forbids pitching, unprompted budget questions and any mention of scoring.
+
+**Stages:** `new → engaged → mql → sql → contacted → meeting → proposal → won | lost | nurture |
+opted_out`. Dexter moves leads up to `mql` (warm + contactable) and `sql` (hot + contactable) and
+never moves a lead back or over a stage a person set. `contacted` and later come from Slack, the
+dashboard, the admin API or the Zoho pull.
+
+### Slack (speed to lead)
+
+- **Hot alert** (once, top-level in `SLACK_LEADS_CHANNEL_ID`, fallback `SLACK_CHANNEL_ID`, mentioning
+  `SLACK_ALERT_USER_ID`): name / company / role / size, score with the top 3 reasons, quiz level +
+  two weakest domains, interest note, WhatsApp window (time left or "template needed"), links to
+  the conversation thread and the dashboard. Contact requests are tagged `📇 Solicitud de contacto`.
+- **Commands**, in the conversation thread or the alert thread (never forwarded to WhatsApp):
+  `contacted`, `meeting`, `proposal`, `won`, `lost`, `nurture`, `note <text>`, `followup` (then
+  `✅ confirm` within 10 minutes).
+- **Reminders:** hot + contactable + still `sql` after `LEAD_SLA_HOURS` (24) → one mention with the
+  dashboard link; one more 2 h before the 24 h window closes, if it's still open.
+- **Digest** at `METRICS_DIGEST_HOUR` (8, Mexico City), skipped on empty days: new leads by tier,
+  consent answers, hot leads past the SLA, opt-outs, stage moves.
+- Without the Slack app (webhook only) alerts and digest go to the webhook; commands need the app.
+
+### Re-engagement within WhatsApp policy
+
+Inside the 24 h window Alan replies from Slack as today. Outside it: only the approved follow-up
+template (`TEMPLATE_FOLLOWUP_ES` / `_EN`, by `lead.lang`), only to contactable leads, one lead at a
+time (Slack `followup` + confirm, dashboard button, `POST /admin/leads/{id}/followup`), at most one
+every 7 days per lead. Drafts to submit in WhatsApp Manager: `deploy/leads/whatsapp-templates.md`.
+
+### Owner dashboard (`https://origin.alanestrada.space/dashboard`)
+
+Server-rendered, phone-first, light/dark. `DASHBOARD_ENABLED=true` + `DASHBOARD_PASSWORD` (16+
+characters, constant-time compare, 5 failures → 15 min lockout per IP), session cookie
+`HttpOnly; Secure; SameSite=Strict` (12 h, stored hashed), CSRF token on every POST, `noindex`.
+
+- **Contact requests** (oldest first) · **Hot, not reached out** (contactable, hot, `sql`, no
+  message from them in 48 h) · **All leads** (tier, stage, consent, source, date, search).
+- **Lead page:** profile, score breakdown, quiz, topics, interest note, consent record, history,
+  Slack and Zoho links, window state.
+- **Actions (contactable only):** *Escribir desde mi WhatsApp* (`wa.me` link with a draft in the
+  lead's language from `app/leads/drafts.py`; Alan edits and sends — Dexter never sees it, so…),
+  *Marcar contactado* with channel + note (stops the SLA timers, closes open requests, syncs
+  Zoho), stage buttons, notes, Dexter template button when the window is closed. `tel:` / `mailto:`
+  links. Non-contactable leads show a masked phone and no contact buttons.
+- `GET /dashboard/leads.csv`: contactable leads, unmasked. Logins and actions are logged (never
+  the password or cookie).
+
+### "Que Alan me contacte"
+
+- **WhatsApp:** menu option 4 now offers *Hablar con Alan ahora* (the existing handoff) or *Que Alan
+  me contacte* (typed `hablar con alan` / `humano` still hand off directly). Also the keywords
+  `contáctenme`, `que me contacten`, `que me llame`, `call me`, `contact me`, and the agent's
+  `request_contact` tool. Steps: channel (WhatsApp / Llamada / Correo) → best time → topic →
+  name and company → email (if Correo; one retry, then WhatsApp) → `Confirmar` / `Corregir`.
+  Confirming is the explicit consent (version `wa-form-…`): request row, hot, Slack alert, Zoho
+  note. No handoff. Leaving mid-way saves nothing. Not offered in human mode.
+- **Web:** `POST /contact` (via `https://www.alanestrada.space/whatsapp-bot/api/contact`, same
+  origin): name, company, role, size, email and/or WhatsApp, channel, message, consent checkbox
+  (required, unchecked by default). Honeypot, 3 s minimum fill time, 5/h per IP, 8 KB max,
+  generic errors. A phone merges with the WhatsApp lead; otherwise email dedupes. The page to
+  copy into the `space` repo: `deploy/web/contacto.html`.
+
+### Zoho CRM (Free edition)
+
+All logic stays in Dexter; Zoho stores and displays. `app/leads/zoho.py`:
+
+- OAuth Self Client (`ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`, `ZOHO_REFRESH_TOKEN`; scopes
+  `ZohoCRM.modules.leads.ALL`, `ZohoCRM.modules.notes.CREATE`, `ZohoCRM.settings.fields.READ`,
+  `ZohoCRM.coql.READ`), `ZOHO_ACCOUNTS_URL` / `ZOHO_API_DOMAIN` of the org's data center, REST v8.
+  Access token cached in memory, refreshed on 401, never logged.
+- Pushes **Leads** on consent, tier, stage, profile changes and opt-out (`ZOHO_SYNC_SCOPE=contactable`
+  or `all_engaged`), debounced 60 s per lead, 2 calls at a time, exponential backoff, and stops for
+  the day at 80% of `ZOHO_DAILY_CREDIT_BUDGET` (one Slack alert). First sync looks the record up by
+  `Mobile` (COQL; the stock layout doesn't make `Mobile` unique), later ones update by id.
+- Mapping: `Last_Name` (→ WhatsApp name → `WhatsApp ••1234`), `First_Name`, `Company` (`—` if
+  unknown), `Mobile`, `Email`, `Designation`, `No_of_Employees` (bucket midpoint), `Lead_Source`
+  (`ZOHO_LEAD_SOURCE_WHATSAPP` / `_WEB`, `Chat` today), `Lead_Status` (below), `Description`
+  (tier/score + reasons, quiz, industry, interest, consent), `Email_Opt_Out`, tags `dexter` + tier
+  (+ `meeting` / `proposal` / `won` / `opted_out`). Custom fields used when they exist:
+  `Dexter_Score` (number), `Dexter_Tier` (single line), `Dexter_Quiz_Level` (number),
+  `Dexter_Consent_At` (date/time), `Dexter_Lead_ID` (single line). Missing ones are logged at startup.
+- `Lead_Status`: new/engaged → Not Contacted · mql/sql → Pre-Qualified · contacted/meeting/proposal/won
+  → Contacted · nurture → Contact in Future · lost → Lost Lead · opted_out → Not Qualified.
+- Hot alert → one Zoho note (the Slack summary, no transcript). Daily COQL pull: Contacted →
+  `contacted` (unless Dexter already has a later stage), Lost Lead / Junk Lead / Not Qualified →
+  `lost`, Contact in Future → `nurture`; Zoho wins for stages ≥ `contacted`.
+- Erase deletes the Zoho record. Backfill: `docker compose exec app python -m app.leads.zoho backfill --dry-run`
+  (phones masked), then without `--dry-run`. `ZOHO_ENABLED=false` (default): no calls at all.
+
+### Read access ("chat with Claude about my leads")
+
+Read access is via `/admin` (X-Admin-Token). Lead tools on the metrics MCP connector
+(`get_leads`, `get_lead`, `get_lead_funnel`) are not wired yet:
+
+```bash
+curl -s "$URL/admin/leads?tier=hot&contactable_only=true" -H "X-Admin-Token: $ADMIN_TOKEN"   # phones masked
+curl -s "$URL/admin/leads.csv?unmask=1" -H "X-Admin-Token: $ADMIN_TOKEN" > leads.csv
+curl -s "$URL/admin/leads/funnel?days=30" -H "X-Admin-Token: $ADMIN_TOKEN"
+# engaged, consented, warm, hot, contacted, meeting, won, consent_rate, opt_out_rate,
+# median_hours_to_contact_hot, sla_breaches
+```
+
+For Claude: connect the Zoho CRM connector in claude.ai and add the skill in
+`deploy/claude/dexter-leads/SKILL.md` (field names, tags and statuses Dexter writes).
+
+### Retention and ARCO
+
+- Leads without consent: purged with `RETENTION_DAYS` (30) from `last_seen`, like conversations.
+- Consented leads: `LEAD_RETENTION_DAYS` (365) from `last_seen`.
+- Opt-out: consent is withdrawn at once; the lead then follows the no-consent retention, and a
+  suppression record (number/email + date) is kept so Dexter never asks again.
+- `POST /admin/leads/{lead_id}/erase` (X-Admin-Token): deletes the lead, its activity, outbox rows,
+  contact requests and the Zoho record; keeps the suppression record only if the person opted out.
+- Privacy notice draft (LFPDPPP 2025): `deploy/leads/aviso-privacidad-leads.md` — needs a legal review.
+
 ## Evals
 
 A repeatable set of cases (`evals/cases/*.json`, JSON so there is no new dependency) to check a
@@ -826,9 +1020,10 @@ prompt or model change before deploying. Each case runs through the real webhook
             "state": {"closed": true}}}
 ```
 
-- `route`: `menu | quiz | agent | close | handoff | offtopic_warning | file_reply | on_request` (a list means "any of"). `file_reply` = the bot answered with a file (slides, report); `file_note` = a static reply about a file the user sent.
+- `route`: `menu | quiz | agent | close | handoff | offtopic_warning | file_reply | on_request | consent | opt_out | lead_form` (a list means "any of"). `file_reply` = the bot answered with a file (slides, report); `file_note` = a static reply about a file the user sent.
 - `must_contain` / `must_not_contain`: case-insensitive substrings of the reply; `language`: `es` / `en`.
-- `tool_called` / `tool_not_called` (e.g. `end_conversation`, `start_assessment`, `send_slides`, `talk_to_alan`); `state`: `quiz_active`, `handoff`, `closed`, `file_sent`.
+- `tool_called` / `tool_not_called` (e.g. `end_conversation`, `start_assessment`, `send_slides`, `talk_to_alan`, `flag_buying_signal`); `state`: `quiz_active`, `handoff`, `closed`, `file_sent`, and for leads `consent`, `consent_asked`, `opted_out`.
+- `env`: settings for that case only, e.g. `{"LEADS_ENABLED": "true"}` (the suite runs with leads off by default; `evals/cases/10_leads.json` turns them on).
 - `media`: an inbound photo/PDF (`{"type": "image", "caption": "..."}`).
 - `topic`: the topic label the message gets in the metrics (`user_msg` event), e.g. `roles_ownership` (see "Metrics & governance"); `evals/cases/10_topics.json` covers ~13 representative messages.
 - `mock` (offline only): the guard verdict (`"guard": "OUT"`, `"prior_guard"`) and the agent's scripted steps (`[{"tool": "send_slides", "input": {"slide": "8"}}, {"text": "Va."}]`).

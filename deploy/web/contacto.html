@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Que Alan te contacte · Estrada Lab</title>
+<meta name="description" content="Déjanos tus datos y Alan Estrada te contacta para platicar de IA en tu empresa.">
+<!--
+  Copy to AlnEstrd/space as contacto/index.html. Self-contained (no external assets).
+  Posts to /whatsapp-bot/api/contact (the existing Vercel rewrite to Dexter, same origin, no CORS).
+  Adjust the colors/fonts below to match privacy/index.html if they differ.
+-->
+<style>
+  :root {
+    --bg: #f7f7f5; --card: #ffffff; --ink: #16181d; --muted: #5f6670; --line: #e3e3df;
+    --accent: #1f5eff; --ok: #2b8a3e; --danger: #c92a2a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121316; --card: #1b1d22; --ink: #ecedf0; --muted: #9aa1ab; --line: #2c2f36;
+      --accent: #6d97ff; --ok: #51cf66; --danger: #ff6b6b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 32px 16px 64px; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .brand { font-weight: 600; color: var(--muted); text-decoration: none; }
+  h1 { font-size: 28px; line-height: 1.2; margin: 24px 0 8px; }
+  p.lead { color: var(--muted); margin: 0 0 24px; }
+  form { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+  label { display: block; font-weight: 600; font-size: 14px; margin: 14px 0 6px; }
+  .hint { font-weight: 400; color: var(--muted); }
+  input, select, textarea { width: 100%; font: inherit; padding: 10px 12px; border-radius: 10px;
+         border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 520px) { .two { grid-template-columns: 1fr; } }
+  .radios { display: flex; flex-wrap: wrap; gap: 8px; }
+  .radios label { display: inline-flex; align-items: center; gap: 6px; font-weight: 400; margin: 0;
+         border: 1px solid var(--line); border-radius: 99px; padding: 6px 12px; cursor: pointer; }
+  .radios input { width: auto; }
+  .consent { display: flex; gap: 10px; align-items: flex-start; font-weight: 400; margin-top: 18px; }
+  .consent input { width: auto; margin-top: 4px; }
+  .hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+  button { margin-top: 18px; width: 100%; border: 0; border-radius: 12px; padding: 13px 16px;
+         background: var(--accent); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  button[disabled] { opacity: .6; cursor: wait; }
+  .lang { background: transparent; color: var(--accent); border: 1px solid var(--accent); width: auto;
+         margin: 0; padding: 6px 12px; font-size: 14px; }
+  .msg { margin-top: 14px; padding: 12px; border-radius: 10px; display: none; }
+  .msg.ok { display: block; border: 1px solid var(--ok); color: var(--ok); }
+  .msg.err { display: block; border: 1px solid var(--danger); color: var(--danger); }
+  a { color: var(--accent); }
+  footer { color: var(--muted); font-size: 14px; margin-top: 24px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <a class="brand" href="/">alanestrada.space</a>
+    <button type="button" class="lang" id="lang" aria-label="English">EN</button>
+  </header>
+
+  <h1 data-i18n="title">Que Alan te contacte</h1>
+  <p class="lead" data-i18n="lead">¿Quieres platicar de IA en tu empresa, pero no por chat? Déjanos tus datos y Alan Estrada te contacta por el medio que prefieras.</p>
+
+  <form id="f" novalidate>
+    <label for="name"><span data-i18n="name">Nombre</span> *</label>
+    <input id="name" name="name" autocomplete="name" maxlength="80" required>
+
+    <label for="company" data-i18n="company">Empresa</label>
+    <input id="company" name="company" autocomplete="organization" maxlength="80">
+
+    <div class="two">
+      <div>
+        <label for="role_level" data-i18n="role">Tu rol</label>
+        <select id="role_level" name="role_level">
+          <option value="" data-i18n="choose">Elige…</option>
+          <option value="owner_exec" data-i18n="r1">Dueño(a) / Dirección general</option>
+          <option value="director" data-i18n="r2">Dirección de área</option>
+          <option value="manager" data-i18n="r3">Gerencia</option>
+          <option value="individual" data-i18n="r4">Otro</option>
+        </select>
+      </div>
+      <div>
+        <label for="company_size" data-i18n="size">Personas en la empresa</label>
+        <select id="company_size" name="company_size">
+          <option value="" data-i18n="choose">Elige…</option>
+          <option value="1-10">1–10</option>
+          <option value="11-50">11–50</option>
+          <option value="51-250">51–250</option>
+          <option value="251+" data-i18n="s4">Más de 250</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="two">
+      <div>
+        <label for="email" data-i18n="email">Correo</label>
+        <input id="email" name="email" type="email" autocomplete="email" maxlength="254">
+      </div>
+      <div>
+        <label for="whatsapp">WhatsApp <span class="hint" data-i18n="wa_hint">(con lada)</span></label>
+        <input id="whatsapp" name="whatsapp" type="tel" autocomplete="tel" inputmode="tel" maxlength="20" placeholder="+52 33 1234 5678">
+      </div>
+    </div>
+    <p class="hint" data-i18n="one_of">Déjanos al menos un correo o un WhatsApp.</p>
+
+    <label data-i18n="channel">¿Cómo prefieres que te contacte?</label>
+    <div class="radios">
+      <label><input type="radio" name="channel" value="whatsapp" checked> WhatsApp</label>
+      <label><input type="radio" name="channel" value="call"> <span data-i18n="call">Llamada</span></label>
+      <label><input type="radio" name="channel" value="email"> <span data-i18n="mail">Correo</span></label>
+    </div>
+
+    <label for="message"><span data-i18n="message">¿De qué te gustaría hablar?</span> <span class="hint" data-i18n="optional">(opcional)</span></label>
+    <textarea id="message" name="message" rows="4" maxlength="1000"></textarea>
+
+    <!-- honeypot: humans never see it -->
+    <div class="hp" aria-hidden="true"><label for="website">Website</label><input id="website" name="website" tabindex="-1" autocomplete="off"></div>
+
+    <label class="consent">
+      <input type="checkbox" id="consent" name="consent">
+      <span data-i18n-html="consent">Acepto que Alan Estrada (o Dexter, su asistente) me contacte por el medio que elegí para platicar de IA en mi empresa y enviarme recursos. Puedo darme de baja cuando quiera. Leí el <a href="/privacy">aviso de privacidad</a>.</span>
+    </label>
+
+    <button type="submit" id="send" data-i18n="send">Enviar</button>
+    <div class="msg" id="msg" role="status" aria-live="polite"></div>
+  </form>
+
+  <footer data-i18n-html="footer">¿Prefieres el chat? Escríbele a Dexter por WhatsApp desde el QR de la plática. · <a href="/privacy">Aviso de privacidad</a></footer>
+</main>
+
+<script>
+(function () {
+  var ENDPOINT = "/whatsapp-bot/api/contact";
+  var startedAt = Date.now();
+  var T = {
+    en: {
+      title: "Have Alan contact you",
+      lead: "Want to talk about AI at your company, but not by chat? Leave your details and Alan Estrada will reach out the way you prefer.",
+      name: "Name", company: "Company", role: "Your role", choose: "Choose…",
+      r1: "Owner / CEO", r2: "Department head", r3: "Manager", r4: "Other",
+      size: "People at the company", s4: "More than 250", email: "Email", wa_hint: "(with country code)",
+      one_of: "Leave at least an email or a WhatsApp number.", channel: "How would you like to be contacted?",
+      call: "Phone call", mail: "Email", message: "What would you like to talk about?", optional: "(optional)",
+      consent: "I agree that Alan Estrada (or Dexter, his assistant) may contact me by the channel I chose to talk about AI at my company and send me resources. I can unsubscribe anytime. I read the <a href=\"/privacy\">privacy notice</a>.",
+      send: "Send", footer: "Prefer chat? Message Dexter on WhatsApp from the talk's QR code. · <a href=\"/privacy\">Privacy notice</a>",
+      ok: "Thanks! Alan will contact you soon.", need_name: "Please write your name.",
+      need_contact: "Please leave an email or a WhatsApp number.", bad_email: "That email doesn't look valid.",
+      need_consent: "Please check the consent box to continue.", rate: "Too many attempts. Please try again later.",
+      err: "We couldn't send it. Please try again in a moment.", lang: "ES"
+    },
+    es: {}
+  };
+  // Spanish = what's in the HTML
+  document.querySelectorAll("[data-i18n]").forEach(function (el) { T.es[el.dataset.i18n] = el.textContent; });
+  document.querySelectorAll("[data-i18n-html]").forEach(function (el) { T.es[el.dataset.i18nHtml] = el.innerHTML; });
+  Object.assign(T.es, {
+    ok: "¡Gracias! Alan te contactará pronto.", need_name: "Escribe tu nombre.",
+    need_contact: "Déjanos un correo o un WhatsApp.", bad_email: "Ese correo no parece válido.",
+    need_consent: "Marca la casilla de consentimiento para continuar.", rate: "Demasiados intentos. Intenta más tarde.",
+    err: "No pudimos enviarlo. Intenta de nuevo en un momento.", lang: "EN"
+  });
+  var lang = (navigator.language || "es").slice(0, 2) === "en" ? "en" : "es";
+  try { lang = localStorage.getItem("contact-lang") || lang; } catch (e) {}
+
+  function apply() {
+    var t = T[lang];
+    document.documentElement.lang = lang;
+    document.querySelectorAll("[data-i18n]").forEach(function (el) { if (t[el.dataset.i18n]) el.textContent = t[el.dataset.i18n]; });
+    document.querySelectorAll("[data-i18n-html]").forEach(function (el) { if (t[el.dataset.i18nHtml]) el.innerHTML = t[el.dataset.i18nHtml]; });
+    document.getElementById("lang").textContent = t.lang;
+    document.title = t.title + " · Estrada Lab";
+  }
+  document.getElementById("lang").addEventListener("click", function () {
+    lang = lang === "es" ? "en" : "es";
+    try { localStorage.setItem("contact-lang", lang); } catch (e) {}
+    apply();
+  });
+  apply();
+
+  var form = document.getElementById("f"), msg = document.getElementById("msg"), btn = document.getElementById("send");
+  function show(kind, key) { msg.className = "msg " + kind; msg.textContent = T[lang][key]; }
+
+  form.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var d = Object.fromEntries(new FormData(form).entries());
+    d.consent = document.getElementById("consent").checked;
+    d.started_at = startedAt;
+    d.lang = lang;
+    if (!d.name.trim()) return show("err", "need_name");
+    if (!d.email.trim() && !d.whatsapp.trim()) return show("err", "need_contact");
+    if (d.email.trim() && !/^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/.test(d.email.trim())) return show("err", "bad_email");
+    if (!d.consent) return show("err", "need_consent");
+    btn.disabled = true;
+    fetch(ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return [r.status, j]; }); })
+      .then(function (res) {
+        if (res[1] && res[1].ok) { form.reset(); show("ok", "ok"); }
+        else show("err", res[0] === 429 ? "rate" : "err");
+      })
+      .catch(function () { show("err", "err"); })
+      .finally(function () { btn.disabled = false; });
+  });
+})();
+</script>
+</body>
+</html>

@@ -135,6 +135,35 @@ class Settings(BaseSettings):
     # --- One-tap CSAT after a user-initiated close (Meta only) ----------------
     csat_enabled: bool = False
 
+    # --- Leads: consent, scoring, speed to lead (app/leads/) -------------------
+    # false = behaviour exactly as before (no lead rows, no consent asks, no BAJA handling).
+    leads_enabled: bool = True
+    consent_text_version: str = ""             # "" = app/leads/flows.py CONSENT_TEXT_VERSION
+    lead_retention_days: float = 365           # consented leads, from last_seen
+    lead_scoring_json: str = ""                # JSON overriding app/leads/scoring.py WEIGHTS
+    lead_sla_hours: float = 24                 # hot lead still "sql" after this -> reminder
+    slack_leads_channel_id: Optional[str] = None  # hot alerts + digest; falls back to SLACK_CHANNEL_ID
+    template_followup_es: str = ""             # approved WhatsApp template names (Meta)
+    template_followup_en: str = ""
+    contact_form_enabled: bool = True          # "Que Alan me contacte" (WhatsApp + POST /contact)
+    # Owner dashboard (GET /dashboard). Needs DASHBOARD_PASSWORD of 16+ characters.
+    dashboard_enabled: bool = False
+    dashboard_password: Optional[str] = None
+    dashboard_base_url: str = "https://origin.alanestrada.space"  # links in Slack reminders
+
+    # --- Zoho CRM sync (app/leads/zoho.py), Free edition ----------------------
+    zoho_enabled: bool = False
+    zoho_client_id: Optional[str] = None
+    zoho_client_secret: Optional[str] = None
+    zoho_refresh_token: Optional[str] = None
+    zoho_accounts_url: str = "https://accounts.zoho.com"
+    zoho_api_domain: str = "https://www.zohoapis.com"
+    zoho_api_version: str = "v8"
+    zoho_sync_scope: str = "contactable"       # "contactable" | "all_engaged"
+    zoho_daily_credit_budget: int = 5000
+    zoho_lead_source_whatsapp: str = "Chat"    # switch to "WhatsApp – Dexter" once the picklist has it
+    zoho_lead_source_web: str = "Chat"         # switch to "Web – Dexter"
+
     # --- App -----------------------------------------------------------------
     allowed_senders: str = ""
 
@@ -153,6 +182,20 @@ class Settings(BaseSettings):
     @property
     def slack_threads_enabled(self) -> bool:
         return bool(self.slack_bot_token and self.slack_channel_id)
+
+    @property
+    def leads_channel_id(self) -> Optional[str]:
+        return self.slack_leads_channel_id or self.slack_channel_id
+
+    @property
+    def dashboard_active(self) -> bool:
+        """Enabled only with a password of 16+ characters (refused otherwise)."""
+        return self.dashboard_enabled and len(self.dashboard_password or "") >= 16
+
+    @property
+    def zoho_active(self) -> bool:
+        return self.zoho_enabled and bool(self.zoho_client_id and self.zoho_client_secret
+                                          and self.zoho_refresh_token)
 
     @property
     def meta_enabled(self) -> bool:
