@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 from typing import Optional
 
+from .. import intents
 from .types import Option, Outgoing
 
 GREETINGS = {
@@ -39,7 +40,7 @@ def is_greeting(text: str) -> bool:
 
 TEXT = {
     "welcome": {
-        "es": ("👋 ¡Hola{name}! Soy Dexter, jefe de Estrada Lab. Aquí destilo lo que estamos probando, empezando por la plática *Gobernanza de IA* de Alan Estrada.\n\n"
+        "es": ("👋 ¡Hola{name}! Soy Dexter, jefe de Estrada AI Lab. Aquí destilo lo que estamos probando, empezando por la plática *Gobernanza de IA* de Alan Estrada.\n\n"
                "¿Qué quieres hacer?\n"
                "1. 📚 Explorar la plática\n"
                "2. 📊 Diagnóstico de madurez en IA (3 min)\n"
@@ -47,7 +48,7 @@ TEXT = {
                "4. 💬 Hablar con Alan\n"
                "5. 📄 Láminas en PDF\n\n"
                "También puedes escribirme tu pregunta directamente."),
-        "en": ("👋 Hi{name}! I'm Dexter, lab chief at Estrada Lab. I distill what we're testing here, starting with Alan Estrada's talk *AI Governance*.\n\n"
+        "en": ("👋 Hi{name}! I'm Dexter, lab chief at Estrada AI Lab. I distill what we're testing here, starting with Alan Estrada's talk *AI Governance*.\n\n"
                "What would you like to do?\n"
                "1. 📚 Explore the talk\n"
                "2. 📊 AI maturity assessment (3 min)\n"
@@ -58,8 +59,13 @@ TEXT = {
     },
     # First message of a new chat that is already a question: introduce, no menu, then answer.
     "intro": {
-        "es": "👋 Hola{name}, soy Dexter, jefe de Estrada Lab. Estoy aquí para resolver tus dudas sobre lo más nuevo del lab.",
-        "en": "👋 Hi{name}, I'm Dexter, lab chief at Estrada Lab. I'm here to answer your questions about what's new at the lab.",
+        "es": "👋 Hola{name}, soy Dexter, jefe de Estrada AI Lab. Estoy aquí para resolver tus dudas sobre lo más nuevo del lab.",
+        "en": "👋 Hi{name}, I'm Dexter, lab chief at Estrada AI Lab. I'm here to answer your questions about what's new at the lab.",
+    },
+    # The menu list's one-line hint (the body of the list; its plain-text fallback follows it).
+    "hint": {
+        "es": "Puedes explorar la plática, hacer el diagnóstico de madurez en 3 minutos o conocer a Alan.",
+        "en": "You can explore the talk, take the 3-minute AI maturity assessment, or get to know Alan.",
     },
     # ...and after that first answer: offer the menu, don't show it.
     "offer": {
@@ -129,6 +135,41 @@ def welcome(lang: str, name: Optional[str] = None) -> Outgoing:
         options=[Option(i, t, d) for i, t, d in MENU_OPTIONS[lang]],
         button=TEXT["button"][lang],
     )
+
+
+# The menu list's plain-text fallback (channels without lists show these numbered lines).
+MENU_LINES = {
+    "es": ["1. 📚 Explorar la plática", "2. 📊 Diagnóstico de madurez en IA (3 min)", "3. 👤 Conocer a Alan",
+           "4. 💬 Hablar con Alan", "5. 📄 Láminas en PDF"],
+    "en": ["1. 📚 Explore the talk", "2. 📊 AI maturity assessment (3 min)", "3. 👤 About Alan",
+           "4. 💬 Talk to Alan", "5. 📄 Slides (PDF)"],
+}
+
+
+def is_info_request(text: str) -> bool:
+    """An opening request for information ("Hola, quisiera más información", "más info", "what can
+    you do?"): after an optional greeting, the whole message is one of intents.INFO_REQUESTS."""
+    t = intents.normalize(text)
+    for g in intents.GREETING_PREFIXES:
+        if t.startswith(g + " "):
+            t = t[len(g) + 1:]
+            break
+    return t in intents.INFO_REQUESTS
+
+
+def welcome_pair(lang: str, name: Optional[str] = None) -> tuple[Outgoing, Outgoing]:
+    """Welcome for an opening request: a one-line welcome, then the menu list with a hint. Both
+    messages are one bundle, with no model call."""
+    first = f", {name.split()[0]}" if name else ""
+    hello = TEXT["welcome"][lang].split("\n\n")[0].format(name=first)
+    hint = TEXT["hint"][lang]
+    menu_list = Outgoing(
+        text=hint + "\n\n" + "\n".join(MENU_LINES[lang]),
+        options=[Option(i, t, d) for i, t, d in MENU_OPTIONS[lang]],
+        button=TEXT["button"][lang],
+        interactive_text=hint,
+    )
+    return Outgoing(text=hello), menu_list
 
 
 def intro(lang: str, name: Optional[str] = None) -> str:

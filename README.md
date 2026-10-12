@@ -281,7 +281,7 @@ annoying beyond that. To get a token that doesn't expire daily:
 
 - **Persistence**: state is in SQLite (see **Persistence**); move to Postgres only if you
   ever need more than one worker or host.
-- **More tools**: add real business logic in `app/tools.py` following the
+- **More tools**: add real business logic in `app/agent.py` (`TOOL_DEFINITIONS` and `run_tool`) following the
   `get_current_datetime` / `calculate` pattern (register in
   `TOOL_DEFINITIONS`, implement, wire into `run_tool`).
 - **Media messages**: `parse_webhook_payload` currently only extracts text;
@@ -390,7 +390,7 @@ app/
     twilio.py          Twilio WhatsApp: signature check, parse, send
     meta.py            Meta Cloud API: signature check, parse (+ account events), send
     __init__.py        Registry: enabled channels, WA_PROVIDER default
-  agent.py             Claude tool-use loop + EchoAgent (AGENT_MODE=echo)
+  agent.py             Claude tool-use loop, tool definitions and implementations, EchoAgent (AGENT_MODE=echo)
   db.py                SQLite: connection, migrations, dedupe ids, flags, retention purge
   limits.py            Usage per user/day, rate + token caps, /admin/usage summary
   analytics/           Metrics & governance: events.py (event log, samples, llm_calls), topics.py,
@@ -401,7 +401,7 @@ app/
   handoff.py           Handoff router: Flex (Conversations + Interactions API) or Slack
   twilio_api.py        Minimal Twilio REST helper
   resilience.py        Retry with exponential backoff
-  tools.py             Tool definitions + implementations
+  intents.py           Word lists: greetings, info requests, goodbyes, acknowledgements
   on_request.py        On-request entries: load, trigger matching, unlocks, lookup tool
   leads/               Leads: consent, scoring, Slack speed-to-lead, templates, Zoho, dashboard, web form
   status.py            Live status for on-request entries (build info, uptime, features, Meta state)
@@ -560,23 +560,34 @@ If a pre-scored domain looks wrong, the person types `salir` and asks for the fu
 | Alan closes from Slack (`close` or 🔒 on the parent) or `POST /admin/close` | "Alan cerró esta conversación…" | — |
 | Server restart | Nothing: history, quiz progress, mode and the Slack thread come back from SQLite and the chat simply continues | `DB_PATH` |
 | Server restart and a chat's state could **not** be recovered (DB unreadable, a failed write) | Apology from Alan saying the history was lost — sent on startup to chats active in the last 23 h, or before the reply to their next message | `RESTART_NOTICE=true` |
-| Message off the talk's topic | A cheap classifier (`GUARD_MODEL`, Haiku) runs first; off-topic gets a static warning "Aviso 1 de 2 / 2 de 2" with no main-agent call; the next one hands the chat to Alan | `GUARD_ENABLED`, `OFFTOPIC_MAX_WARNINGS=2` |
+| Message off the talk's topic | A cheap classifier (`GUARD_MODEL`, Haiku) runs first; off-topic gets a static warning "Aviso 1 de 2 / 2 de 2" with no main-agent call; the next one hands the chat to Alan. The first message of a chat is never a warning: it gets the welcome and the menu, and the count stays at 0 | `GUARD_ENABLED`, `OFFTOPIC_MAX_WARNINGS=2` |
+| Opening info request ("Hola, quisiera más información", "más info", "what can you do?") | The welcome and the menu, with no classifier and no model call | — |
 
 All of this state lives in `data/bot.sqlite3` on the `app_data` Docker volume, so it survives redeploys. Messages of ≤ 3 words skip the classifier (follow-ups like "¿y en ventas?"). The guard fails open: if the classifier errors, the main agent answers.
 
 
 ### Ending a conversation
 
-The bot closes as soon as the user is done, instead of waiting for the idle timeout. Every close goes through one routine (`close_chat` in `app/main.py`, reason `user_keyword | user_intent | idle | admin`): send the closing message, wipe agent memory and quiz progress, clear the idle timers, persist the session, and post a silent note in the Slack thread (`🔒 Closed by user: "<what they wrote>"`). The next message starts fresh with the menu.
+The bot closes as soon as the user is done, instead of waiting for the idle timeout. Every close goes through one routine (`close_chat` in `app/main.py`, reason `user_keyword | user_intent | user_intent_late | idle | admin`): send the closing message, wipe agent memory and quiz progress, clear the idle timers, persist the session, and post a silent note in the Slack thread (`🔒 Closed by user: "<what they wrote>"`). The next message starts fresh with the menu.
 
-1. **Keyword fast path (zero tokens).** Runs before the usage caps, the off-topic guard and the agent. The *whole* message must be a closer (punctuation and common emoji stripped, an optional `gracias` / `thanks` / `ok` / `no` around it): the classic `adiós`, `bye`, `hasta luego`, `nos vemos`, `terminar`…, plus `sería todo`, `es todo`, `eso es todo`, `nada más`, `ya quedó`, `listo, gracias`, `con eso`, `that's all`, `that's it`, `I'm good, thanks`, `no thanks`. Questions ("¿es todo?") and longer messages go to the agent. The user gets the standard closing message.
+1. **Keyword fast path (zero tokens).** Runs before the usage caps, the off-topic guard and the agent. The *whole* message must be a closer (punctuation and common emoji stripped): the classic `adiós`, `bye`, `hasta luego`, `nos vemos`, `terminar`…, plus `sería todo`, `es todo`, `eso es todo`, `nada más`, `ya quedó`, `listo, gracias`, `con eso`, `that's all`, `that's it`, `I'm good, thanks`, `no thanks`. Those close as `user_keyword`. **Composite closers** close on the same path, as `user_intent`: a message made only of thanks, farewell and time-of-day words, with at least one farewell or time-of-day marker (`gracias, buen día`, `muchas gracias, buenas noches`, `gracias que tengas bonito día`, `thanks, have a good day`). A bare `gracias` does not close, and neither does `buenas noches, tengo una pregunta`. A composite is never a chat's first message (`buenas tardes` as the opener is the menu). Questions (`¿es todo?`) and longer messages go to the agent. The vocabulary lives in `app/intents.py`.
 2. **Agent tool `end_conversation`.** For everything else ("perfecto, con esto ya tengo lo que necesitaba"), the agent decides from the history. When it calls the tool, its own text for that turn is discarded and the user gets one message: the tool's `farewell` + the re-engage line (`¡Un gusto! Que tengas excelente día. 👋 Cuando quieras, escribe *hola* para empezar de nuevo.`), or the standard closing message if `farewell` is empty. No further model call happens in that turn.
-3. **Ambiguous replies go to the agent.** A bare `gracias`, `ok`, `perfecto`, `no`, `no, gracias` or 👍 never closes by keyword. The agent answers briefly or asks "¿Algo más en lo que te pueda ayudar?"; if it just asked that and the user says `no` / `no, gracias`, it calls `end_conversation`. Messages that contain a closer ("no, eso sería todo por hoy, gracias") skip the off-topic classifier, so a goodbye is never counted as off-topic.
+3. **Ambiguous replies: ask, then close.** A bare `gracias`, `ok`, `perfecto`, `listo`, 👍, or a goodbye the agent is not sure of, does not close by keyword. The agent answers with only "¿Algo más en lo que te pueda ayudar?" (in English, "Anything else I can help with?"). For 15 minutes after that question (`ASK_WINDOW`), a bare `no`, `no gracias`, `nada`, `es todo`, `nope`, `no thanks`, `gracias`, `ok` or 👍 closes the chat on the keyword path, with zero tokens (`user_intent`). Any other message goes to the normal flow, and any other message the bot sends clears the question. After the window, a `no` goes to the agent, which calls `end_conversation`. Messages that contain a closer ("no, eso sería todo por hoy, gracias") skip the off-topic classifier, so a goodbye is never counted as off-topic.
 4. **Quiz.** `salir` (or `exit`, `cancelar`, `terminar`, `menú`) only stops the quiz. Any other closer (`es todo`, `adiós`) mid-quiz stops the quiz and closes the chat. A bare `no` is a quiz answer (invalid input), not a close.
 5. **Human handoff.** While Alan is in charge nothing closes automatically: the message is mirrored to Slack and Alan closes with `close` / 🔒.
-6. **Idle backstop.** `IDLE_WARN_MINUTES` / `IDLE_CLOSE_MINUTES` still close quiet chats. A chat that is already closed never gets the "¿Sigues ahí?" warning.
+6. **Idle backstop, softer after a thanks.** `IDLE_WARN_MINUTES` / `IDLE_CLOSE_MINUTES` still close quiet chats, and a closed chat never gets the "¿Sigues ahí?" warning. If the user's last message was a bare thanks, ok or no, and the bot had asked "¿Algo más?", the chat closes at `IDLE_WARN_MINUTES` with the normal farewell and no warning. Any idle close after a goodbye or a bare thanks is recorded as `user_intent_late`: a close, not a gap (see "Metrics & governance").
 
-`CLOSE_ON_INTENT=false` restores the previous behaviour: only the classic goodbye words close (never inside the quiz), and the agent has no `end_conversation` tool.
+`CLOSE_ON_INTENT=false` restores the previous behaviour: only the classic goodbye words close (never inside the quiz), and the agent has no `end_conversation` tool. Composite closers and ask-then-close go too.
+
+### Reply length
+
+The prompt asks for about `REPLY_MAX_WORDS` words (120 by default): 2–3 short paragraphs (each one is a WhatsApp bubble) or up to 5 short bullets, the core first, then one concrete offer to go deeper on a named sub-point, or the topic's one-page PDF. WhatsApp formatting only (`*bold*`, no headers or tables).
+
+Code enforces the limit too (`app/formatting.py`, `cap_words`), on the text sent and never on tool inputs:
+
+- **Hard cap (`REPLY_MAX_WORDS_HARD`, 220 by default).** A longer reply is cut at the last complete paragraph under the cap (or at a sentence, if the first paragraph is already too long), and the standard offer line is appended: `¿Quieres que profundice en algún punto?` / `Want me to go deeper on any part?`. A reply the model cut off at `max_tokens` gets the same treatment, minus its incomplete sentence. Nothing is ever cut mid-sentence.
+- **Output budget.** `MAX_TOKENS = 2048` in `app/agent.py`, so a `create_topic_pdf` input (about 520 words) fits. The cap never touches a tool's input.
+- **Metrics.** Every `agent_turn` event carries `reply_words` and `trimmed`. The overview (`GET /admin/metrics`, the MCP `get_overview`) and the daily digest report the mean and p90 reply words and the trim rate. The `reply_length` anomaly flags a day with more than 20 agent turns whose p90 is over 1.5 × `REPLY_MAX_WORDS`.
 
 ## Persistence
 
@@ -725,8 +736,8 @@ America/Mexico_City days**, and every result says so.
 | Escalation rate | conversations with ≥1 `handoff` ÷ conversations; also split by `reason` |
 | Completion | quiz: `quiz_complete` ÷ `quiz_start`; report delivery: `report_sent` ÷ `quiz_complete`; answered turns: `agent_turn` with `outcome=answered` ÷ all `agent_turn` |
 | Fallback / gap rate | `gap` events ÷ `agent_turn` events |
-| Funnel | `conversation_start` → `menu_choice` or first `user_msg` with route ≠ menu → feature started (quiz / agent / slides) → feature completed → close by user (`user_keyword` / `user_intent`) |
-| Drop-off | closes with reason `idle`, grouped by `last_step`, with `last_bot_msg_read` true / false / unknown |
+| Funnel | `conversation_start` → `menu_choice` or first `user_msg` with route ≠ menu → feature started (quiz / agent / slides) → feature completed → close by user (`user_keyword` / `user_intent` / `user_intent_late`) |
+| Drop-off | closes with reason `idle`, grouped by `last_step`, with `last_bot_msg_read` true / false / unknown. An idle close after the user's own goodbye or bare thanks is `user_intent_late` instead: a close, not a gap |
 | Close reasons | count and share per reason |
 | Topics | `user_msg` by topic: messages, unique conversations, share; ES/EN split |
 | Gaps board | `gap` by topic and source, with up to 3 most recent scrubbed samples per topic |
@@ -734,6 +745,7 @@ America/Mexico_City days**, and every result says so.
 | Cost | from `llm_calls` × pricing: total, by model, by purpose, by hour/day, per conversation (mean, p50, p90), per completed quiz, per agent turn |
 | Cache hit ratio | cache_read ÷ (input + cache_read + cache_write) |
 | Tokens per agent turn | mean / p90 of input and output |
+| Reply length | words of each agent reply sent (`agent_turn.reply_words`): mean and p90; trim rate = share cut at `REPLY_MAX_WORDS_HARD` (`agent_turn.trimmed`) |
 | Latency | `agent_turn.latency_ms` p50 / p95 |
 | Errors | `error` events by kind; `msg_status=failed` by error code (error rate = errors ÷ user messages) |
 | Leads | `quiz_complete` count and `handoff` with reason `user_asked` |
@@ -746,6 +758,7 @@ America/Mexico_City days**, and every result says so.
 - the cache hit ratio is under 50% on a day with more than 20 agent turns;
 - guard calls ÷ agent turns is under 0.5 while `GUARD_ENABLED` is on (≥10 turns);
 - the error rate is over 5% (≥20 messages);
+- the p90 of reply words is over 1.5 × `REPLY_MAX_WORDS` on a day with more than 20 agent turns;
 - today's token budget is over 80%.
 
 `GET /admin/metrics?range=7d` (header `X-Admin-Token`) returns the overview, as a debugging aid.
@@ -1027,6 +1040,7 @@ prompt or model change before deploying. Each case runs through the real webhook
 - `media`: an inbound photo/PDF (`{"type": "image", "caption": "..."}`).
 - `topic`: the topic label the message gets in the metrics (`user_msg` event), e.g. `roles_ownership` (see "Metrics & governance"); `evals/cases/10_topics.json` covers ~13 representative messages.
 - `mock` (offline only): the guard verdict (`"guard": "OUT"`, `"prior_guard"`) and the agent's scripted steps (`[{"tool": "send_slides", "input": {"slide": "8"}}, {"text": "Va."}]`).
+- `max_words`: the turn's replies together stay within N words (the agent cases carry 150). `mock.prior_agent` (offline only): the texts the agent gives to the earlier turns, e.g. one that ends with "¿Algo más…?".
 
 **Offline** (default, part of `pytest`): the Anthropic API is mocked with respx, so it checks
 routing, tool dispatch, state and the deterministic replies; text checks are skipped for

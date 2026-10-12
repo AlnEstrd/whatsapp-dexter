@@ -37,6 +37,7 @@ def test_parse_guard(raw, expected):
 def test_guard_decision_unchanged(make_client, tw, reply, warned):  # noqa: F811
     c = make_client(**CLAUDE)
     install([{"text": "Respuesta."}], guard=reply)
+    twilio_post(c, tw_msg("hola", sid="S0"))  # opens the chat: a first message never warns
     twilio_post(c, tw_msg("dame una receta de enchiladas suizas por favor", sid="S1"))
     sent = [dict(httpx.QueryParams(x.request.content.decode()))["Body"] for x in tw.calls]
     assert any("Aviso 1 de 2" in b for b in sent) == warned

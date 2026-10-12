@@ -237,6 +237,7 @@ async def send_reply(channel: Channel, msg: InboundMessage, text: str) -> bool:
         events.outbound(msg.user_id, wamid)
         store.log_turn(msg.user_id, "bot", text)
         sessions.touch_bot(msg.user_id)
+        sessions.note_outbound(msg.user_id, text)
         await slack_bridge.mirror_bot(msg.user_id, text)
         return True
     except Exception as exc:  # noqa: BLE001
@@ -272,6 +273,7 @@ async def send_out(channel: Channel, msg: InboundMessage, out: Outgoing) -> bool
             events.outbound(msg.user_id, wamid)
             store.log_turn(msg.user_id, "bot", body)
             sessions.touch_bot(msg.user_id)
+            sessions.note_outbound(msg.user_id, body)
             await slack_bridge.mirror_bot(msg.user_id, body)
             return True
         except Exception:  # noqa: BLE001
@@ -316,6 +318,7 @@ async def send_file(channel: Channel, msg: InboundMessage, doc: docs.Doc) -> boo
     note = f"📎 {doc.filename}"
     leads.engage(msg.user_id, "file_sent", msg.profile_name)
     store.log_turn(msg.user_id, "bot", note)
+    sessions.note_outbound(msg.user_id, note)
     await slack_bridge.mirror_bot(msg.user_id, note)
     return True
 
@@ -811,7 +814,8 @@ def _agent_turn(user_id: str, outcome: str, t0: float, topic: str, sample_id: Op
     events.record("agent_turn", user_id, step="agent_turn", outcome=outcome, topic=topic,
                   tools=list(agent_tools_called.get(user_id, [])), steps=stats.get("steps", 0),
                   latency_ms=int((time.monotonic() - t0) * 1000),
-                  input_tokens=stats.get("input_tokens", 0), output_tokens=stats.get("output_tokens", 0))
+                  input_tokens=stats.get("input_tokens", 0), output_tokens=stats.get("output_tokens", 0),
+                  reply_words=stats.get("reply_words", 0), trimmed=bool(stats.get("trimmed", False)))
     fields = {"last_sample_id": sample_id}
     if topic in topics.SUBSTANTIVE:
         fields["last_topic"] = topic
@@ -900,16 +904,29 @@ async def _route_flows(channel: Channel, msg: InboundMessage, is_new: bool) -> b
         _turn_topic[uid] = "saludo_menu"
         events.record("menu_shown", uid, step="menu", menu="welcome")
         await send_out(channel, msg, menu.welcome(lang, msg.profile_name))
+    elif is_new and menu.is_info_request(msg.text):
+        # "Hola, quisiera más información" as the opening: welcome and menu, no model call, no guard.
+        _route(msg, "menu")
+        _turn_topic[uid] = "saludo_menu"
+        events.record("menu_shown", uid, step="menu", menu="welcome", via="info_request")
+        await _send_welcome_pair(channel, msg, lang)
     elif (blocked := limits.model_block(uid)):
         await _limit_notice(channel, msg, blocked)   # no guard / agent call; menu still works
     else:
-        # A new chat that opens with a question: intro, answer, then a one-line offer of the
-        # menu (not the menu itself; it goes out on a greeting, "menu" or "opciones").
-        if is_new:
-            await send_reply(channel, msg, menu.intro(lang, msg.profile_name))
         verdict = await guard.classify(uid, msg.text)
         if verdict.topic:
-            _turn_topic[uid] = verdict.topic
+            _turn_topic[uid] = verdict.topic   # the guard's label goes to the metrics either way
+        if not verdict.on_topic and is_new:
+            # The first message of a chat is never a warning: welcome and menu, and the warning
+            # count stays at 0.
+            _route(msg, "menu")
+            events.record("menu_shown", uid, step="menu", menu="welcome", via="first_message")
+            await _send_welcome_pair(channel, msg, lang)
+            return True
+        if is_new:
+            # A new chat that opens with a question: intro, answer, then a one-line offer of the
+            # menu (not the menu itself; it goes out on a greeting, "menu" or "opciones").
+            await send_reply(channel, msg, menu.intro(lang, msg.profile_name))
         if not verdict.on_topic:
             await _off_topic(channel, msg, lang)
         else:
@@ -1008,14 +1025,18 @@ async def _notify(user_id: str, text: str, buttons: Optional[list] = None) -> bo
         logger.exception("Notify failed for %s", user_id)
         return False
     store.log_turn(user_id, "bot", text)
+    sessions.note_outbound(user_id, text)
     await slack_bridge.mirror_bot(user_id, text)
     return True
 
 
-# reason -> who closed it (closing message key, Slack label). The last four are for the
-# metrics' close-reason vocabulary; today nothing but idle/user/admin closes a chat.
-CLOSE_REASONS = {"user_keyword": "user", "user_intent": "user", "idle": "bot", "admin": "admin",
-                 "offtopic_handoff": "bot", "limit": "bot", "error": "bot", "window_expired": "bot"}
+# reason -> who closed it (closing message key, Slack label). user_keyword: a goodbye phrase;
+# user_intent: the bot understood a goodbye (end_conversation, a thanks-and-farewell message, a
+# bare "no" after "¿Algo más?"); user_intent_late: idle close after the user had already said it.
+# The last four are for the metrics' close-reason vocabulary.
+CLOSE_REASONS = {"user_keyword": "user", "user_intent": "user", "user_intent_late": "user", "idle": "bot",
+                 "admin": "admin", "offtopic_handoff": "bot", "limit": "bot", "error": "bot",
+                 "window_expired": "bot"}
 CSAT_BUTTONS = [("csat:up", "👍"), ("csat:down", "👎")]
 CSAT_THANKS = {"es": "¡Gracias!", "en": "Thanks!"}
 CSAT_WINDOW = 24 * 3600
@@ -1054,7 +1075,7 @@ async def close_chat(user_id: str, reason: str, slack_cleanup: bool = True, *,
     else:
         closing = sessions.text(f"close_{by}", lang)
     sess = sessions.get(user_id) or {}
-    csat = bool(get_settings().csat_enabled and by == "user" and was_open
+    csat = bool(get_settings().csat_enabled and reason in ("user_keyword", "user_intent") and was_open
                 and getattr(get_channel(sess.get("channel_name", "")), "send_buttons", None))
     await _notify(user_id, closing, buttons=CSAT_BUTTONS if csat else None)
     sessions.mark_closed(user_id, by, reason)
@@ -1132,12 +1153,17 @@ async def check_idle() -> None:
     for uid, action in sessions.idle_actions(s.idle_warn_minutes * 60, s.idle_close_minutes * 60, skip):
         if not sessions.is_open(uid):
             continue  # closed (e.g. the user said goodbye) while this loop was awaiting
-        if action == "warn":
+        said = sessions.last_user_kind(uid)  # "closer" | "ack" | "other": what the user said last
+        if action == "warn" and said == "ack" and sessions.asked_pending(uid):
+            # They answered our "¿Algo más?" with a thanks / ok / no: no "¿Sigues ahí?", just the farewell.
+            await close_chat(uid, "user_intent_late")
+        elif action == "warn":
             m = max(1, round(s.idle_close_minutes))
             if await _notify(uid, sessions.text("idle_warn", _lang_of(uid), m=m)):
                 sessions.mark_warned(uid)
         else:
-            await close_chat(uid, "idle")
+            # A goodbye or a bare thanks came before the silence: a close, but not a gap.
+            await close_chat(uid, "user_intent_late" if said in ("closer", "ack") else "idle")
 
 
 RETENTION_INTERVAL = 24 * 3600  # purge once a day (and on startup)
@@ -1176,6 +1202,13 @@ async def _off_topic(channel: Channel, msg: InboundMessage, lang: str) -> None:
         await send_reply(channel, msg, sessions.text("offtopic_escalate", lang))
 
 
+async def _send_welcome_pair(channel: Channel, msg: InboundMessage, lang: str) -> None:
+    """Welcome line, then the menu list: one routed bundle (menu.welcome_pair), no model call."""
+    hello, menu_list = menu.welcome_pair(lang, msg.profile_name)
+    if await send_out(channel, msg, hello):
+        await send_out(channel, msg, menu_list)
+
+
 # Last route taken per user (also logged): menu | quiz | agent | close | handoff |
 # offtopic_warning | file_reply | file_note | limited | human | unsupported | on_request |
 # consent | opt_out | lead_form. Used by the evals.
@@ -1198,27 +1231,40 @@ async def _limit_notice(channel: Channel, msg: InboundMessage, kind: str) -> Non
     await _thread_note(msg, limits.note(kind))
 
 
-def _is_closer(msg: InboundMessage) -> bool:
-    """Goodbye keywords, checked before the guard and the agent (zero tokens). In the quiz its
-    own exit words (salir, ...) only stop the quiz; with CLOSE_ON_INTENT other closers close."""
+def _closer_reason(msg: InboundMessage, is_new: bool = False) -> Optional[str]:
+    """Why this message closes the chat, or None. Zero tokens, checked before the guard and the agent.
+    "user_keyword": a goodbye phrase ("adiós", "sería todo"). "user_intent": a thanks-and-farewell
+    message ("gracias, buen día"; never a chat's first message) or a bare thanks, ok or "no" within
+    ASK_WINDOW of our "¿Algo más?". In the quiz only its own exit words stop it (below) and the
+    ask-then-close rule never applies; nothing closes in human mode (handled before this)."""
     if not msg.text or msg.media is not None:
-        return False
+        return None
     intent = get_settings().close_on_intent
     if quiz.active(msg.user_id) and not (intent and not msg.reply_id and not quiz.is_exit(msg.text)):
-        return False
-    return sessions.is_close_request(msg.text) or (intent and sessions.is_done_intent(msg.text))
+        return None
+    if sessions.is_close_request(msg.text) or (intent and sessions.is_done_intent(msg.text)):
+        return "user_keyword"
+    # Not while a lead form waits for an answer: "Tarde" to "¿mañana o tarde?" is an answer, not a goodbye.
+    waiting = leads.enabled() and lead_flows.current(msg.user_id) is not None
+    if intent and not is_new and not waiting and sessions.is_composite_closer(msg.text):
+        return "user_intent"
+    if intent and not waiting and not quiz.active(msg.user_id) and sessions.asked_recently(msg.user_id) \
+            and sessions.is_ask_answer(msg.text):
+        return "user_intent"
+    return None
 
 
-async def _closer_or_human(channel: Channel, msg: InboundMessage) -> bool:
+async def _closer_or_human(channel: Channel, msg: InboundMessage, is_new: bool = False) -> bool:
     """Goodbye and "talk to a human" keywords, which work before any limit or flow.
     True when the message was handled."""
-    if _is_closer(msg):
+    reason = _closer_reason(msg, is_new)
+    if reason:
         _route(msg, "close")
         if get_settings().close_on_intent:
             lang = menu.detect_lang(msg.text, store.get_lang(msg.user_id))
             store.set_lang(msg.user_id, lang)
             sessions.set_lang(msg.user_id, lang)
-        await close_chat(msg.user_id, "user_keyword", user_text=msg.text)
+        await close_chat(msg.user_id, reason, user_text=msg.text)
         return True
     if msg.text and wants_human(msg.text):
         _route(msg, "handoff")
@@ -1353,6 +1399,7 @@ async def _handle_inbound(channel: Channel, msg: InboundMessage) -> None:
 
     is_new = not store.transcript(msg.user_id)
     store.log_turn(msg.user_id, "user", msg.text or f"({msg.msg_type})")
+    sessions.note(msg.user_id, last_user_kind=sessions.kind_of(msg.text or "", is_new))
 
     if lead_on and msg.text and msg.media is None:  # answer to the consent question (zero tokens)
         handled, ack = leads.safe("consent", lambda: lead_flows.answer_consent(
@@ -1362,8 +1409,9 @@ async def _handle_inbound(channel: Channel, msg: InboundMessage) -> None:
             await send_reply(channel, msg, ack)
             return
 
-    if await _closer_or_human(channel, msg):
+    if await _closer_or_human(channel, msg, is_new):
         return
+    sessions.clear_asked(msg.user_id)  # anything else moves on from "¿Algo más?"
 
     if not msg.text and msg.media is None:
         _route(msg, "unsupported")

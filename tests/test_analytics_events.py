@@ -164,7 +164,7 @@ def test_file_in_event(make_client, meta):
 def test_offtopic_warning_and_handoff_reasons(make_client, tw):
     c = make_client(**CLAUDE)
     install(guard="OUT")
-    for i in range(3):
+    for i in range(4):  # the first message is welcome + menu (no warning); then two warnings, then Alan
         twilio_post(c, tw_msg("dame una receta de enchiladas suizas por favor", sid=f"S{i}"))
     assert [e["data"]["n"] for e in evs("offtopic_warning")] == [1, 2]
     assert evs("handoff")[0]["data"]["reason"] == "offtopic"

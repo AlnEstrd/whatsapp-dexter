@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     # Talk-companion flows: welcome menu, AI-maturity quiz, KB agent.
     # false = plain agent only (used by the channel plumbing tests).
     flows_enabled: bool = True
+    # Reply length (app/agent.py prompt + app/formatting.py cap_words backstop).
+    reply_max_words: int = 120        # the target written into the system prompt
+    reply_max_words_hard: int = 220   # longer replies are trimmed at a paragraph or sentence
 
     # --- Conversation lifecycle (app/sessions.py) ----------------------------
     sessions_file: str = "data/sessions.json"  # survives restarts; "" = memory only

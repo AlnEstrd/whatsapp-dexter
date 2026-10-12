@@ -193,14 +193,17 @@ def test_off_topic_warns_twice_then_escalates_without_agent_tokens(make_client, 
     from app import agent, guard
     c = make_client(**FLOWS, AGENT_MODE="claude", ANTHROPIC_API_KEY="sk-test")
     g = guard.Guard()
-    g._client = SimpleNamespace(messages=FakeAnthropic(["OUT", "OUT", "OUT"]))
+    g._client = SimpleNamespace(messages=FakeAnthropic(["OUT", "OUT", "OUT", "OUT"]))
     guard._guard = g
     main_llm = FakeAnthropic([])
     agent.get_agent()._client = SimpleNamespace(messages=main_llm)
 
-    for i in range(3):
+    for i in range(4):
         twilio_post(c, tw_msg("dame una receta de enchiladas suizas por favor", sid=f"S{i}"))
-    b = bodies(send)[1:]                             # [0] is the new-chat intro
+    b = bodies(send)
+    # The chat's first message is never a warning: welcome + menu (two messages), count still 0.
+    assert "Estrada AI Lab" in b[0] and "Puedes explorar" in b[1]
+    b = b[2:]
     assert "Aviso 1 de 2" in b[0] and "Aviso 2 de 2" in b[1]
     assert b[2] == sessions.text("offtopic_escalate", "es")
     assert store.in_handoff(USER)

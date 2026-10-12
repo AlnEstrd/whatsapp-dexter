@@ -1,0 +1,231 @@
+[
+  {
+    "id": "info-hola-quisiera-mas-informacion",
+    "lang": "es",
+    "message": "Hola, quisiera más información",
+    "expect": {
+      "route": "menu",
+      "must_contain": [
+        "Estrada AI Lab",
+        "Puedes explorar"
+      ],
+      "must_not_contain": [
+        "Aviso"
+      ],
+      "language": "es"
+    }
+  },
+  {
+    "id": "info-mas-info",
+    "lang": "es",
+    "message": "más info",
+    "expect": {
+      "route": "menu",
+      "must_not_contain": [
+        "Aviso"
+      ],
+      "language": "es"
+    }
+  },
+  {
+    "id": "info-what-can-you-do",
+    "lang": "en",
+    "message": "What can you do?",
+    "expect": {
+      "route": "menu",
+      "must_contain": [
+        "Estrada AI Lab"
+      ],
+      "must_not_contain": [
+        "Warning"
+      ],
+      "language": "en"
+    }
+  },
+  {
+    "id": "info-first-message-offtopic-no-warning",
+    "lang": "es",
+    "message": "¿Cuál es la capital de Francia y cuánto mide el Everest?",
+    "mock": {
+      "guard": "OUT"
+    },
+    "expect": {
+      "route": "menu",
+      "must_contain": [
+        "Estrada AI Lab"
+      ],
+      "must_not_contain": [
+        "Aviso"
+      ],
+      "language": "es"
+    }
+  },
+  {
+    "id": "info-second-offtopic-warns",
+    "lang": "es",
+    "prior": [
+      "¿Cuál es la capital de Francia y cuánto mide el Everest?"
+    ],
+    "message": "¿Y quién ganó el mundial de 2018 en Rusia?",
+    "mock": {
+      "guard": "OUT",
+      "prior_guard": "OUT"
+    },
+    "expect": {
+      "route": "offtopic_warning",
+      "must_contain": [
+        "Aviso 1 de 2"
+      ],
+      "language": "es"
+    }
+  },
+  {
+    "id": "info-mid-chat-goes-to-agent",
+    "lang": "es",
+    "prior": [
+      "¿Qué es la regla 10-20-70?"
+    ],
+    "message": "más info",
+    "expect": {
+      "route": "agent",
+      "must_not_contain": [
+        "Estrada AI Lab"
+      ]
+    }
+  },
+  {
+    "id": "composite-closer-gracias-buen-dia",
+    "lang": "es",
+    "prior": [
+      "¿Qué es la regla 10-20-70?"
+    ],
+    "message": "gracias, buen día",
+    "expect": {
+      "route": "close",
+      "must_contain": [
+        "Cerré la conversación"
+      ],
+      "state": {
+        "closed": true
+      },
+      "language": "es"
+    }
+  },
+  {
+    "id": "composite-closer-thanks-have-a-good-day",
+    "lang": "en",
+    "prior": [
+      "What is the 10-20-70 rule?"
+    ],
+    "message": "thanks, have a good day",
+    "expect": {
+      "route": "close",
+      "must_contain": [
+        "closed the conversation"
+      ],
+      "state": {
+        "closed": true
+      },
+      "language": "en"
+    }
+  },
+  {
+    "id": "not-closer-buenas-noches-question",
+    "lang": "es",
+    "prior": [
+      "¿Qué es la regla 10-20-70?"
+    ],
+    "message": "buenas noches, tengo una pregunta",
+    "expect": {
+      "route": "agent",
+      "state": {
+        "closed": false
+      }
+    }
+  },
+  {
+    "id": "not-closer-gracias-alone-after-answer",
+    "lang": "es",
+    "prior": [
+      "¿Qué es la regla 10-20-70?"
+    ],
+    "message": "gracias",
+    "expect": {
+      "route": "agent",
+      "state": {
+        "closed": false
+      }
+    }
+  },
+  {
+    "id": "buenas-tardes-first-message-is-menu",
+    "lang": "es",
+    "message": "buenas tardes",
+    "expect": {
+      "route": "menu"
+    }
+  },
+  {
+    "id": "ask-then-close-no",
+    "lang": "es",
+    "prior": [
+      "hola",
+      "¿Qué es la regla 10-20-70?"
+    ],
+    "mock": {
+      "prior_agent": [
+        "Es la proporción que encontró BCG: 10% del esfuerzo va a algoritmos, 20% a tecnología y datos, y 70% a personas y procesos. ¿Algo más en lo que te pueda ayudar?"
+      ]
+    },
+    "message": "no",
+    "expect": {
+      "route": "close",
+      "state": {
+        "closed": true
+      },
+      "language": "es"
+    }
+  },
+  {
+    "id": "ask-then-close-gracias",
+    "lang": "es",
+    "prior": [
+      "hola",
+      "¿Qué es la regla 10-20-70?"
+    ],
+    "mock": {
+      "prior_agent": [
+        "Es la proporción que encontró BCG: 10% del esfuerzo va a algoritmos, 20% a tecnología y datos, y 70% a personas y procesos. ¿Algo más en lo que te pueda ayudar?"
+      ]
+    },
+    "message": "gracias",
+    "expect": {
+      "route": "close",
+      "state": {
+        "closed": true
+      },
+      "language": "es"
+    }
+  },
+  {
+    "id": "ask-then-new-question-goes-on",
+    "lang": "es",
+    "prior": [
+      "hola",
+      "¿Qué es la regla 10-20-70?"
+    ],
+    "mock": {
+      "prior_agent": [
+        "Es la proporción que encontró BCG: 10% del esfuerzo va a algoritmos, 20% a tecnología y datos, y 70% a personas y procesos. ¿Algo más en lo que te pueda ayudar?"
+      ]
+    },
+    "message": "¿Y qué es el nivel L2?",
+    "expect": {
+      "route": "agent",
+      "state": {
+        "closed": false
+      },
+      "max_words": 150
+    }
+  }
+]

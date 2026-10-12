@@ -38,7 +38,8 @@
     "message": "3",
     "expect": {
       "route": "agent",
-      "topic": "sobre_alan"
+      "topic": "sobre_alan",
+      "max_words": 150
     }
   },
   {
@@ -50,7 +51,8 @@
     },
     "expect": {
       "route": "agent",
-      "topic": "roles_ownership"
+      "topic": "roles_ownership",
+      "max_words": 150
     }
   },
   {
@@ -62,7 +64,8 @@
     },
     "expect": {
       "route": "agent",
-      "topic": "medicion_costo"
+      "topic": "medicion_costo",
+      "max_words": 150
     }
   },
   {
@@ -74,7 +77,8 @@
     },
     "expect": {
       "route": "agent",
-      "topic": "gobernanza_riesgo"
+      "topic": "gobernanza_riesgo",
+      "max_words": 150
     }
   },
   {
@@ -99,7 +103,10 @@
       "must_contain": [
         "Aviso 1 de 2"
       ]
-    }
+    },
+    "prior": [
+      "¿Qué es la regla 10-20-70?"
+    ]
   },
   {
     "id": "topic-goodbye",
@@ -134,7 +141,8 @@
     },
     "expect": {
       "route": "agent",
-      "topic": "procesos"
+      "topic": "procesos",
+      "max_words": 150
     }
   },
   {
@@ -146,7 +154,8 @@
     },
     "expect": {
       "route": "agent",
-      "topic": "otro"
+      "topic": "otro",
+      "max_words": 150
     }
   }
 ]

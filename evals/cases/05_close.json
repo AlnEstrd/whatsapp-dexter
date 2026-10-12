@@ -79,7 +79,8 @@
       "state": {
         "closed": false
       },
-      "language": "es"
+      "language": "es",
+      "max_words": 150
     }
   },
   {
@@ -94,7 +95,8 @@
       "tool_not_called": "end_conversation",
       "state": {
         "closed": false
-      }
+      },
+      "max_words": 150
     }
   },
   {
@@ -106,7 +108,8 @@
       "state": {
         "closed": false
       },
-      "language": "es"
+      "language": "es",
+      "max_words": 150
     }
   },
   {
@@ -132,7 +135,8 @@
       "tool_called": "end_conversation",
       "state": {
         "closed": true
-      }
+      },
+      "max_words": 150
     }
   }
 ]

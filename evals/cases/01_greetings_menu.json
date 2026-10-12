@@ -124,7 +124,8 @@
       "must_contain": [
         "Alan"
       ],
-      "language": "es"
+      "language": "es",
+      "max_words": 150
     }
   },
   {
@@ -151,7 +152,8 @@
         "Universidad",
         "35 personas"
       ],
-      "language": "es"
+      "language": "es",
+      "max_words": 150
     }
   }
 ]

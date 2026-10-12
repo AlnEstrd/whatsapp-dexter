@@ -12,7 +12,8 @@
         "**",
         "#"
       ],
-      "language": "es"
+      "language": "es",
+      "max_words": 150
     }
   },
   {
@@ -24,7 +25,8 @@
       "must_contain": [
         "actividades"
       ],
-      "language": "es"
+      "language": "es",
+      "max_words": 150
     }
   },
   {
@@ -36,7 +38,8 @@
       "must_contain": [
         "activities"
       ],
-      "language": "en"
+      "language": "en",
+      "max_words": 150
     }
   },
   {
@@ -48,7 +51,8 @@
       "must_contain": [
         "BCG"
       ],
-      "language": "en"
+      "language": "en",
+      "max_words": 150
     }
   },
   {
@@ -60,7 +64,8 @@
       "must_contain": [
         "NASA"
       ],
-      "language": "es"
+      "language": "es",
+      "max_words": 150
     }
   },
   {
@@ -69,7 +74,8 @@
     "message": "¿Qué debería hacer mi empresa en los primeros 90 días?",
     "expect": {
       "route": "agent",
-      "language": "es"
+      "language": "es",
+      "max_words": 150
     }
   },
   {
@@ -78,7 +84,8 @@
     "message": "How should I measure the value of AI in my company?",
     "expect": {
       "route": "agent",
-      "language": "en"
+      "language": "en",
+      "max_words": 150
     }
   },
   {
@@ -90,7 +97,8 @@
     "message": "¿y en ventas?",
     "expect": {
       "route": "agent",
-      "language": "es"
+      "language": "es",
+      "max_words": 150
     }
   },
   {
@@ -129,7 +137,8 @@
       "state": {
         "file_sent": true
       },
-      "language": "es"
+      "language": "es",
+      "max_words": 150
     }
   }
 ]
