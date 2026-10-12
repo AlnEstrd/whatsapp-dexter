@@ -33,7 +33,7 @@ from .. import db
 from ..channels import normalize_user_id
 from ..config import get_settings
 from ..flows import quiz
-from . import alerts, core, drafts, flows, scoring, templates
+from . import alerts, core, drafts, flows, followups, scoring, templates
 
 logger = logging.getLogger("leads.web")
 router = APIRouter()
@@ -430,6 +430,7 @@ async def dashboard_home(request: Request, tier: str = "", stage: str = "", cont
     out = ["<div class='row'><h1>Dexter · Leads</h1>"
            f"<form method='post' action='/dashboard/logout' class='inline'><input type='hidden' name='csrf' "
            f"value='{e(sess['csrf'])}'><button class='btn alt' type='submit'>Salir</button></form></div>"]
+    out.append(_followups_html(sess["csrf"]))  # the first thing Alan works through after the talk
     out.append(f"<h2>📇 Solicitudes de contacto ({len(reqs)})</h2>")
     for r in reqs:
         lead = core.get(r["lead_id"])
@@ -463,6 +464,49 @@ async def dashboard_home(request: Request, tier: str = "", stage: str = "", cont
     out += [_lead_card(lead) for lead in rows] or ["<p class='muted'>Sin resultados.</p>"]
     out.append("<p><a href='/dashboard/leads.csv'>Exportar CSV (contactables)</a></p>")
     return _html(page("Dexter · Leads", "".join(out)))
+
+
+FOLLOWUP_CHANNEL_OPTS = [("personal_whatsapp", "WhatsApp"), ("call", "Llamada"), ("email", "Correo"),
+                         ("other", "Otro")]
+
+
+def _followup_card(lead: dict, csrf: str) -> str:
+    lid = e(lead["lead_id"])
+    lang = "EN" if lead.get("lang") == "en" else "ES"
+    consent = "sí (explícito)" if lead.get("consent_type") == "explicit" else "aviso, sin respuesta"
+    quiz_txt = f"diagnóstico L{lead['quiz_level']}" if lead.get("quiz_level") is not None else "sin diagnóstico"
+    topics = [t for t in list((lead.get("topics") or {}).keys())[:3]]
+    info = (f"{lang} · consentimiento: {consent} · {quiz_txt} · primer mensaje {_ago(lead.get('first_seen'))}"
+            f" · último {_ago(lead.get('last_seen'))}")
+    if topics:
+        info += f" · temas: {', '.join(topics)}"
+    actions = []
+    if (link := followups.wa_link(lead)):
+        actions.append(f"<a class='btn' href='{e(link)}' target='_blank' rel='noopener'>Escribir por WhatsApp</a>")
+    if (mail := followups.mailto(lead)):
+        actions.append(f"<a class='btn alt' href='{e(mail)}'>Correo · {e(lead['email'])}</a>")
+    if lead.get("contactable"):  # explicit yes only: the Dexter template outside the 24 h window
+        actions.append(f"<form method='post' action='/dashboard/leads/{lid}/template' class='inline'>"
+                       f"<input type='hidden' name='csrf' value='{e(csrf)}'>"
+                       "<button class='btn alt' type='submit'>Plantilla Dexter</button></form>")
+    options = "".join(f"<option value='{v}'>{t}</option>" for v, t in FOLLOWUP_CHANNEL_OPTS)
+    mark = (f"<form method='post' action='/dashboard/followups/{lid}/contacted' class='inline'>"
+            f"<input type='hidden' name='csrf' value='{e(csrf)}'><select name='channel'>{options}</select> "
+            "<input name='note' placeholder='nota (opcional)' maxlength='300'> "
+            "<button class='btn ok' type='submit'>Marcar contactado</button></form>")
+    return (f"<div class='card'><div class='row'><b>{_name(lead)}</b>"
+            f"<span class='muted'>{e(lead.get('email') or '')}</span></div>"
+            f"<div class='muted'>{e(info)}</div><div class='actions'>{''.join(actions)}</div>{mark}</div>")
+
+
+def _followups_html(csrf: str) -> str:
+    rows = followups.pending()
+    if not rows:
+        return "<h2>📬 Pendientes de seguimiento (0)</h2><p class='muted'>Nadie pendiente.</p>"
+    head = (f"<h2>📬 Pendientes de seguimiento ({len(rows)})</h2>"
+            f"<p class='muted'>Más antiguo: {followups.oldest_days(rows)} días. El enlace de WhatsApp abre tu "
+            "chat con un borrador: lo revisas y lo envías tú.</p>")
+    return head + "".join(_followup_card(lead, csrf) for lead in rows)
 
 
 def zoho_link(lead: dict) -> Optional[str]:
@@ -652,6 +696,23 @@ async def dashboard_template(request: Request, lead_id: str) -> Response:
     ok, note = await templates.send_followup(lead_id, "dashboard")
     _log(sess, f"template/{'sent' if ok else 'refused'}", lead_id)
     return _html(page("Plantilla", f"<p>{e(note)}</p><p><a href='/dashboard/leads/{e(lead_id)}'>← Volver</a></p>"))
+
+
+@router.post("/dashboard/followups/{lead_id}/contacted")
+async def dashboard_followup_contacted(request: Request, lead_id: str) -> Response:
+    """Pendientes de seguimiento: Alan wrote to them himself. Channel and an optional note, then the list."""
+    _dash_on()
+    form = await _form(request)
+    sess = _require(request, form)
+    lead = core.get(lead_id)
+    if lead is None:
+        raise HTTPException(status_code=404)
+    if lead.get("followup_status") != "pending":
+        raise HTTPException(status_code=409, detail="not on the follow-up list")
+    channel = form.get("channel", "")
+    followups.mark_contacted(lead_id, channel, form.get("note") or None)
+    _log(sess, f"followup/{channel if channel in followups.FOLLOWUP_CHANNELS else 'other'}", lead_id)
+    return RedirectResponse("/dashboard", status_code=303, headers=SEC_HEADERS)
 
 
 @router.get("/dashboard/leads.csv")

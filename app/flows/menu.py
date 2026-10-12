@@ -157,19 +157,23 @@ def is_info_request(text: str) -> bool:
     return t in intents.INFO_REQUESTS
 
 
-def welcome_pair(lang: str, name: Optional[str] = None) -> tuple[Outgoing, Outgoing]:
-    """Welcome for an opening request: a one-line welcome, then the menu list with a hint. Both
-    messages are one bundle, with no model call."""
-    first = f", {name.split()[0]}" if name else ""
-    hello = TEXT["welcome"][lang].split("\n\n")[0].format(name=first)
+def menu_list(lang: str) -> Outgoing:
+    """The menu list on its own: after the consent welcome, or after the first answer of a chat."""
     hint = TEXT["hint"][lang]
-    menu_list = Outgoing(
+    return Outgoing(
         text=hint + "\n\n" + "\n".join(MENU_LINES[lang]),
         options=[Option(i, t, d) for i, t, d in MENU_OPTIONS[lang]],
         button=TEXT["button"][lang],
         interactive_text=hint,
     )
-    return Outgoing(text=hello), menu_list
+
+
+def welcome_pair(lang: str, name: Optional[str] = None) -> tuple[Outgoing, Outgoing]:
+    """Welcome for an opening request: a one-line welcome, then the menu list with a hint. Both
+    messages are one bundle, with no model call."""
+    first = f", {name.split()[0]}" if name else ""
+    hello = TEXT["welcome"][lang].split("\n\n")[0].format(name=first)
+    return Outgoing(text=hello), menu_list(lang)
 
 
 def intro(lang: str, name: Optional[str] = None) -> str:

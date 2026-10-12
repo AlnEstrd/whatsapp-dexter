@@ -53,10 +53,11 @@ from .channels import (
 )
 from .config import get_settings
 from .escalation import HANDOFF_REPLY, alert_provider_event, escalate, notify_slack, wants_human
-from .flows import menu, quiz
+from .flows import menu, quiz, welcome
 from .flows.types import Outgoing
 from .formatting import strip_greeting, to_whatsapp
 from .handoff import hand_off
+from .leads import consent as lead_consent
 from .leads import flows as lead_flows
 from .leads import web as leads_web
 from .resilience import with_retry
@@ -400,12 +401,107 @@ async def _to_human(channel: Channel, msg: InboundMessage, reason: str, kind: st
 # Leads (app/leads/): consent, profiling, contact form. All no-ops with LEADS_ENABLED=false.
 # --------------------------------------------------------------------------- #
 async def _ask_consent(channel: Channel, msg: InboundMessage, moment: str) -> bool:
-    if not leads.enabled():
+    """The three-moment ask (quiz / buying signal / handoff). Legacy only: the consent welcome replaces it."""
+    if not leads.enabled() or lead_consent.enabled():
         return False
     out = leads.safe("consent ask", lambda: lead_flows.ask_consent(msg.user_id, _lang_of(msg.user_id), moment))
     if out is None:
         return False
     await send_out(channel, msg, out)
+    return True
+
+
+async def _consent_welcome(channel: Channel, msg: InboundMessage, lang: str) -> bool:
+    """The consent welcome, once per conversation, for a lead who needs it. True when it went out now.
+    Its lead row is written first; if that fails the welcome still goes out (leads.safe)."""
+    uid = msg.user_id
+    if not leads.safe("welcome due", lambda: lead_consent.welcome_due(uid), default=False):
+        return False
+    leads.safe("welcome", lambda: lead_consent.show_welcome(uid, lang, msg.profile_name))
+    leads.safe("welcome", lambda: lead_consent.mark_shown(uid))
+    await send_out(channel, msg, welcome.consent_out(lang, msg.profile_name))
+    return True
+
+
+async def _send_menu_list(channel: Channel, msg: InboundMessage, lang: str) -> None:
+    """The menu list, at most once per conversation (the consent flow's menu)."""
+    await send_out(channel, msg, menu.menu_list(lang))
+    leads.safe("menu sent", lambda: lead_consent.mark_menu_sent(msg.user_id))
+
+
+async def _consent_tap(channel: Channel, msg: InboundMessage) -> bool:
+    """A consent button tap (Meta) or, while the welcome's buttons are open, a typed 1/2 (Twilio) or label.
+    Deterministic: zero model calls, never seen by the guard or the agent. False = route the message as usual."""
+    uid = msg.user_id
+    if msg.media is not None or not lead_consent.enabled():
+        return False
+    rid = msg.reply_id or ""
+    pending = leads.safe("consent pending", lambda: lead_consent.is_pending(uid), default=False)
+    if rid.startswith("consent:"):
+        yes, version = welcome.parse_reply(rid)  # a late tap on an older welcome is recorded too
+    elif pending:
+        yes = welcome.typed_choice(msg.text or "", numeric=not hasattr(channel, "send_buttons"))
+        version = welcome.CONSENT_TEXT_VERSION
+    else:
+        return False
+    if pending:
+        leads.safe("consent pending", lambda: lead_consent.clear_pending(uid))
+    if yes is None:  # typed instead of tapping: the message goes on as usual, the buttons stay as they were
+        leads.safe("consent tacit", lambda: lead_consent.note_tacit(uid))
+        return False
+    _route(msg, "consent")
+    lang = _lang_of(uid)
+    recorded = leads.safe("consent choice",
+                          lambda: lead_consent.record_choice(uid, yes, version, "button" if rid else "text"),
+                          default=False)
+    if not recorded:  # opted out: the confirmation again, nothing changes
+        await send_reply(channel, msg, welcome.COPY["opted_out"][lang])
+        return True
+    menu_already = leads.safe("menu sent?", lambda: lead_consent.menu_sent(uid), default=False)
+    if not yes:
+        await send_reply(channel, msg, welcome.COPY["no_ack"][lang])
+    elif menu_already:
+        await send_reply(channel, msg, welcome.COPY["yes_ack"][lang])
+    if not menu_already:  # "Perfecto" -> the menu; the menu goes out once per conversation
+        await _send_menu_list(channel, msg, lang)
+    return True
+
+
+async def _ask_email(channel: Channel, msg: InboundMessage, where: str) -> None:
+    """The email ask after the quiz report (EMAIL_CAPTURE_ENABLED); once per conversation."""
+    uid = msg.user_id
+    if not lead_consent.email_enabled() or not leads.safe("email due", lambda: lead_consent.email_due(uid),
+                                                          default=False):
+        return
+    lang = _lang_of(uid) if _lang_of(uid) in ("es", "en") else "es"
+    leads.safe("email ask", lambda: lead_consent.mark_email_asked(uid, where, lang))
+    await send_reply(channel, msg, welcome.COPY["email_ask_report"][lang])
+
+
+async def _email_step(channel: Channel, msg: InboundMessage) -> bool:
+    """A reply to a pending email ask (after the report, or in the farewell up to EMAIL_WINDOW later).
+    Zero model calls. False = not about the email: routed as usual (and the ask is dropped)."""
+    uid = msg.user_id
+    if not lead_consent.email_enabled():
+        return False
+    ask = leads.safe("email pending", lambda: lead_consent.pending_email(uid))
+    if not ask:
+        return False
+    if msg.media is not None or not msg.text:
+        leads.safe("email clear", lambda: lead_consent.clear_email(uid))
+        return False
+    outcome = leads.safe("email reply", lambda: lead_consent.email_reply(uid, msg.text), default="pass")
+    if outcome == "pass":
+        return False
+    lang = ask.get("lang") if ask.get("lang") in ("es", "en") else _lang_of(uid)
+    _route(msg, "email")
+    if outcome == "captured":  # the thanks only: no menu, and a farewell chat stays closed
+        await send_reply(channel, msg, welcome.COPY["email_thanks"][lang])
+        await _thread_note(msg, "📧 Email captured")  # never the address itself
+    elif outcome == "retry":
+        await send_reply(channel, msg, welcome.COPY["email_retry"][lang])
+    else:  # "skip", or invalid twice: the ask is dropped quietly
+        await send_reply(channel, msg, welcome.COPY["skip"][lang])
     return True
 
 
@@ -436,6 +532,8 @@ async def _apply_flow(channel: Channel, msg: InboundMessage, res: lead_flows.Flo
         _route(msg, "handoff")
         await _to_human(channel, msg, "User asked to talk to Alan", "user_asked")
         return
+    if res.ask_email:  # the report is out and the profile questions are answered (or skipped)
+        await _ask_email(channel, msg, "report")
     if res.ask_consent:
         await _ask_consent(channel, msg, res.ask_consent)
     sessions.touch_bot(uid)
@@ -456,10 +554,14 @@ async def _opt_out(channel: Channel, msg: InboundMessage) -> None:
     human = store.in_handoff(uid)
     quiz.discard(uid)
     leads.safe("clear flow", lambda: lead_flows.clear(uid))
+    leads.safe("clear consent", lambda: lead_consent.clear_pending(uid))
+    leads.safe("clear email", lambda: lead_consent.clear_email(uid))
     lead = leads.opt_out(uid)
+    events.record("opt_out", uid, step="opt_out", via="keyword", human=human)
     lang = menu.detect_lang(msg.text, store.get_lang(uid)) if not human else _lang_of(uid)
     store.log_turn(uid, "user", msg.text)
-    await send_reply(channel, msg, lead_flows.TEXT["opted_out"][lang])
+    copy = welcome.COPY["opted_out"] if lead_consent.enabled() else lead_flows.TEXT["opted_out"]
+    await send_reply(channel, msg, copy[lang])
     await leads.opt_out_effects(lead, human)
 
 
@@ -863,6 +965,11 @@ async def _route_flows(channel: Channel, msg: InboundMessage, is_new: bool) -> b
             await _disclose(channel, msg, entry, lang)
             return True
 
+    # The consent welcome: once per conversation, for a lead who needs it. It goes before this
+    # message's own reply; the greeting, info and first-question branches below adapt to it.
+    shown = await _consent_welcome(channel, msg, lang)
+    consent_flow = shown or leads.safe("consent flow", lambda: lead_consent.in_conversation(uid), default=False)
+
     choice = msg.reply_id if (msg.reply_id or "").startswith("menu:") else menu.typed_choice(msg.text)
     slide = menu.slide_request(msg.text)
     if choice:
@@ -903,13 +1010,19 @@ async def _route_flows(channel: Channel, msg: InboundMessage, is_new: bool) -> b
         _route(msg, "menu")
         _turn_topic[uid] = "saludo_menu"
         events.record("menu_shown", uid, step="menu", menu="welcome")
-        await send_out(channel, msg, menu.welcome(lang, msg.profile_name))
+        if shown:  # the consent welcome already greeted: the menu list only
+            await _send_menu_list(channel, msg, lang)
+        else:
+            await send_out(channel, msg, menu.welcome(lang, msg.profile_name))
     elif is_new and menu.is_info_request(msg.text):
         # "Hola, quisiera más información" as the opening: welcome and menu, no model call, no guard.
         _route(msg, "menu")
         _turn_topic[uid] = "saludo_menu"
         events.record("menu_shown", uid, step="menu", menu="welcome", via="info_request")
-        await _send_welcome_pair(channel, msg, lang)
+        if shown:
+            await _send_menu_list(channel, msg, lang)
+        else:
+            await _send_welcome_pair(channel, msg, lang)
     elif (blocked := limits.model_block(uid)):
         await _limit_notice(channel, msg, blocked)   # no guard / agent call; menu still works
     else:
@@ -921,9 +1034,12 @@ async def _route_flows(channel: Channel, msg: InboundMessage, is_new: bool) -> b
             # count stays at 0.
             _route(msg, "menu")
             events.record("menu_shown", uid, step="menu", menu="welcome", via="first_message")
-            await _send_welcome_pair(channel, msg, lang)
+            if shown:
+                await _send_menu_list(channel, msg, lang)
+            else:
+                await _send_welcome_pair(channel, msg, lang)
             return True
-        if is_new:
+        if is_new and not shown:
             # A new chat that opens with a question: intro, answer, then a one-line offer of the
             # menu (not the menu itself; it goes out on a greeting, "menu" or "opciones").
             await send_reply(channel, msg, menu.intro(lang, msg.profile_name))
@@ -931,7 +1047,12 @@ async def _route_flows(channel: Channel, msg: InboundMessage, is_new: bool) -> b
             await _off_topic(channel, msg, lang)
         else:
             ok = await _run_agent(channel, msg, msg.text)
-            if ok and is_new and last_route.get(uid) == "agent" and sessions.is_open(uid) \
+            if consent_flow:
+                # Consent flow: the menu list follows the first reply after the welcome (the buttons were
+                # ignored) or a tap; the welcome's own question is answered without it.
+                if ok and not shown and leads.safe("menu due", lambda: lead_consent.menu_due(uid), default=False):
+                    await _send_menu_list(channel, msg, lang)
+            elif ok and is_new and last_route.get(uid) == "agent" and sessions.is_open(uid) \
                     and not store.in_handoff(uid) and not quiz.active(uid) \
                     and not (leads.enabled() and lead_flows.current(uid)):  # a question/form is pending
                 await send_reply(channel, msg, menu.menu_offer(lang))
@@ -1074,6 +1195,11 @@ async def close_chat(user_id: str, reason: str, slack_cleanup: bool = True, *,
         closing = sessions.text("close_system", lang)
     else:
         closing = sessions.text(f"close_{by}", lang)
+    if was_open and reason in ("user_keyword", "user_intent"):
+        # The farewell of a user-initiated close: one extra line asks for an email (once per conversation).
+        line = leads.safe("email farewell", lambda: lead_consent.farewell_line(user_id, lang))
+        if line:
+            closing = f"{closing}\n{line}"
     sess = sessions.get(user_id) or {}
     csat = bool(get_settings().csat_enabled and reason in ("user_keyword", "user_intent") and was_open
                 and getattr(get_channel(sess.get("channel_name", "")), "send_buttons", None))
@@ -1352,6 +1478,9 @@ async def _handle_inbound(channel: Channel, msg: InboundMessage) -> None:
 
     restart_notice = sessions.needs_restart_notice(msg.user_id)
     was_open = sessions.is_open(msg.user_id)
+    # An email typed after the farewell is still captured, and the chat stays closed (no new session).
+    if not was_open and await _email_step(channel, msg):
+        return
     sessions.touch_user(msg.user_id, channel.name, msg.reply_to, msg.profile_name)
     store.touch_contact(msg.user_id, channel.name, msg.reply_to, msg.profile_name)
     if not was_open:
@@ -1385,13 +1514,19 @@ async def _handle_inbound(channel: Channel, msg: InboundMessage) -> None:
             )
         store.log_turn(msg.user_id, "user", msg.text or f"({msg.msg_type})")
         _route(msg, "human")  # a person is in charge: never rate-limited
-        if lead_on and msg.text:  # the consent question asked right before the handoff
+        if lead_on and msg.text and not lead_consent.enabled():  # legacy: the question asked before the handoff
             handled, _ = leads.safe("consent", lambda: lead_flows.answer_consent(
                 msg.user_id, msg.text, msg.reply_id), default=(False, None)) or (False, None)
             if handled:
                 lead = leads.safe("lead", lambda: leads.core.by_user(msg.user_id))
                 await _thread_note(msg, "✅ Consentimiento de seguimiento: "
                                         + ("sí" if lead and lead.get("consent_followup") else "no"))
+        if lead_consent.enabled() and (msg.reply_id or "").startswith("consent:"):
+            # A late tap on the welcome's buttons: recorded (Alan is in charge, so no reply to the customer).
+            yes, version = welcome.parse_reply(msg.reply_id)
+            if yes is not None and leads.safe("consent choice", lambda: lead_consent.record_choice(
+                    msg.user_id, yes, version, "button"), default=False):
+                await _thread_note(msg, "✅ Consentimiento: " + ("sí" if yes else "no"))
         return
 
     if restart_notice and get_settings().restart_notice:
@@ -1401,13 +1536,17 @@ async def _handle_inbound(channel: Channel, msg: InboundMessage) -> None:
     store.log_turn(msg.user_id, "user", msg.text or f"({msg.msg_type})")
     sessions.note(msg.user_id, last_user_kind=sessions.kind_of(msg.text or "", is_new))
 
-    if lead_on and msg.text and msg.media is None:  # answer to the consent question (zero tokens)
+    if was_open and await _email_step(channel, msg):  # a reply to the email ask of this conversation
+        return
+    if lead_on and msg.text and msg.media is None and not lead_consent.enabled():  # legacy three-moment answer
         handled, ack = leads.safe("consent", lambda: lead_flows.answer_consent(
             msg.user_id, msg.text, msg.reply_id), default=(False, None)) or (False, None)
         if handled:
             _route(msg, "consent")
             await send_reply(channel, msg, ack)
             return
+    if await _consent_tap(channel, msg):  # the welcome's buttons (or 1/2, label on Twilio): zero tokens
+        return
 
     if await _closer_or_human(channel, msg, is_new):
         return

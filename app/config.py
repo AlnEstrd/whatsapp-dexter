@@ -141,8 +141,13 @@ class Settings(BaseSettings):
     # --- Leads: consent, scoring, speed to lead (app/leads/) -------------------
     # false = behaviour exactly as before (no lead rows, no consent asks, no BAJA handling).
     leads_enabled: bool = True
-    consent_text_version: str = ""             # "" = app/leads/flows.py CONSENT_TEXT_VERSION
-    lead_retention_days: float = 365           # consented leads, from last_seen
+    consent_text_version: str = ""             # legacy three-moment ask only: "" = app/leads/flows.py CONSENT_TEXT_VERSION
+    # The consent welcome (app/flows/welcome.py, app/leads/consent.py): the first message of every new
+    # lead gets it, and it replaces the three-moment ask. false = legacy behaviour, no consent fields written.
+    consent_welcome_enabled: bool = True
+    # Email capture after the quiz report and in the farewell (app/leads/consent.py). false = no email asks.
+    email_capture_enabled: bool = True
+    lead_retention_days: float = 365           # consented leads (explicit, tacit notice), from last_seen
     lead_scoring_json: str = ""                # JSON overriding app/leads/scoring.py WEIGHTS
     lead_sla_hours: float = 24                 # hot lead still "sql" after this -> reminder
     slack_leads_channel_id: Optional[str] = None  # hot alerts + digest; falls back to SLACK_CHANNEL_ID

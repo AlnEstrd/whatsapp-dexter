@@ -54,7 +54,8 @@ RESULTS_DIR = Path(__file__).parent / "results"
 # file_reply = the bot answered with a file (slides, report); file_note = a static reply about an
 # inbound file (too big, wait for the quiz...); limited = a usage cap; human = Alan is in charge.
 ROUTES = {"menu", "quiz", "agent", "close", "handoff", "offtopic_warning", "file_reply",
-          "file_note", "limited", "human", "unsupported", "on_request", "consent", "opt_out", "lead_form"}
+          "file_note", "limited", "human", "unsupported", "on_request", "consent", "opt_out", "lead_form",
+          "email"}
 
 GRAPH = "https://graph.facebook.com/v20.0"
 META_SEND = f"{GRAPH}/111/messages"
@@ -320,7 +321,12 @@ def _state(file_sent: bool) -> dict[str, bool]:
     return {"quiz_active": quiz.active(USER), "handoff": store.in_handoff(USER),
             "closed": not sessions.is_open(USER), "file_sent": file_sent,
             "consent": bool(lead and lead["consent_followup"]), "opted_out": bool(lead and lead["opted_out_at"]),
-            "consent_asked": pending.get("kind") == "consent"}
+            "consent_asked": pending.get("kind") == "consent",
+            "consent_explicit": bool(lead and lead["consent_type"] == "explicit"),
+            "consent_tacit": bool(lead and lead["consent_type"] == "tacit_notice"),
+            "consent_declined": bool(lead and lead["consent_type"] == "declined"),
+            "email_captured": bool(lead and lead["email"]),
+            "followup_pending": bool(lead and lead["followup_status"] == "pending")}
 
 
 def table(results: list[Result]) -> str:

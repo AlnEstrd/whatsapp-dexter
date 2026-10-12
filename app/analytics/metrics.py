@@ -454,7 +454,24 @@ def leads(range_: Any = "7d") -> dict:
     r = _rng(range_)
     done = len(_events(r, "quiz_complete"))
     asked = sum(1 for e in _events(r, "handoff") if e["data"].get("reason") == "user_asked")
-    return {**r.meta(), "quiz_completed": done, "asked_for_alan": asked}
+    out = {**r.meta(), "quiz_completed": done, "asked_for_alan": asked}
+    if get_settings().consent_welcome_enabled:
+        out["consent"] = consent_mix(r)
+    return out
+
+
+def consent_mix(r: Range) -> dict:
+    """Consent welcome: how many were shown, the choices, email asks and captures, opt-outs, follow-ups.
+    Only counts: no address, no name."""
+    shown = len(_events(r, "consent_shown"))
+    choices = Counter(e["data"].get("choice") for e in _events(r, "consent_choice"))
+    asks = Counter(e["data"].get("where") for e in _events(r, "email_ask"))
+    captured = len(_events(r, "email_captured"))
+    pending = _rows("SELECT COUNT(*) AS n FROM leads WHERE followup_status = 'pending'")
+    return {**r.meta(), "welcomes_shown": shown, "choices": dict(choices), "email_asks": dict(asks),
+            "email_captured": captured, "email_capture_rate": _rate(captured, sum(asks.values())),
+            "opt_outs": len(_events(r, "opt_out")), "followups_marked": len(_events(r, "followup_marked")),
+            "pending_followups": pending[0]["n"] if pending else 0}
 
 
 def csat(range_: Any = "7d") -> dict:

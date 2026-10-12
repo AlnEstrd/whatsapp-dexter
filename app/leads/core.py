@@ -337,7 +337,66 @@ def mark_asked(lead_id: str, moment: str) -> None:
     activity(lead_id, "consent_asked", 0, {"moment": moment})
 
 
+def consent_on() -> bool:
+    """CONSENT_WELCOME_ENABLED: consent_type and follow-up status are written only then."""
+    return get_settings().consent_welcome_enabled
+
+
+CONSENTED = ("explicit", "tacit_notice")  # Alan may write once personally (contactable_personal)
+
+
+def contactable_personal(lead: dict) -> bool:
+    """Explicit yes, or the welcome shown without a "no" (tacit notice): one personal follow-up."""
+    return lead.get("consent_type") in CONSENTED and not lead.get("opted_out_at")
+
+
+def followup_status_for(lead: dict) -> Optional[str]:
+    if lead.get("opted_out_at") or lead.get("consent_type") in ("declined", "opted_out"):
+        return "not_needed"
+    if lead.get("contacted_at"):
+        return "contacted"
+    return "pending" if contactable_personal(lead) else None
+
+
+def sync_followup(lead_id: str) -> None:
+    lead = get(lead_id)
+    if lead is not None:
+        status = followup_status_for(lead)
+        if status != lead.get("followup_status"):
+            update(lead_id, followup_status=status)
+
+
+def set_consent(lead_id: str, ctype: str, *, version: Optional[str] = None, via: str = "",
+                ts: Optional[float] = None) -> None:
+    """Consent state from the welcome, a button, an email or a form: explicit | tacit_notice | declined |
+    opted_out. consent_ts is the time of the welcome for a tacit notice, of the answer otherwise.
+    BAJA is final: a stale tap or a later form never lifts an opt-out."""
+    lead = get(lead_id)
+    if lead is None or (lead.get("opted_out_at") and ctype != "opted_out"):
+        return
+    t = now() if ts is None else ts
+    changes: dict[str, Any] = {"consent_type": ctype, "consent_followup": int(ctype == "explicit"),
+                               "contactable": int(ctype == "explicit")}  # contactable = explicit (see recompute)
+    if ctype in ("explicit", "tacit_notice", "declined"):
+        changes["consent_ts"] = t
+    if version:
+        changes["consent_text_version"] = version
+    if ctype == "declined":
+        changes["consent_declined_at"] = t
+    elif ctype == "explicit":
+        changes["consent_declined_at"] = None
+    update(lead_id, **changes)
+    if bool(lead.get("contactable")) != bool(changes["contactable"]):
+        mark_dirty(lead_id)  # recompute() would not see the change: the Zoho outbox must hear about it
+    activity(lead_id, "consent", 0, {"to": ctype, "via": via, "version": version})
+    sync_followup(lead_id)
+
+
 def record_consent(lead_id: str, yes: bool, version: str, via: str) -> None:
+    """A yes from a form (contact request, web form) or a consent button; a no from a button."""
+    if consent_on():
+        set_consent(lead_id, "explicit" if yes else "declined", version=version, via=via)
+        return
     t = now()
     if yes:
         lead = get(lead_id)
@@ -364,16 +423,23 @@ def suppress(user_id: Optional[str], email: Optional[str] = None) -> None:
 
 
 def opt_out(user_id: str, via: str = "keyword") -> Optional[dict]:
-    """BAJA: never contact again. Returns the lead (None if this number never became one)."""
+    """BAJA: never contact again. Returns the lead (None if this number never became one, legacy mode)."""
     suppress(user_id)
     lead = by_user(user_id)
     if lead is None:
-        return None
+        if not consent_on():
+            return None
+        lead, _ = ensure(user_id, reason="opt_out")  # suppressed just above: created as opted out
     t = now()
-    update(lead["lead_id"], opted_out_at=t, consent_followup=0, contactable=0, stage="opted_out",
-           stage_source="dexter", stage_updated_at=t)
+    changes: dict[str, Any] = dict(opted_out_at=t, consent_followup=0, contactable=0, stage="opted_out",
+                                   stage_source="dexter", stage_updated_at=t)
+    if consent_on():
+        changes["consent_type"] = "opted_out"
+    update(lead["lead_id"], **changes)
     activity(lead["lead_id"], "opted_out", 0, {"via": via, "from_stage": lead.get("stage")})
     close_requests(lead["lead_id"], status="cancelled")
+    if consent_on():
+        sync_followup(lead["lead_id"])
     mark_dirty(lead["lead_id"], force=True)
     return get(lead["lead_id"])
 
@@ -396,7 +462,8 @@ def recompute(lead_id: str) -> Optional[dict]:
     intent = scoring.intent_score(rows)
     total = fit + intent
     tier = scoring.tier_for(total, lead.get("tier_override"))
-    contactable = bool(lead.get("consent_followup")) and not lead.get("opted_out_at")
+    contactable = (bool(lead.get("consent_followup")) or lead.get("consent_type") == "explicit") \
+        and not lead.get("opted_out_at")
     changes: dict[str, Any] = {}
     for k, v in (("fit_score", fit), ("intent_score", intent), ("score", total), ("tier", tier),
                  ("contactable", int(contactable))):
@@ -578,7 +645,7 @@ def funnel(since: Optional[float] = None) -> dict:
             hot_at.setdefault(a["lead_id"], a["ts"])
     ids = {x["lead_id"] for x in leads}
     engaged = len(leads)
-    consented = sum(1 for x in leads if x["consent_followup"] or x["consent_ts"])
+    consented = sum(1 for x in leads if x["consent_followup"])  # explicit yes (a tacit notice is not a yes)
     opted = sum(1 for x in leads if x["opted_out_at"])
     warm = sum(1 for x in leads if x["tier"] in ("warm", "hot"))
     hot = sum(1 for x in leads if x["tier"] == "hot")
@@ -610,14 +677,20 @@ def _delete(lead_ids: Iterable[str]) -> None:
 
 
 def purge(retention_days: float, lead_retention_days: float) -> int:
-    """Leads without consent go with the conversation data (RETENTION_DAYS); consented ones after
-    LEAD_RETENTION_DAYS from last_seen. Opt-outs keep only their suppression record."""
+    """Leads with no consent, declined or opted out go with the conversation data (RETENTION_DAYS).
+    Explicit consent and the tacit notice keep LEAD_RETENTION_DAYS from last_seen. An opt-out keeps only
+    its suppression record (lead_suppressions), which outlives the row."""
     t = now()
-    rows = db.query("""SELECT lead_id, zoho_id FROM leads WHERE
-                         (contactable = 0 AND COALESCE(last_seen, created_at) < ?)
-                      OR (contactable = 1 AND COALESCE(last_seen, created_at) < ?)""",
-                    (t - retention_days * 86400, t - lead_retention_days * 86400))
+    consented = ("(COALESCE(consent_type, '') IN ('explicit', 'tacit_notice') OR contactable = 1) "
+                 "AND opted_out_at IS NULL")
+    rows = db.query(f"""SELECT lead_id, zoho_id, user_id, opted_out_at FROM leads WHERE
+                         ({consented} AND COALESCE(last_seen, created_at) < ?)
+                      OR (NOT ({consented}) AND COALESCE(last_seen, created_at) < ?)""",
+                    (t - lead_retention_days * 86400, t - retention_days * 86400))
     ids = [r["lead_id"] for r in rows]
+    for r in rows:
+        if r["opted_out_at"] and r["user_id"]:
+            suppress(r["user_id"])  # keeps the record even for an opt-out that predates the table
     if ids:
         zoho_ids = [r["zoho_id"] for r in rows if r["zoho_id"]]
         _delete(ids)
