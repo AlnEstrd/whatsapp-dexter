@@ -12,7 +12,10 @@
         "Aviso 1 de 2"
       ],
       "language": "es"
-    }
+    },
+    "prior": [
+      "¿Qué es la regla 10-20-70?"
+    ]
   },
   {
     "id": "offtopic-homework",
@@ -26,7 +29,10 @@
       "must_contain": [
         "Aviso 1 de 2"
       ]
-    }
+    },
+    "prior": [
+      "¿Qué es la regla 10-20-70?"
+    ]
   },
   {
     "id": "offtopic-coding-en",
@@ -44,14 +50,18 @@
         "def "
       ],
       "language": "en"
-    }
+    },
+    "prior": [
+      "¿Qué es la regla 10-20-70?"
+    ]
   },
   {
     "id": "offtopic-third-escalates",
     "lang": "es",
     "prior": [
       "Dame una receta de enchiladas suizas por favor",
-      "¿Quién ganó el partido del América ayer?"
+      "¿Quién ganó el partido del América ayer?",
+      "¿Cuál es la capital de Japón?"
     ],
     "message": "¿Me recomiendas una serie para ver este fin de semana?",
     "mock": {

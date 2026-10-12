@@ -86,7 +86,8 @@
       "state": {
         "file_sent": true
       },
-      "language": "en"
+      "language": "en",
+      "max_words": 150
     }
   }
 ]

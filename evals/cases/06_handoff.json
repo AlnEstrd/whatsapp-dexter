@@ -75,7 +75,8 @@
       "state": {
         "handoff": true
       },
-      "language": "es"
+      "language": "es",
+      "max_words": 150
     }
   }
 ]

@@ -16,9 +16,12 @@ Definitions (the README "Metrics & governance" table is the same text):
     Fallback / gap rate  gap events ÷ agent_turn events
     Funnel               conversation_start → menu_choice or first user_msg with route ≠ menu →
                          feature started (quiz / agent / slides) → feature completed →
-                         close by user (user_keyword / user_intent)
+                         close by user (user_keyword / user_intent / user_intent_late)
     Drop-off             closes with reason idle, grouped by last_step, with last_bot_msg_read
-                         true / false / unknown
+                         true / false / unknown. An idle close after the user's own goodbye or
+                         bare thanks is user_intent_late instead: a close, not a gap
+    Reply length         words of each agent reply sent: mean / p90, and the trim rate (replies
+                         cut at REPLY_MAX_WORDS_HARD; agent_turn.reply_words / .trimmed)
     Close reasons        count and share per reason
     Topics               user_msg by topic: messages, unique conversations, share; ES/EN split
     Gaps board           gap by topic and source, with up to 3 most recent scrubbed samples per topic
@@ -53,7 +56,7 @@ from .events import iso, mask
 
 TZ = limits.TZ
 TZ_NAME = "America/Mexico_City"
-USER_CLOSES = ("user_keyword", "user_intent")
+USER_CLOSES = ("user_keyword", "user_intent", "user_intent_late")
 
 
 def now() -> float:  # patched in tests
@@ -417,15 +420,20 @@ def _round(v: Optional[float]) -> Optional[float]:
 
 
 def agent_turns(range_: Any = "7d") -> dict:
-    """Tokens per agent turn (mean / p90; input includes cache reads and writes) and latency."""
+    """Tokens per agent turn (mean / p90; input includes cache reads and writes), reply length
+    (words of the text sent: mean / p90, and the share trimmed by REPLY_MAX_WORDS_HARD) and latency."""
     r = _rng(range_)
     turns = _events(r, "agent_turn")
     inp = [t["data"].get("input_tokens", 0) for t in turns]
     out = [t["data"].get("output_tokens", 0) for t in turns]
     lat = [t["data"]["latency_ms"] for t in turns if t["data"].get("latency_ms") is not None]
+    sized = [t["data"] for t in turns if t["data"].get("reply_words") is not None]  # not on older events
+    words = [d["reply_words"] for d in sized]
     return {**r.meta(), "agent_turns": len(turns),
             "input_tokens": {"mean": round(statistics.fmean(inp)) if inp else None, "p90": _pct(inp, 90)},
             "output_tokens": {"mean": round(statistics.fmean(out)) if out else None, "p90": _pct(out, 90)},
+            "reply_words": {"mean": round(statistics.fmean(words)) if words else None, "p90": _pct(words, 90)},
+            "trim_rate": _rate(sum(1 for d in sized if d.get("trimmed")), len(sized)),
             "latency_ms": {"p50": _pct(lat, 50), "p95": _pct(lat, 95)},
             "outcomes": dict(Counter(t["data"].get("outcome") or "?" for t in turns))}
 
@@ -523,6 +531,18 @@ def anomalies(range_: Any = "today") -> dict:
         if n > 20 and ratio is not None and ratio < 0.5:
             found.append({"rule": "low_cache_hit", "message": f"Cache hit {ratio:.0%} el {day} con {n} turnos",
                           "day": day, "cache_hit_ratio": ratio, "agent_turns": n})
+
+    # 2b. p90 reply words over 1.5× the length target on a day with more than 20 agent turns.
+    words_by_day: dict[str, list] = defaultdict(list)
+    for e in _events(r, "agent_turn"):
+        if e["data"].get("reply_words") is not None:
+            words_by_day[_local(e["ts"]).date().isoformat()].append(e["data"]["reply_words"])
+    for day, words in sorted(words_by_day.items()):
+        p90 = _pct(words, 90)
+        if turns_by_day.get(day, 0) > 20 and p90 and p90 > 1.5 * s.reply_max_words:
+            found.append({"rule": "reply_length", "message": f"Respuestas de p90 {p90:.0f} palabras el {day} "
+                          f"(> 1.5 × REPLY_MAX_WORDS={s.reply_max_words}) con {turns_by_day[day]} turnos",
+                          "day": day, "reply_words_p90": p90, "agent_turns": turns_by_day[day]})
 
     # 3. Guard calls ÷ agent turns under 0.5 while the guard is on (≥10 turns).
     n_turns = sum(turns_by_day.values())

@@ -125,7 +125,8 @@
       "tool_called": "start_assessment",
       "state": {
         "quiz_active": true
-      }
+      },
+      "max_words": 150
     }
   },
   {

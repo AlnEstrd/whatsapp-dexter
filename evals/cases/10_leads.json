@@ -170,7 +170,8 @@
       ],
       "state": {
         "consent_asked": true
-      }
+      },
+      "max_words": 150
     }
   },
   {
@@ -201,7 +202,8 @@
         "$",
         "MXN",
         "USD"
-      ]
+      ],
+      "max_words": 150
     }
   },
   {

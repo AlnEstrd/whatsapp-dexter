@@ -82,6 +82,10 @@ def build(range_: str = "yesterday") -> str:
     per = cost["per_conversation"]["mean_usd"]
     lines.append(f"• Costo: ${cost['total_usd']:.2f} · ${per or 0:.3f} por conversación · "
                  f"cache hit {_pct(cost['cache_hit_ratio'])}")
+    turns = metrics.agent_turns(r)
+    if turns["reply_words"]["p90"] is not None:
+        lines.append(f"• Respuestas: media {turns['reply_words']['mean']} palabras (p90 "
+                     f"{turns['reply_words']['p90']}), {_pct(turns['trim_rate'])} recortadas")
     lines.append(alert or "• Anomalías: ninguna")
     return "\n".join(lines)
 

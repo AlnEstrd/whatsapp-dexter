@@ -65,3 +65,35 @@ def strip_greeting(text: str) -> str:
     if not rest or rest == text.lstrip():
         return text
     return rest[0].upper() + rest[1:]
+
+
+# Where a trimmed reply may stop: after a blank line (a paragraph), or after a sentence or line.
+_PARAGRAPH_END = re.compile(r"(?<=\S)(?=\s*\n\s*\n)")
+_SENTENCE_END = re.compile(r"(?<=[.!?…])(?=\s|$)|(?<=\S)(?=\n)")
+
+
+def _last_fit(text: str, cap: int, boundary: re.Pattern) -> int:
+    """Offset of the last boundary whose text before it has at most ``cap`` words (0 if none)."""
+    cut = 0
+    for m in boundary.finditer(text):
+        if len(text[: m.start()].split()) > cap:
+            break
+        cut = m.start()
+    return cut
+
+
+def cap_words(text: str, cap: int, offer: str, truncated: bool = False) -> tuple[str, bool]:
+    """Keep a reply within ``cap`` words: cut at the last complete paragraph under the cap (or
+    the last sentence, if the first paragraph is already too long), then add ``offer``, one
+    question offering to go deeper. Returns (text, trimmed).
+
+    Only the final text is capped; a tool's input (a PDF's content) never is. ``truncated`` means
+    the model hit max_tokens, so its last sentence is incomplete and is dropped with the rest.
+    Text under the cap is returned as written, and nothing is ever cut mid-sentence."""
+    text = (text or "").strip()
+    if not truncated and len(text.split()) <= cap:
+        return text, False
+    cut = _last_fit(text, cap, _PARAGRAPH_END) or _last_fit(text, cap, _SENTENCE_END)
+    if not cut:  # not even one whole sentence fits
+        return ("", True) if truncated else (text, False)
+    return f"{text[:cut].rstrip()}\n\n{offer}", True

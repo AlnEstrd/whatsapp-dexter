@@ -11,9 +11,12 @@ A case (``evals/cases/*.json``, a list of objects):
       "media": {"type": "image", "caption": "..."}       optional inbound file (Meta)
       "mock": {"guard": "IN" | "OUT",                    offline only: guard verdict and the
                "prior_guard": "OUT",                     (verdict for the prior turns, default IN)
-               "agent": [{"tool": "send_slides", "input": {"slide": "8"}}, {"text": "Va."}]},
-                                                         scripted agent steps for this message
+               "agent": [{"tool": "send_slides", "input": {"slide": "8"}}, {"text": "Va."}],
+               "prior_agent": ["Es la regla de BCG. ¿Algo más en lo que te pueda ayudar?"]},
+                                                         scripted agent steps for this message, and
+                                                         the texts the agent gives to the prior turns
       "expect": {
+        "max_words": 150,                                  optional: all replies of the turn together
         "route": "menu" | "quiz" | "agent" | "close" | "handoff" | "offtopic_warning" | "file_reply"
                  (or a list of acceptable routes),
         "must_contain": ["..."], "must_not_contain": ["..."],   case-insensitive substrings
@@ -92,6 +95,8 @@ def validate(case: dict) -> list[str]:
         from app.analytics import topics
         if exp["topic"] not in topics.TOPICS:
             errs.append(f"unknown topic {exp['topic']!r}")
+    if exp.get("max_words") is not None and not isinstance(exp["max_words"], int):
+        errs.append("max_words must be an integer")
     return errs
 
 
@@ -129,6 +134,7 @@ class MockModels:
         self.case = case
         self.final = False
         self.steps: list[dict] = list(case.get("mock", {}).get("agent", []))
+        self.prior_steps: list[str] = list(case.get("mock", {}).get("prior_agent", []))
         self.agent_requests: list[dict] = []
         self.n = 0
 
@@ -139,8 +145,11 @@ class MockModels:
             verdict = mock.get("guard", "IN") if self.final else mock.get("prior_guard", "IN")
             return httpx.Response(200, json=_api_message([{"type": "text", "text": verdict}], "end_turn"))
         self.agent_requests.append(body)
-        step = self.steps.pop(0) if (self.final and self.steps) else \
-            {"text": DEFAULT_TEXT.get(self.case.get("lang"), DEFAULT_TEXT["es"])}
+        default = {"text": DEFAULT_TEXT.get(self.case.get("lang"), DEFAULT_TEXT["es"])}
+        if self.final:
+            step = self.steps.pop(0) if self.steps else default
+        else:
+            step = {"text": self.prior_steps.pop(0)} if self.prior_steps else default
         content = [{"type": "text", "text": step["text"]}] if step.get("text") else []
         if step.get("tool"):
             self.n += 1
@@ -272,6 +281,10 @@ def _run(case: dict, make_client: Callable[..., Any], live: bool, api_key: str) 
                 res.reasons.append(f"reply language {got}, expected {exp['language']}")
     if not replies and exp.get("route") != "close":
         res.reasons.append("no reply sent")
+    if exp.get("max_words") is not None:
+        n_words = len(re.sub(r"\[(image|document)\]", "", text).split())
+        if n_words > exp["max_words"]:
+            res.reasons.append(f"{n_words} words > max_words {exp['max_words']}")
 
     for key, want in exp.get("state", {}).items():
         if key not in state:

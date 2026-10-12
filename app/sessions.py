@@ -25,7 +25,7 @@ import time
 import uuid
 from typing import Any, Optional
 
-from . import db
+from . import db, intents
 
 logger = logging.getLogger("sessions")
 
@@ -136,6 +136,39 @@ def is_done_intent(msg_text: str) -> bool:
 def sounds_like_closing(msg_text: str) -> bool:
     t = f" {_norm(msg_text)} "
     return any(f" {h} " in t for h in _CLOSE_HINTS)
+
+
+def is_composite_closer(msg_text: str) -> bool:
+    """'gracias, buen día' / 'thanks, have a good day': at least two words, all of them thanks, farewell
+    or time-of-day words, with at least one farewell or time-of-day marker (intents.py). Bare 'gracias'
+    is not one, and neither is a one-word answer such as 'Tarde' to "¿mañana o tarde?"."""
+    words = intents.normalize(msg_text).split()
+    return len(words) >= 2 and not (msg_text or "").strip().endswith("?") \
+        and all(w in intents.CLOSER_WORDS for w in words) and any(w in intents.CLOSER_MARKERS for w in words)
+
+
+# How long a "¿Algo más…?" waits for an answer: within this window a bare "no", "gracias" or 👍 closes.
+ASK_WINDOW = 15 * 60
+_ASKS = ("algo mas en lo que te pueda ayudar", "anything else i can help with")
+
+
+def asks_anything_else(msg_text: str) -> bool:
+    return intents.normalize(msg_text).endswith(_ASKS)
+
+
+def is_ask_answer(msg_text: str) -> bool:
+    """A bare thanks, ok, 👍 or no: how people answer "¿Algo más…?" (intents.py)."""
+    return intents.is_bare_ack(msg_text) or intents.is_negative(msg_text)
+
+
+def kind_of(msg_text: str, is_new: bool = False) -> str:
+    """How a user message reads, for the idle rule and the close metrics: "closer" (a goodbye),
+    "ack" (a bare thanks, ok or no) or "other". A first message is never a composite closer."""
+    if is_close_request(msg_text) or is_done_intent(msg_text) or (not is_new and is_composite_closer(msg_text)):
+        return "closer"
+    if intents.is_bare_ack(msg_text) or intents.is_negative(msg_text):
+        return "ack"
+    return "other"
 
 
 def farewell_text(farewell: Optional[str], lang: Optional[str]) -> str:
@@ -266,6 +299,40 @@ def bump_offtopic(user_id: str) -> int:
     s["offtopic"] = s.get("offtopic", 0) + 1
     save(user_id)
     return s["offtopic"]
+
+
+def note_outbound(user_id: str, msg_text: str) -> None:
+    """Every message the user is sent. If it ends with "¿Algo más…?" remember when; any other
+    message clears that (the user's last bot message is not the question)."""
+    s = _sessions.get(user_id)
+    if s is None or s.get("state") != "open":
+        return
+    if asks_anything_else(msg_text):
+        s["asked_anything_else_at"] = now()
+    else:
+        s.pop("asked_anything_else_at", None)
+    save(user_id)
+
+
+def asked_recently(user_id: str) -> bool:
+    """We asked "¿Algo más…?" less than ASK_WINDOW ago (the flag is cleared by any other message)."""
+    at = (_sessions.get(user_id) or {}).get("asked_anything_else_at")
+    return bool(at and now() - at <= ASK_WINDOW)
+
+
+def asked_pending(user_id: str) -> bool:
+    """The flag is set, however long ago: used by the idle rule."""
+    return bool((_sessions.get(user_id) or {}).get("asked_anything_else_at"))
+
+
+def clear_asked(user_id: str) -> None:
+    s = _sessions.get(user_id)
+    if s and s.pop("asked_anything_else_at", None) is not None:
+        save(user_id)
+
+
+def last_user_kind(user_id: str) -> str:
+    return (_sessions.get(user_id) or {}).get("last_user_kind", "other")
 
 
 def mark_closed(user_id: str, by: str, reason: Optional[str] = None) -> Optional[dict[str, Any]]:
