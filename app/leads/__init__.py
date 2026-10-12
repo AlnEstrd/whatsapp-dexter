@@ -22,7 +22,7 @@ from typing import Any, Callable, Optional
 
 from .. import sessions, store
 from ..config import get_settings
-from . import core
+from . import consent, core
 
 logger = logging.getLogger("leads")
 
@@ -137,10 +137,16 @@ def buying_signal(uid: str, kind: str, note: str) -> None:
 
 
 def update_profile(uid: str, fields: dict) -> list[str]:
-    """Agent tool update_lead_profile."""
+    """Agent tool update_lead_profile. A volunteered email follows the same rules as the email ask."""
     def _do():
         lead = core.engage(uid, "profile", lang=_lang(uid), opened_at=_opened_at(uid))
-        changed = core.set_profile(lead["lead_id"], source="agent", **fields)
+        rest = dict(fields)
+        email = rest.pop("email", None)
+        if email and consent.email_enabled():
+            consent.capture(uid, str(email), via="agent")  # refused for declined / opted-out leads
+        elif email:
+            rest["email"] = email  # EMAIL_CAPTURE_ENABLED=false: stored as before
+        changed = core.set_profile(lead["lead_id"], source="agent", **rest)
         core.recompute(lead["lead_id"])
         return changed
     return safe("profile", _do, default=[]) or []

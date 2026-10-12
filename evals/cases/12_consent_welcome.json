@@ -1,0 +1,94 @@
+[
+  {
+    "id": "consent-first-info-request-gets-welcome-and-menu",
+    "lang": "es",
+    "env": {"LEADS_ENABLED": "true", "CONSENT_WELCOME_ENABLED": "true", "EMAIL_CAPTURE_ENABLED": "false"},
+    "message": "Hola, quisiera más información",
+    "expect": {
+      "route": "menu",
+      "must_contain": ["Soy Dexter", "Puedes explorar"],
+      "must_not_contain": ["Aviso 1 de"],
+      "language": "es",
+      "state": {"consent_tacit": true, "followup_pending": true}
+    }
+  },
+  {
+    "id": "consent-tap-perfecto-is-explicit-without-a-model",
+    "lang": "es",
+    "env": {"LEADS_ENABLED": "true", "CONSENT_WELCOME_ENABLED": "true", "EMAIL_CAPTURE_ENABLED": "false"},
+    "prior": ["hola"],
+    "message": "Perfecto",
+    "expect": {
+      "route": "consent",
+      "must_contain": ["Anotado"],
+      "language": "es",
+      "state": {"consent_explicit": true, "consent_declined": false, "followup_pending": true}
+    }
+  },
+  {
+    "id": "consent-tap-no-gracias-is-declined",
+    "lang": "es",
+    "env": {"LEADS_ENABLED": "true", "CONSENT_WELCOME_ENABLED": "true", "EMAIL_CAPTURE_ENABLED": "false"},
+    "prior": ["hola"],
+    "message": "No, gracias",
+    "expect": {
+      "route": "consent",
+      "must_contain": ["Entendido, no te escribiremos después"],
+      "language": "es",
+      "state": {"consent_declined": true, "consent_explicit": false, "followup_pending": false}
+    }
+  },
+  {
+    "id": "consent-baja-opts-out-in-the-bot",
+    "lang": "es",
+    "env": {"LEADS_ENABLED": "true", "CONSENT_WELCOME_ENABLED": "true", "EMAIL_CAPTURE_ENABLED": "false"},
+    "prior": ["hola"],
+    "message": "BAJA",
+    "expect": {
+      "route": "opt_out",
+      "must_contain": ["Listo, te di de baja"],
+      "language": "es",
+      "state": {"opted_out": true, "followup_pending": false}
+    }
+  },
+  {
+    "id": "consent-stop-opts-out-in-english",
+    "lang": "en",
+    "env": {"LEADS_ENABLED": "true", "CONSENT_WELCOME_ENABLED": "true", "EMAIL_CAPTURE_ENABLED": "false"},
+    "prior": ["Hi, what is this?"],
+    "message": "STOP",
+    "expect": {
+      "route": "opt_out",
+      "must_contain": ["unsubscribed", "We won't contact you again"],
+      "language": "en",
+      "state": {"opted_out": true}
+    }
+  },
+  {
+    "id": "email-after-the-quiz-report-is-captured",
+    "lang": "es",
+    "env": {"LEADS_ENABLED": "true", "CONSENT_WELCOME_ENABLED": "true", "EMAIL_CAPTURE_ENABLED": "true"},
+    "prior": ["hola", "diagnóstico", "3", "3", "3", "3", "3", "3", "3", "3", "3", "omitir", "omitir", "omitir"],
+    "message": "ana.lopez@ejemplo.com",
+    "expect": {
+      "route": "email",
+      "must_contain": ["Lo anoté"],
+      "must_not_contain": ["Menú", "menu"],
+      "language": "es",
+      "state": {"email_captured": true, "consent_explicit": true}
+    }
+  },
+  {
+    "id": "email-typed-after-the-farewell-is-captured-and-the-chat-stays-closed",
+    "lang": "es",
+    "env": {"LEADS_ENABLED": "true", "CONSENT_WELCOME_ENABLED": "true", "EMAIL_CAPTURE_ENABLED": "true"},
+    "prior": ["hola", "gracias, buen día"],
+    "message": "ana.lopez@ejemplo.com",
+    "expect": {
+      "route": "email",
+      "must_contain": ["Lo anoté"],
+      "language": "es",
+      "state": {"email_captured": true, "closed": true, "consent_explicit": true}
+    }
+  }
+]

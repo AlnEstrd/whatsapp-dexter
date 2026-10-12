@@ -55,6 +55,10 @@ BASE_ENV = {
     "LEAD_SCORING_JSON": "",
     "CONTACT_FORM_ENABLED": "true",
     "CONSENT_TEXT_VERSION": "",
+    # The consent welcome and email capture are off in the legacy suite (flag off = exactly as before);
+    # tests/test_consent_*.py and test_followups.py turn them on.
+    "CONSENT_WELCOME_ENABLED": "false",
+    "EMAIL_CAPTURE_ENABLED": "false",
 }
 
 

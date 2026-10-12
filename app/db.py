@@ -193,6 +193,24 @@ MIGRATIONS: list[list[str]] = [
             token_hash TEXT PRIMARY KEY, csrf TEXT NOT NULL,
             created_at REAL NOT NULL, expires_at REAL NOT NULL)""",
     ],
+    # 5 - consent welcome and email capture (app/flows/welcome.py, app/leads/consent.py), and the
+    #     follow-up list ("Pendientes de seguimiento", app/leads/followups.py). Existing rows are
+    #     backfilled from the three-moment consent flags: only real answers (yes, no, BAJA) carry over.
+    [
+        "ALTER TABLE leads ADD COLUMN consent_type TEXT",   # explicit | tacit_notice | declined | opted_out
+        "ALTER TABLE leads ADD COLUMN email_consent_ts REAL",
+        "ALTER TABLE leads ADD COLUMN email_text_version TEXT",
+        "ALTER TABLE leads ADD COLUMN followup_status TEXT",  # pending | contacted | not_needed
+        "ALTER TABLE leads ADD COLUMN contacted_at REAL",
+        "ALTER TABLE leads ADD COLUMN contacted_channel TEXT",  # personal_whatsapp | call | email | other
+        "ALTER TABLE leads ADD COLUMN followup_note TEXT",
+        "UPDATE leads SET consent_type = 'opted_out' WHERE opted_out_at IS NOT NULL",
+        "UPDATE leads SET consent_type = 'explicit' WHERE consent_type IS NULL AND consent_followup = 1",
+        "UPDATE leads SET consent_type = 'declined' WHERE consent_type IS NULL AND consent_declined_at IS NOT NULL",
+        "UPDATE leads SET followup_status = 'not_needed' WHERE consent_type IN ('declined', 'opted_out')",
+        "UPDATE leads SET followup_status = 'pending' WHERE consent_type = 'explicit'",
+        "CREATE INDEX leads_followup ON leads(followup_status, first_seen)",
+    ],
 ]
 
 _lock = threading.RLock()

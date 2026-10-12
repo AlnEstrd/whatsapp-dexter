@@ -651,6 +651,93 @@ curl -s "$URL/admin/usage" -H "X-Admin-Token: $ADMIN_TOKEN"
 #  "top_users": [{"user": "****5678", "tokens": 41210, ...}, ...]}   (numbers masked)
 ```
 
+## Consent & follow-up
+
+Nothing during the session needs consent: an attendee opens the chat themselves, and the 24 h
+customer-service window opens with their first message. Consent covers only contact **after** the
+session: one personal follow-up from Alan, and email for resources and future talks. The goal is that nobody
+who engaged is left without a follow-up, unless they said no.
+
+**The consent welcome** (`app/flows/welcome.py`, one place for the copy). The first message of every new lead
+gets it, with the buttons `Perfecto` / `No, gracias` (EN: `Sounds good` / `No, thanks`). EN when the first
+message is English (the existing `menu.detect_lang`), ES otherwise. The first name is used only when the
+WhatsApp profile name looks like one (letters and spaces, at most 20 characters); otherwise the greeting is
+`¡Hola!` / `Hi!`. The copy is verbatim; the one change is a paragraph break before "Alan podría…" where the
+source joined two paragraphs. **`CONSENT_TEXT_VERSION` = `2026-10-11`**: a lead whose stored copy version
+differs gets the welcome again, once per conversation. To change the wording, edit the copy and bump the
+version.
+
+What the first message gets:
+
+| First message | Bundle |
+|---|---|
+| a greeting or info request ("hola", "quisiera más información") | consent welcome + menu list (no model call) |
+| a real question | consent welcome + the answer; the menu follows the next reply, or a tap |
+| off-topic (guard) | consent welcome + menu; no warning, the warning count stays at 0 |
+
+Button taps are read deterministically (zero model calls, never seen by the guard or the agent). A tap records
+the choice on the welcome it came from, even a late one. On **Twilio** there are no buttons: `1` / `2` or the
+label answer the welcome, but only on the message right after it. Each inbound message still produces one
+routed reply bundle. The menu list goes out once per conversation.
+
+**Consent types** (`leads.consent_type`):
+
+| Type | Set when | Alan may |
+|---|---|---|
+| `tacit_notice` | the welcome is shown and the person does not object (typing instead of tapping keeps it) | write once, personally: on the pending list |
+| `explicit` | `Perfecto`, or an email given (or the web / WhatsApp contact form) | write once personally **and** repeated contact and templates (`contactable`) |
+| `declined` | `No, gracias` | nothing: no follow-up, no email ask |
+| `opted_out` | `BAJA` / `STOP` | nothing, ever; the suppression record is kept |
+| *(null)* | never shown the welcome (flag off) | nothing |
+
+**Opt-out** (zero tokens, before the guard, in the bot, the quiz and human mode, on the whole message): `baja`,
+`darme de baja`, `no me escriban`, `no me contacten`, `dar de baja` (ES); `stop`, `unsubscribe` (EN). Effect:
+`opted_out`, one confirmation (`Listo, te di de baja. No te volveremos a escribir.`), a silent Slack thread note,
+and in human mode a warning to Alan in the thread. The user can keep chatting; the bot still answers. A later
+tap on an old button never lifts it.
+
+**Email capture** (`EMAIL_CAPTURE_ENABLED`). Asked once per conversation, never during the quiz questions, never
+in human mode, never after a "no" or an opt-out, never when an address is stored. Two places: after the quiz
+report (`¿Te lo mando también por correo…? Escribe tu correo u *Omitir*.`), and as one extra line in the farewell
+of a user-initiated close (`Antes de irte: ¿me dejas tu correo…? (u *Omitir*)`). An address typed right after
+the farewell is still captured for 15 minutes, without reopening the chat or the menu. Parsing is deterministic
+(one valid address in the message); an invalid one gets one retry, then the ask is dropped. `Omitir` / `skip` /
+`no` skip. A valid address stores `email`, `email_consent_ts`, `email_text_version` and upgrades the lead to
+`explicit`; Slack gets a silent `📧 Email captured`. **Dexter never sends email**: Alan writes from his own
+mailbox. The address is never written to logs or events; events record `email_captured=true` only. The agent's
+`update_lead_profile` stores a volunteered address the same way.
+
+**Pendientes de seguimiento** (the top of `/dashboard`): every lead with `followup_status = pending`, which is
+`explicit` or `tacit_notice` and not contacted, opted out or declined; oldest first. Each card shows the name or
+WhatsApp name, the language, first and last seen, the quiz level and topics when there are any, the email and the
+consent type. Actions: **Escribir por WhatsApp** (a `wa.me` link with a short draft in the lead's language, which
+Alan edits and sends himself), **Correo** (a `mailto:` when there is an address), **Plantilla Dexter** (explicit
+leads only, the Meta template outside the 24 h window), and **Marcar contactado** (channel: WhatsApp, call, email
+or other, plus an optional note). Marking contacted sets `followup_status = contacted`, the channel, the time and
+the stage. The Slack digest (`METRICS_DIGEST_HOUR`) adds `Pendientes de seguimiento: N (más antiguo: X días)`, and
+nothing when N = 0. Leads who engaged before this version and never answered the three-moment ask are not on the
+list: nobody was told about the follow-up.
+
+**Retention.** Explicit and tacit leads are kept `LEAD_RETENTION_DAYS` (365) from `last_seen`. Declined leads and
+leads with no consent go with the conversation data after `RETENTION_DAYS`. An opt-out keeps only its
+`user_id` and `opted_out_at` as a suppression record (`lead_suppressions`).
+
+**Metrics** (`GET /admin/metrics`, the MCP `get_overview`, `leads.consent`): `consent_shown`, `consent_choice`
+(`explicit` / `declined` / `tacit_notice`), `email_ask` (`where`: `report` / `farewell`), `email_captured`, `opt_out`
+and `followup_marked`. The overview gives the choice mix, the email capture rate (captured ÷ asks), the opt-outs and
+the pending count.
+
+**Config** (`.env.example`):
+
+| Variable | Default | |
+|---|---|---|
+| `CONSENT_WELCOME_ENABLED` | `true` | `false` = the legacy behaviour exactly: plain welcome, the three-moment ask, no consent fields written |
+| `EMAIL_CAPTURE_ENABLED` | `true` | `false` = no email asks |
+| `LEAD_RETENTION_DAYS` | `365` | explicit and tacit leads |
+
+Both features need `LEADS_ENABLED` and a database, and the welcome needs `FLOWS_ENABLED`. The privacy notice
+paragraph for `alanestrada.space/privacy` is in `deploy/leads/privacy-paragraph-draft.md` (draft, for legal review).
+
 ## Metrics & governance
 
 Alan governs Dexter by **asking Claude in chat** instead of reading a dashboard: an event log,

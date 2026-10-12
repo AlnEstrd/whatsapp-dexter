@@ -24,7 +24,7 @@ from .. import db, slack_bridge, store
 from ..config import get_settings
 from ..escalation import notify_slack
 from ..flows import quiz
-from . import core, flows, scoring
+from . import consent, core, flows, followups, scoring
 
 logger = logging.getLogger("leads.alerts")
 
@@ -273,16 +273,23 @@ def digest_text(since: float) -> Optional[str]:
     sla = get_settings().lead_sla_hours * 3600
     overdue = db.query("""SELECT COUNT(*) FROM leads WHERE contactable = 1 AND tier = 'hot' AND stage = 'sql'
                           AND hot_alerted_at IS NOT NULL AND hot_alerted_at < ?""", (core.now() - sla,))[0][0]
-    if not (sum(by_tier.values()) or asked or yes or opt or moves or overdue):
+    pending = followups.digest_line()  # None when nothing is pending: the line is skipped
+    if not (sum(by_tier.values()) or asked or yes or opt or moves or overdue or pending):
         return None
+    if consent.enabled():
+        consent_line = consent.digest_line(since)
+    else:
+        consent_line = f"Consentimiento: {yes} sí · {asked} preguntas" + (f" ({min(1, yes / asked):.0%})" if asked else "")
     lines = ["📈 *Leads, últimas 24 h*",
              f"Nuevos: {sum(by_tier.values())} (🔥 {by_tier.get('hot', 0)} · 🌤 {by_tier.get('warm', 0)} · "
              f"❄️ {by_tier.get('cold', 0)})",
-             f"Consentimiento: {yes} sí · {asked} preguntas" + (f" ({min(1, yes / asked):.0%})" if asked else ""),
+             consent_line or "Consentimiento: sin nuevos",
              f"Hot sin contactar > {get_settings().lead_sla_hours:g} h: {overdue}",
              f"Bajas: {opt}"]
     if moves:
         lines.append("Movimientos: " + ", ".join(f"{m.get('from')}→{m.get('to')}" for m in moves[:10]))
+    if pending:
+        lines.append(pending)
     return "\n".join(lines)
 
 

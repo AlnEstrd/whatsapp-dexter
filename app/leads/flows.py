@@ -182,6 +182,7 @@ class FlowResult:
     ask_consent: Optional[str] = None     # moment, when the flow ends and consent may be asked
     contact: Optional[dict] = None        # confirmed contact request
     handoff: bool = False                 # "Hablar con Alan ahora"
+    ask_email: bool = False               # the report is delivered: ask for an email (consent.email_due)
 
 
 def current(uid: str) -> Optional[dict]:
@@ -313,7 +314,7 @@ def _profile_next(uid: str, f: dict) -> FlowResult:
             return FlowResult([Outgoing(text=TEXT["name_q"][lang], options=[Option(f"profile:name:{opt[0]}", opt[1])],
                                         buttons=True)])
     clear(uid)
-    return FlowResult(ask_consent="quiz")
+    return FlowResult(ask_consent="quiz", ask_email=True)  # ask_consent: legacy mode only (main.py)
 
 
 def start_profile(uid: str, lang: str) -> FlowResult:
