@@ -1,51 +1,16 @@
-"""Turn model-flavoured Markdown into WhatsApp formatting.
+"""Reply shaping for the text the bot sends: the greeting strip and the length backstop.
 
-WhatsApp uses *bold* (one asterisk), _italic_, ~strike~ and ``` for code. A model
-that writes **bold** leaves visible asterisks, so every agent reply goes through
-``to_whatsapp`` right before it is sent. The function is idempotent and leaves
-already-correct WhatsApp text (and ``` code blocks) untouched.
+WhatsApp formatting (Markdown -> WhatsApp, tables, the 4,096-character limit) lives in
+``app/format_whatsapp.py``; ``to_whatsapp`` here is kept for callers that want the text only.
 """
 from __future__ import annotations
 
+import logging
 import re
 
-_HR = re.compile(r"^[ \t]*([-*_])(?:[ \t]*\1){2,}[ \t]*$", re.M)
-_HEADING = re.compile(r"^[ \t]*#{1,6}[ \t]+(.+?)[ \t]*#*[ \t]*$", re.M)
-_BOLD_ITALIC = re.compile(r"\*{3}(?=\S)([^\n]+?)(?<=\S)\*{3}")
-_BOLD = re.compile(r"\*\*(?=\S)([^\n]+?)(?<=\S)\*\*")
-_BOLD_UNDER = re.compile(r"__(?=\S)([^\n]+?)(?<=\S)__")
-_STRIKE = re.compile(r"~~(?=\S)([^\n]+?)(?<=\S)~~")
-_BULLET = re.compile(r"^[ \t]*[-*+][ \t]+", re.M)
-_LINK = re.compile(r"\[([^\]\n]+)\]\((https?://[^)\s]+)\)")
-_STRAY = re.compile(r"\*{2,}")
-_BLANKS = re.compile(r"\n{3,}")
+from . import format_whatsapp
 
-
-def _heading(m: re.Match) -> str:
-    title = m.group(1).strip("* ").strip()
-    return f"*{title}*" if title else ""
-
-
-def _convert(text: str) -> str:
-    text = _HR.sub("", text)
-    text = _HEADING.sub(_heading, text)
-    text = _BOLD_ITALIC.sub(r"*\1*", text)
-    text = _BOLD.sub(r"*\1*", text)
-    text = _BOLD_UNDER.sub(r"*\1*", text)
-    text = _STRIKE.sub(r"~\1~", text)
-    text = _BULLET.sub("• ", text)
-    text = _LINK.sub(lambda m: m.group(2) if m.group(1).strip() == m.group(2) else f"{m.group(1)}: {m.group(2)}", text)
-    return _STRAY.sub("", text)
-
-
-def to_whatsapp(text: str) -> str:
-    if not text:
-        return text or ""
-    parts = text.split("```")
-    # even indexes are outside code fences; odd ones are code and stay as written
-    parts = [_convert(p) if i % 2 == 0 else p for i, p in enumerate(parts)]
-    return _BLANKS.sub("\n\n", "```".join(parts)).strip()
-
+logger = logging.getLogger("formatting")
 
 # "¡Hola!", "Hola, Ana.", "Hi there!" ... at the very start of a reply. The greeting needs
 # trailing punctuation so a sentence that merely starts with the word is left alone.
@@ -67,19 +32,56 @@ def strip_greeting(text: str) -> str:
     return rest[0].upper() + rest[1:]
 
 
-# Where a trimmed reply may stop: after a blank line (a paragraph), or after a sentence or line.
+def to_whatsapp(text: str) -> str:
+    """The WhatsApp text only (see format_whatsapp.sanitize for the counters)."""
+    return format_whatsapp.sanitize(text)[0]
+
+
+# Where a reply may be cut: after a blank line (a paragraph), or after a sentence or a line.
 _PARAGRAPH_END = re.compile(r"(?<=\S)(?=\s*\n\s*\n)")
-_SENTENCE_END = re.compile(r"(?<=[.!?…])(?=\s|$)|(?<=\S)(?=\n)")
+_SENTENCE = re.compile(r"(?<=[.!?…])(?=\s|$)|(?<=\S)(?=\n)")
 
 
-def _last_fit(text: str, cap: int, boundary: re.Pattern) -> int:
-    """Offset of the last boundary whose text before it has at most ``cap`` words (0 if none)."""
+def _last_fit(text: str, cap: int, offsets: list[int]) -> int:
+    """The last cut offset whose text before it has at most ``cap`` words (0 if none)."""
     cut = 0
-    for m in boundary.finditer(text):
-        if len(text[: m.start()].split()) > cap:
+    for off in offsets:
+        if len(text[:off].split()) > cap:
             break
-        cut = m.start()
+        cut = off
     return cut
+
+
+def _block_cuts(text: str) -> tuple[list[int], list[int]]:
+    """Where a reply may be cut, block-aware: after any block (never after a header, which stays with
+    its paragraph), and inside a prose block after a sentence (never inside a list or code block)."""
+    blocks = format_whatsapp.blocks(text)
+    # The end of the text is not a cut point (nothing is cut): only the ends of blocks that are followed by another.
+    paragraphs = sorted(b.end for b in blocks[:-1] if b.kind != "header")
+    sentences: list[int] = []
+    for b in blocks:
+        if b.kind != "prose":
+            continue
+        first_nl = text.find("\n", b.start, b.end)
+        header_first = first_nl != -1 and format_whatsapp.is_header(text[b.start:first_nl])
+        for m in _SENTENCE.finditer(text, b.start, b.end):
+            if header_first and m.start() <= first_nl:
+                continue  # the header line stays with the paragraph under it
+            sentences.append(m.start())
+    return paragraphs, sorted(sentences)
+
+
+def _cut_at(text: str, cap: int) -> int:
+    """The cut for cap_words: block-aware with the sanitizer on (a list or code block is never cut inside);
+    the paragraph and sentence cut from before otherwise, or when the block-aware cut fails."""
+    if format_whatsapp.enabled():
+        try:
+            paragraphs, sentences = _block_cuts(text)
+            return _last_fit(text, cap, paragraphs) or _last_fit(text, cap, sentences)
+        except Exception:  # noqa: BLE001  (a formatting bug must never block a reply)
+            logger.exception("block-aware trim failed; cutting by paragraph and sentence")
+    return _last_fit(text, cap, [m.start() for m in _PARAGRAPH_END.finditer(text)]) or \
+        _last_fit(text, cap, [m.start() for m in _SENTENCE.finditer(text)])
 
 
 def cap_words(text: str, cap: int, offer: str, truncated: bool = False) -> tuple[str, bool]:
@@ -89,11 +91,12 @@ def cap_words(text: str, cap: int, offer: str, truncated: bool = False) -> tuple
 
     Only the final text is capped; a tool's input (a PDF's content) never is. ``truncated`` means
     the model hit max_tokens, so its last sentence is incomplete and is dropped with the rest.
-    Text under the cap is returned as written, and nothing is ever cut mid-sentence."""
+    Text under the cap is returned as written, and nothing is ever cut mid-sentence. With the
+    sanitizer on, a list or code block is never cut inside (its paragraph is the smallest unit)."""
     text = (text or "").strip()
     if not truncated and len(text.split()) <= cap:
         return text, False
-    cut = _last_fit(text, cap, _PARAGRAPH_END) or _last_fit(text, cap, _SENTENCE_END)
-    if not cut:  # not even one whole sentence fits
+    cut = _cut_at(text, cap)
+    if not cut:  # not even one whole block or sentence fits
         return ("", True) if truncated else (text, False)
     return f"{text[:cut].rstrip()}\n\n{offer}", True

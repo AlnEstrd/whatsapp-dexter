@@ -125,7 +125,12 @@
         "Alan"
       ],
       "language": "es",
-      "max_words": 150
+      "max_words": 150,
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   },
   {
@@ -150,7 +155,10 @@
       "must_not_contain": [
         "UDLAP",
         "Universidad",
-        "35 personas"
+        "35 personas",
+        "|---",
+        "**",
+        "## "
       ],
       "language": "es",
       "max_words": 150

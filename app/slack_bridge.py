@@ -357,7 +357,7 @@ async def send_human_reply(user_id: str, text: str, slack_ts: str) -> None:
     body = unescape(text)
     try:
         await with_retry(
-            lambda: channel.send_text(t["reply_to"], body),
+            lambda: channel.send_text(t["reply_to"], body, sanitize=False),  # a human's reply: as typed
             attempts=3,
             is_retryable=lambda e: isinstance(e, SendError) and e.retryable,
             label=f"{channel.name}.send(human)",

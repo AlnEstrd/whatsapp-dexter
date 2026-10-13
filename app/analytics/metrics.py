@@ -421,7 +421,9 @@ def _round(v: Optional[float]) -> Optional[float]:
 
 def agent_turns(range_: Any = "7d") -> dict:
     """Tokens per agent turn (mean / p90; input includes cache reads and writes), reply length
-    (words of the text sent: mean / p90, and the share trimmed by REPLY_MAX_WORDS_HARD) and latency."""
+    (words of the text sent: mean / p90, and the share trimmed by REPLY_MAX_WORDS_HARD), latency, and
+    the model's format violations: the share of turns where the WhatsApp sanitizer fixed a table or
+    a header (``format_fix_rate``) and a table (``table_fix_rate``)."""
     r = _rng(range_)
     turns = _events(r, "agent_turn")
     inp = [t["data"].get("input_tokens", 0) for t in turns]
@@ -429,11 +431,14 @@ def agent_turns(range_: Any = "7d") -> dict:
     lat = [t["data"]["latency_ms"] for t in turns if t["data"].get("latency_ms") is not None]
     sized = [t["data"] for t in turns if t["data"].get("reply_words") is not None]  # not on older events
     words = [d["reply_words"] for d in sized]
+    fixed = [d["fmt_fixed"] for d in sized if isinstance(d.get("fmt_fixed"), dict)]  # not on older events
     return {**r.meta(), "agent_turns": len(turns),
             "input_tokens": {"mean": round(statistics.fmean(inp)) if inp else None, "p90": _pct(inp, 90)},
             "output_tokens": {"mean": round(statistics.fmean(out)) if out else None, "p90": _pct(out, 90)},
             "reply_words": {"mean": round(statistics.fmean(words)) if words else None, "p90": _pct(words, 90)},
             "trim_rate": _rate(sum(1 for d in sized if d.get("trimmed")), len(sized)),
+            "format_fix_rate": _rate(sum(1 for f in fixed if f.get("tables") or f.get("headers")), len(fixed)),
+            "table_fix_rate": _rate(sum(1 for f in fixed if f.get("tables")), len(fixed)),
             "latency_ms": {"p50": _pct(lat, 50), "p95": _pct(lat, 95)},
             "outcomes": dict(Counter(t["data"].get("outcome") or "?" for t in turns))}
 
@@ -560,6 +565,19 @@ def anomalies(range_: Any = "today") -> dict:
             found.append({"rule": "reply_length", "message": f"Respuestas de p90 {p90:.0f} palabras el {day} "
                           f"(> 1.5 × REPLY_MAX_WORDS={s.reply_max_words}) con {turns_by_day[day]} turnos",
                           "day": day, "reply_words_p90": p90, "agent_turns": turns_by_day[day]})
+
+    # 2c. The sanitizer had to turn a table into a list on over 10% of a day's turns (more than 20 turns):
+    # the model is ignoring the WhatsApp rule in the prompt.
+    tables_by_day: dict[str, list] = defaultdict(list)
+    for e in _events(r, "agent_turn"):
+        if isinstance(e["data"].get("fmt_fixed"), dict):
+            tables_by_day[_local(e["ts"]).date().isoformat()].append(bool(e["data"]["fmt_fixed"].get("tables")))
+    for day, flags in sorted(tables_by_day.items()):
+        rate = sum(flags) / len(flags)
+        if turns_by_day.get(day, 0) > 20 and rate > 0.10:
+            found.append({"rule": "format_drift", "message": f"Tablas corregidas en {rate:.0%} de los turnos el {day} "
+                          f"(> 10% con más de 20 turnos): el modelo no sigue la regla de formato de WhatsApp",
+                          "day": day, "table_fix_rate": round(rate, 4), "agent_turns": turns_by_day[day]})
 
     # 3. Guard calls ÷ agent turns under 0.5 while the guard is on (≥10 turns).
     n_turns = sum(turns_by_day.values())

@@ -30,8 +30,10 @@ A case (``evals/cases/*.json``, a list of objects):
     }
 
 Offline (default): the Anthropic API is mocked with respx, so the run checks routing, tool
-dispatch, state and the *deterministic* replies (text checks are skipped for model-written
-replies, i.e. route "agent"). Live: the real models answer and every expectation is checked.
+dispatch, state and the *deterministic* replies. Text checks are skipped for model-written replies,
+i.e. route "agent" without a scripted text step; a scripted agent text is deterministic, so its
+must_contain / must_not_contain are checked offline too. Live: the real models answer and every
+expectation is checked.
 """
 from __future__ import annotations
 
@@ -264,17 +266,19 @@ def _run(case: dict, make_client: Callable[..., Any], live: bool, api_key: str) 
     if exp.get("tool_not_called") and exp["tool_not_called"] in res.tools:
         res.reasons.append(f"tool {exp['tool_not_called']!r} should not be called")
 
-    model_written = res.route == "agent"
+    scripted_text = any("text" in step for step in case.get("mock", {}).get("agent", []))
+    model_written = res.route == "agent" and not scripted_text
     check_text = live or not model_written
     text = "\n".join(replies)
     low = text.lower()
-    if check_text:
+    if check_text or scripted_text:  # the scripted words are deterministic: their substrings are checked offline
         for s in exp.get("must_contain", []):
             if s.lower() not in low:
                 res.reasons.append(f"missing {s!r}")
         for s in exp.get("must_not_contain", []):
             if s.lower() in low:
                 res.reasons.append(f"contains forbidden {s!r}")
+    if live or res.route != "agent":  # language is detected from the words: only for the replies that are fixed
         words = re.sub(r"\[(image|document)\]", "", text)
         if exp.get("language") and words.strip():
             got = menu.detect_lang(words, None)

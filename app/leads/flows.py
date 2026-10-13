@@ -206,7 +206,7 @@ def clear(uid: str) -> None:
 
 
 def _options(lang: str, opts: dict, prefix: str) -> list[Option]:
-    return [Option(f"{prefix}:{k}", t[:24], d[:72]) for k, t, d in opts[lang]]
+    return [Option(f"{prefix}:{k}", t, d) for k, t, d in opts[lang]]  # fitted by the channel
 
 
 def _numbered(text: str, lang: str, opts: dict) -> str:

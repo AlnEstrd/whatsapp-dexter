@@ -80,7 +80,12 @@
         "closed": false
       },
       "language": "es",
-      "max_words": 150
+      "max_words": 150,
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   },
   {
@@ -96,7 +101,12 @@
       "state": {
         "closed": false
       },
-      "max_words": 150
+      "max_words": 150,
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   },
   {
@@ -109,7 +119,12 @@
         "closed": false
       },
       "language": "es",
-      "max_words": 150
+      "max_words": 150,
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   },
   {
@@ -136,7 +151,12 @@
       "state": {
         "closed": true
       },
-      "max_words": 150
+      "max_words": 150,
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   }
 ]

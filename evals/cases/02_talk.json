@@ -10,7 +10,9 @@
       ],
       "must_not_contain": [
         "**",
-        "#"
+        "#",
+        "|---",
+        "## "
       ],
       "language": "es",
       "max_words": 150
@@ -26,7 +28,12 @@
         "actividades"
       ],
       "language": "es",
-      "max_words": 150
+      "max_words": 150,
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   },
   {
@@ -39,7 +46,12 @@
         "activities"
       ],
       "language": "en",
-      "max_words": 150
+      "max_words": 150,
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   },
   {
@@ -52,7 +64,12 @@
         "BCG"
       ],
       "language": "en",
-      "max_words": 150
+      "max_words": 150,
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   },
   {
@@ -65,7 +82,12 @@
         "NASA"
       ],
       "language": "es",
-      "max_words": 150
+      "max_words": 150,
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   },
   {
@@ -75,7 +97,12 @@
     "expect": {
       "route": "agent",
       "language": "es",
-      "max_words": 150
+      "max_words": 150,
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   },
   {
@@ -85,7 +112,12 @@
     "expect": {
       "route": "agent",
       "language": "en",
-      "max_words": 150
+      "max_words": 150,
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   },
   {
@@ -98,7 +130,12 @@
     "expect": {
       "route": "agent",
       "language": "es",
-      "max_words": 150
+      "max_words": 150,
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   },
   {
@@ -138,7 +175,12 @@
         "file_sent": true
       },
       "language": "es",
-      "max_words": 150
+      "max_words": 150,
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   }
 ]

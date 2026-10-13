@@ -39,7 +39,12 @@
     "expect": {
       "route": "agent",
       "topic": "sobre_alan",
-      "max_words": 150
+      "max_words": 150,
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   },
   {
@@ -52,7 +57,12 @@
     "expect": {
       "route": "agent",
       "topic": "roles_ownership",
-      "max_words": 150
+      "max_words": 150,
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   },
   {
@@ -65,7 +75,12 @@
     "expect": {
       "route": "agent",
       "topic": "medicion_costo",
-      "max_words": 150
+      "max_words": 150,
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   },
   {
@@ -78,7 +93,12 @@
     "expect": {
       "route": "agent",
       "topic": "gobernanza_riesgo",
-      "max_words": 150
+      "max_words": 150,
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   },
   {
@@ -142,7 +162,12 @@
     "expect": {
       "route": "agent",
       "topic": "procesos",
-      "max_words": 150
+      "max_words": 150,
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   },
   {
@@ -155,7 +180,12 @@
     "expect": {
       "route": "agent",
       "topic": "otro",
-      "max_words": 150
+      "max_words": 150,
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   }
 ]

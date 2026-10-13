@@ -14,6 +14,7 @@ from urllib.parse import parse_qsl
 import httpx
 from fastapi import Request
 
+from .. import format_whatsapp
 from ..config import get_settings
 from .base import InboundMessage, ParsedWebhook, normalize_user_id
 from .errors import SendError
@@ -31,6 +32,7 @@ def compute_twilio_signature(auth_token: str, url: str, params: dict[str, str]) 
 
 class TwilioChannel:
     name = "twilio"
+    text_limit = 1600  # Twilio's body cap for a WhatsApp message
 
     def __init__(self) -> None:
         s = get_settings()
@@ -81,11 +83,14 @@ class TwilioChannel:
         )
         return ParsedWebhook(messages=[msg])
 
-    async def send_text(self, to: str, body: str) -> None:
+    async def send_text(self, to: str, body: str, *, sanitize: bool = True) -> None:
+        """Bot text is sanitized on the way out; a human's reply passes ``sanitize=False``."""
         if not to.startswith(WA_PREFIX):
             to = f"{WA_PREFIX}+{to.lstrip('+')}"
         from_ = self._from if self._from.startswith(WA_PREFIX) else f"{WA_PREFIX}{self._from}"
-        data = {"From": from_, "To": to, "Body": body[:1600]}  # Twilio body cap
+        if sanitize:
+            body = format_whatsapp.for_wire(body)
+        data = {"From": from_, "To": to, "Body": body[: self.text_limit]}
         try:
             async with httpx.AsyncClient(timeout=20) as client:
                 resp = await client.post(

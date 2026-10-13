@@ -70,7 +70,12 @@
         "EPAM"
       ],
       "language": "es",
-      "max_words": 150
+      "max_words": 150,
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   },
   {
@@ -128,7 +133,10 @@
       "route": "agent",
       "must_not_contain": [
         "se llama",
-        "su nombre es"
+        "su nombre es",
+        "|---",
+        "**",
+        "## "
       ],
       "language": "es",
       "max_words": 150
@@ -154,7 +162,10 @@
       "must_not_contain": [
         "his name is",
         "her name is",
-        "their name is"
+        "their name is",
+        "|---",
+        "**",
+        "## "
       ],
       "language": "en",
       "max_words": 150

@@ -14,7 +14,9 @@ from typing import Optional
 import httpx
 from fastapi import Request
 
+from .. import format_whatsapp
 from ..config import get_settings
+from ..format_whatsapp import fit
 from .base import InboundMessage, ParsedWebhook, ProviderEvent, normalize_user_id
 from .errors import MediaError, SendError
 
@@ -34,6 +36,7 @@ ACCOUNT_FIELDS = {
 
 class MetaChannel:
     name = "meta"
+    text_limit = format_whatsapp.META_LIMIT  # a text message body (the splitter keeps each part under it)
 
     def __init__(self) -> None:
         s = get_settings()
@@ -55,22 +58,28 @@ class MetaChannel:
         payload = json.loads(raw_body or b"{}")
         return parse_meta_payload(payload)
 
-    async def send_text(self, to: str, body: str) -> None:
+    async def send_text(self, to: str, body: str, *, sanitize: bool = True) -> None:
+        """A text message. Bot text is sanitized (app/format_whatsapp.py) on the way out; a human's
+        reply (Slack, /admin/reply) passes ``sanitize=False`` and goes out exactly as typed."""
         to = normalize_user_id(to)  # Cloud API wants 52XXXXXXXXXX, not 521...
+        if sanitize:
+            body = format_whatsapp.for_wire(body)
         payload = {
             "messaging_product": "whatsapp",
             "recipient_type": "individual",
             "to": to,
             "type": "text",
-            "text": {"preview_url": False, "body": body[:4096]},
+            "text": {"preview_url": False, "body": body[: self.text_limit]},
         }
         return _wamid(await self._post("/messages", payload))
 
     async def send_options(self, to: str, body: str, button: str, options: list) -> None:
-        """Interactive list message (up to 10 rows). ``options``: flows.types.Option."""
+        """Interactive list message (up to 10 rows). ``options``: flows.types.Option. Every string
+        is fitted to its Meta limit at a word boundary (an over-long one makes Meta reject the message)."""
         to = normalize_user_id(to)
-        rows = [{"id": o.id[:200], "title": o.title[:24], "description": o.description[:72]}
-                for o in options[:10]]
+        rows = [{"id": o.id[:200], "title": fit(o.title, format_whatsapp.LIST_ROW_TITLE),
+                 "description": fit(o.description, format_whatsapp.LIST_ROW_DESCRIPTION)}
+                for o in options[: format_whatsapp.LIST_MAX_ROWS]]
         payload = {
             "messaging_product": "whatsapp",
             "recipient_type": "individual",
@@ -78,8 +87,9 @@ class MetaChannel:
             "type": "interactive",
             "interactive": {
                 "type": "list",
-                "body": {"text": body[:1024]},
-                "action": {"button": button[:20], "sections": [{"title": "Opciones", "rows": rows}]},
+                "body": {"text": fit(format_whatsapp.for_wire(body), format_whatsapp.INTERACTIVE_BODY)},
+                "action": {"button": fit(button, format_whatsapp.LIST_BUTTON),
+                           "sections": [{"title": "Opciones", "rows": rows}]},
             },
         }
         return _wamid(await self._post("/messages", payload))
@@ -93,9 +103,10 @@ class MetaChannel:
             "type": "interactive",
             "interactive": {
                 "type": "button",
-                "body": {"text": body[:1024]},
-                "action": {"buttons": [{"type": "reply", "reply": {"id": i[:256], "title": t[:20]}}
-                                       for i, t in buttons[:3]]},
+                "body": {"text": fit(format_whatsapp.for_wire(body), format_whatsapp.INTERACTIVE_BODY)},
+                "action": {"buttons": [{"type": "reply", "reply": {"id": i[:256],
+                                                                   "title": fit(t, format_whatsapp.REPLY_BUTTON)}}
+                                       for i, t in buttons[: format_whatsapp.REPLY_MAX_BUTTONS]]},
             },
         }
         return _wamid(await self._post("/messages", payload))

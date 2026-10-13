@@ -1,0 +1,155 @@
+[
+  {
+    "id": "wa-fmt-es-table-comparison",
+    "lang": "es",
+    "message": "¿Cómo se ve hoy el liderazgo en un rol concreto? Dame una tabla",
+    "mock": {
+      "agent": [
+        {
+          "text": "En compras, la IA ya hace parte del trabajo, pero el responsable sigue siendo una persona.\n\n| Actividad | Quién ejecuta | Quién responde |\n|---|---|---|\n| Analizar cotizaciones y comparar proveedores | IA asistida | Gerente de compras |\n| Generar órdenes de compra recurrentes | Agente (automático) | Gerente de compras |\n\n¿Quieres que te cuente cómo asignar esos responsables?"
+        }
+      ]
+    },
+    "expect": {
+      "route": "agent",
+      "must_contain": [
+        "Quién responde: Gerente de compras",
+        "*Analizar cotizaciones y comparar proveedores*"
+      ],
+      "must_not_contain": [
+        "|",
+        "---",
+        "**",
+        "## "
+      ],
+      "language": "es",
+      "max_words": 150
+    }
+  },
+  {
+    "id": "wa-fmt-en-table-comparison",
+    "lang": "en",
+    "message": "Give me a table comparing who does what in procurement",
+    "mock": {
+      "agent": [
+        {
+          "text": "Here is how the work splits in procurement:\n| Activity | Who runs it | Who answers for it |\n|---|---|---|\n| Compare supplier quotes | AI-assisted | Purchasing manager |\n| Recurring purchase orders | Agent (automatic) | Purchasing manager |"
+        }
+      ]
+    },
+    "expect": {
+      "route": "agent",
+      "must_contain": [
+        "Who answers for it: Purchasing manager",
+        "*Compare supplier quotes*"
+      ],
+      "must_not_contain": [
+        "|",
+        "---",
+        "**",
+        "## "
+      ],
+      "language": "en",
+      "max_words": 150
+    }
+  },
+  {
+    "id": "wa-fmt-es-headers",
+    "lang": "es",
+    "message": "Explícame los tres pasos de la regla 10-20-70",
+    "mock": {
+      "agent": [
+        {
+          "text": "## Los tres pasos\n\nPrimero, *70%* a personas y procesos.\n\n### Por qué importa\n\nLa herramienta casi nunca es el problema.\n\n¿Quieres ver cómo se aplica en un rol?"
+        }
+      ]
+    },
+    "expect": {
+      "route": "agent",
+      "must_contain": [
+        "*Los tres pasos*",
+        "*Por qué importa*"
+      ],
+      "must_not_contain": [
+        "## ",
+        "### ",
+        "|",
+        "**"
+      ],
+      "language": "es",
+      "max_words": 120
+    }
+  },
+  {
+    "id": "wa-fmt-es-links",
+    "lang": "es",
+    "message": "¿Dónde leo el reporte de BCG sobre IA?",
+    "mock": {
+      "agent": [
+        {
+          "text": "Lo tienes en [BCG](https://www.bcg.com/publications/2024/ai-value-gap). Ahí está la cifra de 3 de cada 4 empresas sin valor medido."
+        }
+      ]
+    },
+    "expect": {
+      "route": "agent",
+      "must_contain": [
+        "BCG: https://www.bcg.com/publications/2024/ai-value-gap"
+      ],
+      "must_not_contain": [
+        "](",
+        "[BCG]",
+        "**"
+      ],
+      "language": "es",
+      "max_words": 60
+    }
+  },
+  {
+    "id": "wa-fmt-es-double-asterisks",
+    "lang": "es",
+    "message": "¿Qué cambia con la IA en un puesto?",
+    "mock": {
+      "agent": [
+        {
+          "text": "**Las actividades** cambian, no las responsabilidades. Por eso hay que rediseñar roles y dejar claro quién responde por cada cosa que hace la IA."
+        }
+      ]
+    },
+    "expect": {
+      "route": "agent",
+      "must_contain": [
+        "*Las actividades* cambian"
+      ],
+      "must_not_contain": [
+        "**",
+        "## ",
+        "|"
+      ],
+      "language": "es",
+      "max_words": 100
+    }
+  },
+  {
+    "id": "wa-fmt-code-block-untouched",
+    "lang": "es",
+    "message": "Muéstrame el ejemplo de la matriz en un bloque",
+    "mock": {
+      "agent": [
+        {
+          "text": "Así se escribe la matriz:\n\n```\n| Rol | Responsable |\n|---|---|\n**no tocar**\n```\n\n¿La quieres en tu empresa?"
+        }
+      ]
+    },
+    "expect": {
+      "route": "agent",
+      "must_contain": [
+        "| Rol | Responsable |",
+        "**no tocar**",
+        "```"
+      ],
+      "language": "es",
+      "max_words": 80
+    }
+  }
+]
