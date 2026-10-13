@@ -38,7 +38,8 @@ from typing import Optional
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, Response
 from pydantic import BaseModel
 
-from . import attachments, db, docs, guard, leads, limits, on_request, sessions, slack_bridge, status, store, voice
+from . import (attachments, db, docs, format_whatsapp, guard, leads, limits, on_request, sessions, slack_bridge,
+               status, store, voice)
 from .agent import get_agent, pop_action, pop_documents, pop_gaps, pop_unlocked, turn_stats
 from .agent import tools_called as agent_tools_called
 from .analytics import digest, events, metrics, mcp_server, pricing, topics
@@ -55,7 +56,7 @@ from .config import get_settings
 from .escalation import HANDOFF_REPLY, alert_provider_event, escalate, notify_slack, wants_human
 from .flows import menu, quiz, welcome
 from .flows.types import Outgoing
-from .formatting import strip_greeting, to_whatsapp
+from .formatting import strip_greeting
 from .handoff import hand_off
 from .leads import consent as lead_consent
 from .leads import flows as lead_flows
@@ -227,7 +228,8 @@ async def _ingest(channel_name: str, request: Request, background_tasks: Backgro
 # Core flow (provider-agnostic)
 # --------------------------------------------------------------------------- #
 async def send_reply(channel: Channel, msg: InboundMessage, text: str) -> bool:
-    text = to_whatsapp(text)  # markdown -> WhatsApp (** -> *), before send, log and Slack mirror
+    # Markdown -> WhatsApp, before send, log and Slack mirror (the channel sanitizes again on the wire)
+    text = format_whatsapp.sanitize(text, store.get_lang(msg.user_id) or "es")[0]
     try:
         wamid = await with_retry(
             lambda: channel.send_text(msg.reply_to, text),
@@ -787,12 +789,8 @@ BUBBLE_PAUSE_PER_CHAR = 0.02  # seconds of "typing" per character of the next bu
 BUBBLE_PAUSE_MIN, BUBBLE_PAUSE_MAX = 0.8, 2.5
 
 
-def split_bubbles(text: str, max_bubbles: int = MAX_BUBBLES) -> list[str]:
-    """Split an agent reply into WhatsApp bubbles at blank lines (paragraphs).
-
-    Lists stay together (their lines are single-newline separated). Anything
-    beyond ``max_bubbles`` is folded into the last bubble.
-    """
+def _blank_line_bubbles(text: str, max_bubbles: int) -> list[str]:
+    """The split from before: at blank lines; anything beyond ``max_bubbles`` folds into the last bubble."""
     parts = [p.strip() for p in re.split(r"\n\s*\n", text or "") if p.strip()]
     if len(parts) <= 1:
         return [text.strip()] if text and text.strip() else []
@@ -801,9 +799,41 @@ def split_bubbles(text: str, max_bubbles: int = MAX_BUBBLES) -> list[str]:
     return parts[: max_bubbles - 1] + ["\n\n".join(parts[max_bubbles - 1:])]
 
 
+def split_bubbles(text: str, max_bubbles: int = MAX_BUBBLES, limit: int = format_whatsapp.META_LIMIT) -> list[str]:
+    """Split an agent reply into WhatsApp bubbles at blank lines (paragraphs).
+
+    Lists stay together (their lines are single-newline separated) and a code block is never split.
+    A bold header line goes in the same bubble as the paragraph under it. Anything beyond
+    ``max_bubbles`` is folded into the last bubble; a bubble over ``limit`` characters is split
+    between blocks (format_whatsapp.pack). With WA_FORMAT_SANITIZE=false, or if the block-aware split
+    fails (logged), the blank-line split from before.
+    """
+    if not format_whatsapp.enabled():
+        return _blank_line_bubbles(text, max_bubbles)
+    try:
+        return _block_bubbles(text, max_bubbles, limit)
+    except Exception:  # noqa: BLE001  (a formatting bug must never block a reply)
+        logger.exception("block-aware split failed; splitting on blank lines")
+        return _blank_line_bubbles(text, max_bubbles)
+
+
+def _block_bubbles(text: str, max_bubbles: int, limit: int) -> list[str]:
+    bubbles: list[str] = []
+    pending_header = False
+    for part in format_whatsapp.paragraphs(text or ""):
+        if bubbles and pending_header:
+            bubbles[-1] += "\n\n" + part
+        else:
+            bubbles.append(part)
+        pending_header = format_whatsapp.is_header(part)
+    if len(bubbles) > max_bubbles:
+        bubbles = bubbles[: max_bubbles - 1] + ["\n\n".join(bubbles[max_bubbles - 1:])]
+    return [piece for bubble in bubbles for piece in format_whatsapp.pack(bubble, limit)]
+
+
 async def send_bubbles(channel: Channel, msg: InboundMessage, text: str) -> bool:
     """Send a reply as 1-3 bubbles, with "typing..." and a short pause between them."""
-    bubbles = split_bubbles(text) or [text]
+    bubbles = split_bubbles(text, limit=getattr(channel, "text_limit", format_whatsapp.META_LIMIT)) or [text]
     send_typing = getattr(channel, "send_typing", None)
     for i, bubble in enumerate(bubbles):
         if i:
@@ -917,7 +947,8 @@ def _agent_turn(user_id: str, outcome: str, t0: float, topic: str, sample_id: Op
                   tools=list(agent_tools_called.get(user_id, [])), steps=stats.get("steps", 0),
                   latency_ms=int((time.monotonic() - t0) * 1000),
                   input_tokens=stats.get("input_tokens", 0), output_tokens=stats.get("output_tokens", 0),
-                  reply_words=stats.get("reply_words", 0), trimmed=bool(stats.get("trimmed", False)))
+                  reply_words=stats.get("reply_words", 0), trimmed=bool(stats.get("trimmed", False)),
+                  fmt_fixed=dict(stats.get("fmt_fixed") or {}))
     fields = {"last_sample_id": sample_id}
     if topic in topics.SUBSTANTIVE:
         fields["last_topic"] = topic
@@ -1190,7 +1221,7 @@ async def close_chat(user_id: str, reason: str, slack_cleanup: bool = True, *,
         return False
     lang = _lang_of(user_id)
     if reason == "user_intent":
-        closing = sessions.farewell_text(to_whatsapp(farewell or ""), lang)
+        closing = sessions.farewell_text(format_whatsapp.sanitize(farewell or "", lang)[0], lang)
     elif by == "bot" and reason != "idle":
         closing = sessions.text("close_system", lang)
     else:
@@ -1612,7 +1643,7 @@ def _resolve_channel(name: Optional[str]) -> Channel:
 async def admin_reply(body: ReplyIn, x_admin_token: Optional[str] = Header(None)) -> dict:
     _check_admin(x_admin_token)
     channel = _resolve_channel(body.channel)
-    await channel.send_text(body.to, body.text)
+    await channel.send_text(body.to, body.text, sanitize=False)  # a person typed it: sent as written
     user_id = normalize_user_id(body.to)
     store.log_turn(user_id, "human", body.text)
     await slack_bridge.mirror_human(user_id, "admin", body.text)

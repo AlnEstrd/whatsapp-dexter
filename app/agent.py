@@ -16,7 +16,7 @@ from typing import Any, Optional
 
 from anthropic import AsyncAnthropic
 
-from . import docs, formatting, knowledge, limits, on_request, store
+from . import docs, format_whatsapp, formatting, knowledge, limits, on_request, store
 from .analytics import events, topics
 from .config import get_settings
 from .docs.slides import resolve as slides_resolve
@@ -62,8 +62,9 @@ distinct beats, e.g. the answer, then the follow-up question. Keep lists inside 
   You: "La idea central es que la IA cambia las *actividades* de un puesto, no sus responsabilidades. Por eso, para que dé resultados, hay que rediseñar roles y dejar claro qué persona responde por cada cosa que hace la IA. ¿Te cuento por qué 3 de cada 4 empresas todavía no le ven valor?"
   User: "who was katherine johnson"
   You: "She was one of NASA's human \"computers\". In 1962 John Glenn asked her to check the IBM's orbit calculations by hand before his flight: \"If she says they're good, I'm ready to go.\" Alan uses her to show that the machine did the work, but a person still answered for it."
-- WhatsApp formatting: *bold* uses ONE asterisk (never ** or #), _italics_ with underscores, no tables, \
-no markdown links. Plain text only.
+- WhatsApp formatting only: *bold* uses ONE asterisk (never ** or #), _italics_ with underscores. Never a \
+table, a # header or a [link](url): write the bare URL. For a comparison, short bullets, each one \
+`*Label*: value`. Bad: "| Rol | Tarea |" or "## Tarea". Good: "*Gerente*: aprueba la compra".
 - Ground every factual claim in the documents below or in search_sources results. Keep figures \
 exactly as written and name the source briefly (e.g. "BCG, 2024"). If something isn't covered, \
 say so plainly; never invent data, quotes or sources. The IBM 1979 quote is "attributed to".
@@ -632,11 +633,14 @@ class Agent:
                     block.text for block in response.content if block.type == "text"
                 ).strip()
                 store.append_message(wa_id, "assistant", response.content)
+                # WhatsApp formatting first, so the length rule counts what is sent (a table is
+                # already a list here). Idempotent: main.send_reply and the channel sanitize again.
+                final_text, fmt_fixed = format_whatsapp.sanitize(final_text, store.get_lang(wa_id) or "es")
                 # Backstop for the length rule: the text sent is capped, the stored history is not.
                 final_text, trimmed = formatting.cap_words(
                     final_text, get_settings().reply_max_words_hard, OFFER.get(store.get_lang(wa_id), OFFER["es"]),
                     truncated=response.stop_reason == "max_tokens")
-                stats.update(reply_words=len(final_text.split()), trimmed=trimmed)
+                stats.update(reply_words=len(final_text.split()), trimmed=trimmed, fmt_fixed=fmt_fixed)
                 return final_text
 
             store.append_message(wa_id, "assistant", response.content)

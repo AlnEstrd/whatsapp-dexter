@@ -303,3 +303,47 @@ def test_admin_metrics_endpoint(fixture_db, make_client):
     r = c.get("/admin/metrics?range=yesterday", headers={"X-Admin-Token": "admin"})
     assert r.status_code == 200 and r.json()["conversations"] == 5
     assert c.get("/admin/metrics?range=nope", headers={"X-Admin-Token": "admin"}).status_code == 400
+
+
+# --------------------------------------------------------------------------- #
+# WhatsApp formatting: what the sanitizer fixed (agent_turn.fmt_fixed) and the model's violation rate
+# --------------------------------------------------------------------------- #
+def _fixed(tables=0, headers=0):
+    return {"tables": tables, "headers": headers, "links": 0, "bold": 0, "other": 0}
+
+
+@pytest.mark.parametrize("tables,fires", [(3, True), (2, False)])   # 3/21 > 10%, 2/21 is not
+def test_format_drift_fires_when_tables_are_fixed_on_over_10_percent_of_a_busy_day(clean, tables, fires):
+    for i in range(21):
+        ev(f"{D} 12:{i:02d}", "agent_turn", f"x{i}", outcome="answered",
+           fmt_fixed=_fixed(tables=1 if i < tables else 0))
+    found = [a for a in metrics.anomalies("yesterday")["anomalies"] if a["rule"] == "format_drift"]
+    assert bool(found) == fires
+    if fires:
+        assert found[0]["agent_turns"] == 21 and found[0]["table_fix_rate"] == round(3 / 21, 4)
+
+
+def test_format_drift_needs_more_than_20_turns(clean):
+    for i in range(20):
+        ev(f"{D} 12:{i:02d}", "agent_turn", f"x{i}", outcome="answered", fmt_fixed=_fixed(tables=1))
+    assert not [a for a in metrics.anomalies("yesterday")["anomalies"] if a["rule"] == "format_drift"]
+
+
+def test_agent_turns_reports_the_format_fix_rate_and_skips_older_events(clean):
+    for i in range(4):
+        ev(f"{D} 12:0{i}", "agent_turn", f"y{i}", outcome="answered", reply_words=50, trimmed=False,
+           fmt_fixed=_fixed(tables=1 if i == 0 else 0, headers=1 if i == 1 else 0))
+    ev(f"{D} 12:09", "agent_turn", "old", outcome="answered")          # before the counters: not counted
+    t = metrics.agent_turns("yesterday")
+    assert t["format_fix_rate"] == 0.5 and t["table_fix_rate"] == 0.25
+    assert metrics.overview("yesterday")["agent_turns"]["format_fix_rate"] == 0.5
+
+
+def test_the_digest_shows_the_format_fix_rate(clean):
+    from app.analytics import digest
+    ev(f"{D} 12:00", "conversation_start", "c1", "5213300000001", "start", source="organic", lang="es", channel="meta")
+    ev(f"{D} 12:00", "user_msg", "c1", "5213300000001", topic="otro", route="agent", lang="es", kind="text")
+    for i in range(4):
+        ev(f"{D} 12:0{i}", "agent_turn", f"y{i}", outcome="answered", reply_words=50, trimmed=False,
+           fmt_fixed=_fixed(tables=1 if i < 2 else 0))
+    assert "Formato: 50% de respuestas con tabla o título corregidos" in digest.build("yesterday")

@@ -89,7 +89,10 @@
     "expect": {
       "route": "agent",
       "must_not_contain": [
-        "Estrada AI Lab"
+        "Estrada AI Lab",
+        "|---",
+        "**",
+        "## "
       ]
     }
   },
@@ -140,7 +143,12 @@
       "route": "agent",
       "state": {
         "closed": false
-      }
+      },
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   },
   {
@@ -154,7 +162,12 @@
       "route": "agent",
       "state": {
         "closed": false
-      }
+      },
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   },
   {
@@ -225,7 +238,12 @@
       "state": {
         "closed": false
       },
-      "max_words": 150
+      "max_words": 150,
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   }
 ]

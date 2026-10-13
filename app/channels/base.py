@@ -68,8 +68,10 @@ class Channel(Protocol):
     async def parse_webhook(self, request: Request, raw_body: bytes) -> ParsedWebhook:
         """Turn a raw webhook into normalized messages/events."""
 
-    async def send_text(self, to: str, body: str) -> None:
-        """Send a text message. Raise on failure (retries happen above)."""
+    async def send_text(self, to: str, body: str, *, sanitize: bool = True) -> None:
+        """Send a text message. Raise on failure (retries happen above). ``sanitize`` runs the
+        WhatsApp formatting (app/format_whatsapp.py) on bot text; human replies pass False.
+        ``text_limit`` (class attribute) is the longest body the channel accepts."""
 
     async def mark_as_read(self, msg: InboundMessage) -> None:
         """Best-effort read receipt; no-op where unsupported."""

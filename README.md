@@ -391,6 +391,7 @@ app/
     meta.py            Meta Cloud API: signature check, parse (+ account events), send
     __init__.py        Registry: enabled channels, WA_PROVIDER default
   agent.py             Claude tool-use loop, tool definitions and implementations, EchoAgent (AGENT_MODE=echo)
+  format_whatsapp.py   WhatsApp formatting: Markdown -> WhatsApp, atomic blocks, splitter, Meta limits (fit)
   db.py                SQLite: connection, migrations, dedupe ids, flags, retention purge
   limits.py            Usage per user/day, rate + token caps, /admin/usage summary
   analytics/           Metrics & governance: events.py (event log, samples, llm_calls), topics.py,
@@ -588,6 +589,41 @@ Code enforces the limit too (`app/formatting.py`, `cap_words`), on the text sent
 - **Hard cap (`REPLY_MAX_WORDS_HARD`, 220 by default).** A longer reply is cut at the last complete paragraph under the cap (or at a sentence, if the first paragraph is already too long), and the standard offer line is appended: `¿Quieres que profundice en algún punto?` / `Want me to go deeper on any part?`. A reply the model cut off at `max_tokens` gets the same treatment, minus its incomplete sentence. Nothing is ever cut mid-sentence.
 - **Output budget.** `MAX_TOKENS = 2048` in `app/agent.py`, so a `create_topic_pdf` input (about 520 words) fits. The cap never touches a tool's input.
 - **Metrics.** Every `agent_turn` event carries `reply_words` and `trimmed`. The overview (`GET /admin/metrics`, the MCP `get_overview`) and the daily digest report the mean and p90 reply words and the trim rate. The `reply_length` anomaly flags a day with more than 20 agent turns whose p90 is over 1.5 × `REPLY_MAX_WORDS`.
+
+## WhatsApp formatting
+
+The model writes Markdown and WhatsApp shows it as typed, so a table came out as raw pipes. `app/format_whatsapp.py` is the one sanitizer for the text the bot writes. It runs on bot text three times, and every run is idempotent: in the agent, before the length rule counts and trims (so the cap measures what is sent); in `send_reply` (the transcript and the Slack mirror); and in the channel's `send_text` and interactive senders (the wire). **Human replies are never touched**: a reply typed in Slack or sent to `/admin/reply` goes out as written (`send_text(..., sanitize=False)`).
+
+| The model writes | WhatsApp gets | Notes |
+|---|---|---|
+| a table (a header row, a `\|---\|` row, rows) | 2 columns: `• *a*: b` per row. 3+ columns: a block per row, the first cell as `*title*`, then `• header: value` lines; blocks separated by a blank line | at most 8 rows, then `… y N más` / `… and N more`; `\|`, empty and ragged cells handled; a table never sits glued to the paragraph before it |
+| `# Title` … `###### Title` | `*Title*` on its own line | a trailing `:` or `#` is dropped |
+| `**x**`, `__x__`, `***x***` | `*x*` | |
+| `*x*`, `_x_` | unchanged | `*x*` is WhatsApp bold, `_x_` italic |
+| `~~x~~` | `~x~` | |
+| `[text](url)` | `text: url`, or just `url` when the text is the URL | bare URLs untouched |
+| `![alt](url)` | removed | |
+| `---`, `***` on their own line | removed | |
+| `<br>`, other HTML tags | a line break, or nothing | |
+| `- `, `* `, `+ ` bullets, nested or not | `• ` at one level | numbered lists are kept |
+| `> quote` | `> quote` | WhatsApp's quote |
+| `` `code` `` | ```` ```code``` ```` | |
+| a fenced block with a language | a plain ```` ``` ```` block | the contents are never touched |
+| an unpaired `*` or `_`, or a stray `**` | removed | `3 * 4` and `snake_case` stay |
+
+**Atomic blocks.** A reply is a run of blocks separated by blank lines: `code`, `list` (any bullet or numbered line, and a converted table), `header` (one bold line) or `prose`. The length trim (`REPLY_MAX_WORDS_HARD`) and the 4,096-character splitter only cut between blocks: never inside a list or a code block, never right after a header. A list that alone is over the cap goes out whole or not at all. Inside a prose block a cut comes after a sentence. A bold header line goes in the same bubble as the paragraph under it. A bubble over the channel's limit (Meta 4,096, Twilio 1,600) is split between blocks; a code block over the limit is split on its lines and re-fenced on each part.
+
+**Interactive limits.** The channel fits every string of a list or button message to Meta's limits at a word boundary, marked with `…`: list row title 24, row description 72, list button 20, body 1,024, 10 rows; reply button title 20, body 1,024, 3 buttons. Meta rejects a whole message when one string is over, so nothing is cut mid-word. `tests/test_static_strings.py` walks the static copy in ES and EN and fails if a string would be rewritten or a message would not fit.
+
+**Flag.** `WA_FORMAT_SANITIZE=true` (default). `false` sends the text exactly as before: the conversion from before, the blank-line bubble split, the old trim, no splitter.
+
+**Prompt.** The system prompt says the same in one bullet with a small good/bad example. The sanitizer is what guarantees the result; the prompt only makes it rarer.
+
+**Metrics.** Each `agent_turn` event carries `fmt_fixed` (the counts `tables`, `headers`, `links`, `bold`, `other`). The overview and the digest report `format_fix_rate` (the share of turns where a table or header was fixed); the `format_drift` anomaly fires when more than 10% of a day's turns (more than 20 turns) needed a table fixed.
+
+**How to add a rule.** Write the regex in `app/format_whatsapp.py` next to the others. Apply it in `_block` (a line rule) or `_inline_style` (inline), through `_sub(..., key)` so the counter counts real changes. Add a case to `test_markdown_becomes_whatsapp` in `tests/test_format_whatsapp.py`. The fuzz test must still pass: the converter runs to a fixed point, so a rule must not undo another. Offline agent cases with scripted text (`evals/cases/13_wa_formatting.json`) check the result end to end.
+
+---
 
 ## Persistence
 

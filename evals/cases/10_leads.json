@@ -166,7 +166,10 @@
       "tool_called": "flag_buying_signal",
       "must_not_contain": [
         "score",
-        "puntaje"
+        "puntaje",
+        "|---",
+        "**",
+        "## "
       ],
       "state": {
         "consent_asked": true
@@ -201,7 +204,10 @@
       "must_not_contain": [
         "$",
         "MXN",
-        "USD"
+        "USD",
+        "|---",
+        "**",
+        "## "
       ],
       "max_words": 150
     }

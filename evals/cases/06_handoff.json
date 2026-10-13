@@ -76,7 +76,12 @@
         "handoff": true
       },
       "language": "es",
-      "max_words": 150
+      "max_words": 150,
+      "must_not_contain": [
+        "|---",
+        "**",
+        "## "
+      ]
     }
   }
 ]

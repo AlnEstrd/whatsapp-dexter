@@ -86,6 +86,8 @@ def build(range_: str = "yesterday") -> str:
     if turns["reply_words"]["p90"] is not None:
         lines.append(f"• Respuestas: media {turns['reply_words']['mean']} palabras (p90 "
                      f"{turns['reply_words']['p90']}), {_pct(turns['trim_rate'])} recortadas")
+    if turns["format_fix_rate"] is not None:
+        lines.append(f"• Formato: {_pct(turns['format_fix_rate'])} de respuestas con tabla o título corregidos")
     lines.append(alert or "• Anomalías: ninguna")
     return "\n".join(lines)
 

@@ -350,7 +350,7 @@ def _question(st: QuizState) -> Outgoing:
     options = []
     for i, (title, desc) in enumerate(q["opts"][lang], start=1):
         lines.append(f"{i}. *{title}* — {desc}")
-        options.append(Option(id=f"quiz:{st.index}:{i}", title=title[:24], description=desc[:72]))
+        options.append(Option(id=f"quiz:{st.index}:{i}", title=title, description=desc))  # fitted by the channel
     return Outgoing(text="\n".join(lines), options=options, button=T["button"][lang])
 
 

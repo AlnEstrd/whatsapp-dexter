@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     # Reply length (app/agent.py prompt + app/formatting.py cap_words backstop).
     reply_max_words: int = 120        # the target written into the system prompt
     reply_max_words_hard: int = 220   # longer replies are trimmed at a paragraph or sentence
+    # WhatsApp formatting (app/format_whatsapp.py): tables, headers and Markdown leftovers become
+    # WhatsApp text, and the trim and the splitter never cut inside a list or code block.
+    # false = the conversion from before, sent exactly as it was.
+    wa_format_sanitize: bool = True
 
     # --- Conversation lifecycle (app/sessions.py) ----------------------------
     sessions_file: str = "data/sessions.json"  # survives restarts; "" = memory only
