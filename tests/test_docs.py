@@ -40,10 +40,17 @@ def meta_docs(route):
 # --------------------------------------------------------------------------- #
 def test_whole_deck_has_one_page_per_slide():
     d = docs.make_deck()
-    assert d.data.startswith(b"%PDF-") and pages(d.data) == len(slides.SLIDES) == 13
+    assert d.data.startswith(b"%PDF-") and pages(d.data) == len(slides.SLIDES) == 15  # 12 talk pages + annexes A, B, 90
     assert d.filename == "Gobernanza-de-IA-laminas.pdf"
     text = pdf_text(d.data)
-    assert "Rol = responsabilidades + actividades" in text and "Hoy, con la IA, los computers somos todos." in text
+    assert "los computers somos" in text and "Seis obstáculos" in text  # the talk's close, then annex A
+
+
+def test_talk_pages_are_the_presentation_as_exported():
+    source = PdfReader(str(slides.DECK_FILE)).pages
+    assert len(source) == len(slides.DECK) == 12
+    for n, page in enumerate(source, 1):
+        assert pdf_text(docs.make_deck(str(n)).data) == page.extract_text()
 
 
 @pytest.mark.parametrize("sid", [s["id"] for s in slides.SLIDES])
@@ -53,7 +60,7 @@ def test_every_slide_fits_on_one_page(sid):
 
 
 @pytest.mark.parametrize("raw,expected", [
-    ("lámina 8", "8"), ("Slide 3", "3"), ("anexo a", "A"), ("B", "B"), ("08", "8"),
+    ("lámina 8", "8"), ("Slide 3", "3"), ("lámina 12", "12"), ("anexo a", "A"), ("B", "B"), ("08", "8"),
     ("90 días", "90"), ("todas", None), ("all", None), ("", None), (None, None),
 ])
 def test_resolve_slide_references(raw, expected):
@@ -217,7 +224,7 @@ def test_menu_slides_sends_the_deck_then_an_index(make_client):
     c.post("/webhooks/meta", json=meta_payload("d1", reply_id="menu:slides", title="Láminas en PDF"))
     assert media.call_count == 1 and b"Gobernanza-de-IA-laminas.pdf" in media.calls.last.request.content
     sent = meta_docs(meta)
-    assert sent[0]["document"]["id"] == "M1" and "13 páginas" in sent[0]["document"]["caption"]
+    assert sent[0]["document"]["id"] == "M1" and "15 páginas" in sent[0]["document"]["caption"]
     assert "lámina 8" in meta_sends(meta)[-1]["text"]["body"]
 
 

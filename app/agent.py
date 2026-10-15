@@ -268,17 +268,18 @@ TOOL_DEFINITIONS = [
     {
         "name": "send_slides",
         "description": (
-            "Send the talk's slides as a PDF: the whole deck or one slide. Slides: 1 hook/computers, "
-            "2 230-year precedent, 3 thesis (role = responsibilities + activities), 4 the problem/figures, "
-            "5 the 70% / 10-20-70 rule, 6 leadership and self-leadership, 7 purchasing-manager example, "
-            "8 diagnostic/7 domains, 9 measurement/yield, 10 close/five steps, A change management (OCM), "
-            "B governance frameworks, 90 first 90 days. The deck is in Spanish. A single slide is sent "
-            "as an image (inline preview) unless the user wants a PDF; 'all' is always a PDF."
+            "Send the talk's slides as a PDF: the whole deck or one slide. Slides: 1 title, 2 Cape Canaveral "
+            "1962 (IBM and Katherine Johnson), 3 'the machine calculated, a person gave the face', 4 the 230-year "
+            "pattern, 5 thesis (role = responsibilities + activities), 6 the problem (74%), 7 where the value is "
+            "(10-20-70), 8 'who answers in your area?', 9 finance example, 10 Dorothy Vaughan and self-leadership, "
+            "11 three questions for Monday, 12 close. Annexes: A change management (OCM), B governance "
+            "frameworks, 90 first 90 days. The deck is in Spanish. A single slide is sent as an image (inline "
+            "preview) unless the user wants a PDF; 'all' is always a PDF."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "slide": {"type": "string", "description": "'all' or one of 1-10, A, B, 90"},
+                "slide": {"type": "string", "description": "'all' or one of 1-12, A, B, 90"},
                 "format": {"type": "string", "enum": ["image", "pdf"],
                            "description": "For a single slide; default image. Use pdf if they ask for a PDF or to print."},
             },

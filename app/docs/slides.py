@@ -1,17 +1,24 @@
-"""Slide PDFs: the whole deck or one slide, 16:9, built from the talk outline.
+"""Slide PDFs: the whole deck or one slide, 16:9.
 
-Content mirrors ``app/kb/core/platica.md`` (slide by slide). Spanish only: the
-talk is given in Spanish. When the talk changes, edit ``SLIDES`` here (and the
-KB file) so the bot's answers and the PDFs stay in sync.
+The talk's deck is the presentation itself: the 12 pages of
+``assets/gobernanza-quien-da-la-cara.pdf``, exported from the ``.pptx`` next to
+it. To update it, edit the .pptx, export it again to PDF::
 
-Rendering is drawn directly on the canvas, one page per slide, with a hard
-overflow check: a slide whose content does not fit raises ``ValueError`` at
-build time (a test builds every slide, so it can't ship broken).
+    soffice --headless --convert-to pdf --outdir app/docs/assets app/docs/assets/gobernanza-quien-da-la-cara.pptx
+
+and, if the page titles change, ``_DECK_SHORT`` (the names shown in the index).
+Annex pages (A, B, 90 days) are drawn here with reportlab, one page per slide,
+with a hard overflow check: a slide whose content does not fit raises
+``ValueError`` at build time (a test builds every slide, so it can't ship broken).
+
+Spanish only: the talk is given in Spanish.
 """
 from __future__ import annotations
 
 import io
 import re
+from itertools import groupby
+from pathlib import Path
 from typing import Optional
 
 from reportlab.lib import colors
@@ -49,148 +56,30 @@ P = {
     "chip": style("c", fontName="Helvetica-Bold", fontSize=15, leading=19, textColor=NAVY),
 }
 
-SLIDES: list[dict] = [
-    {
-        "id": "1", "label": "1 / 10", "short": "Gancho: ¿quién era una computer?",
-        "kicker": "LÁMINA 1 · GANCHO",
-        "title": "¿Quién era una “computer” en 1950?",
-        "subtitle": "La IA cambia actividades. La responsabilidad sigue siendo humana.",
-        "blocks": [("hero", "Una <i>computer</i> era una persona que hacía cálculos a mano, como las "
-                            "computadoras humanas de la NACA/NASA.")],
-        "sources": "Foto de computadoras humanas de la NACA/NASA.",
-    },
-    {
-        "id": "2", "label": "2 / 10", "short": "230 años de precedente",
-        "kicker": "LÁMINA 2 · PRECEDENTE",
-        "title": "230 años de precedente: la actividad pasó a la máquina; la responsabilidad subió de nivel",
-        "blocks": [("rows", [
-            ("1793", "<b>De Prony:</b> ~90 “computers” calculan tablas; matemáticos diseñan el método. "
-                     "Quien ejecuta no es quien responde."),
-            ("1946", "<b>ENIAC:</b> seis computers se convierten en las primeras programadoras. Nace un rol nuevo."),
-            ("1958", "<b>Dorothy Vaughan:</b> aprende FORTRAN y lleva a su equipo al nuevo rol. "
-                     "Autoliderazgo ante el cambio."),
-            ("1962", "<b>Katherine Johnson:</b> John Glenn pide que ella verifique a mano los cálculos de la "
-                     "IBM: “Si ella dice que están bien, estoy listo”."),
-        ], 70)],
-        "sources": "Fuentes: History of Information; ETHW; NASA; Space.com / M. L. Shetterly, Hidden Figures (2016).",
-    },
-    {
-        "id": "3", "label": "3 / 10", "short": "La tesis: rol = responsabilidades + actividades",
-        "kicker": "LÁMINA 3 · LA TESIS",
-        "title": "Rol = responsabilidades + actividades",
-        "blocks": [
-            ("bullets", ["La IA asiste o ejecuta <b>actividades</b>.",
-                         "El humano decide, <b>responde por el resultado</b> y conserva la autoridad para detener."]),
-            ("quote", "“Una computadora nunca puede ser responsable; por lo tanto, una computadora nunca "
-                      "debe tomar una decisión de gestión.”",
-             "Atribuida a un manual interno de IBM, 1979; cita muy difundida sin fuente primaria pública verificable."),
-        ],
-        "sources": "Base: NIST AI RMF (GOVERN 2.3, 3.2); EU AI Act, Art. 14 (supervisión humana).",
-    },
-    {
-        "id": "4", "label": "4 / 10", "short": "El problema: usar IA vs demostrar valor",
-        "kicker": "LÁMINA 4 · EL PROBLEMA",
-        "title": "Casi todos usan IA, muy pocos pueden demostrar su valor",
-        "subtitle": "90% usa IA (DORA 2025); el reto es demostrar su valor.",
-        "blocks": [("stats", [
-            ("74%", "de las empresas no obtiene valor tangible de la IA", "BCG, 2024 · 1,000 ejecutivos"),
-            ("95%", "de las organizaciones no ve retorno de sus pilotos de IA generativa", "MIT NANDA, 2025"),
-            ("3 de 4", "no pueden probarle al CFO los resultados de su gasto en IA", "Tokenomics Foundation, 2026"),
-        ])],
-        "sources": "Fuentes: BCG (2024); MIT NANDA (2025); Tokenomics Foundation (2026); DORA 2025.",
-    },
-    {
-        "id": "5", "label": "5 / 10", "short": "El 70% que no es tecnología (10-20-70)",
-        "kicker": "LÁMINA 5 · POR QUÉ PASA",
-        "title": "El valor está en el 70% que no es tecnología",
-        "subtitle": "Regla 10-20-70 de BCG",
-        "blocks": [
-            ("stack", [(10, "Algoritmos"), (20, "Tecnología y datos"), (70, "Personas y procesos")]),
-            ("quote", "“El valor de la IA no se obtendrá gracias a la tecnología en sí, sino redefiniendo el "
-                      "sistema de trabajo en el que se encuentra.”",
-             "DORA 2025 · La IA amplifica las fortalezas y también las disfunciones."),
-        ],
-        "sources": "Fuentes: BCG (regla 10-20-70); DORA 2025.",
-    },
-    {
-        "id": "6", "label": "6 / 10", "short": "Liderazgo y autoliderazgo",
-        "kicker": "LÁMINA 6 · LIDERAZGO Y AUTOLIDERAZGO",
-        "title": "La IA llega a “suficiente”; lo excelente sigue siendo humano",
-        "blocks": [
-            ("stats", [
-                ("~65%", "de las tareas de texto: resultado “mínimamente suficiente”, útil sin edición",
-                 "MIT FutureTech, 2026"),
-                ("< 50%", "de las tareas alcanzó calidad “superior”: nunca superó la mitad",
-                 "MIT FutureTech, 2026"),
-            ]),
-            ("formula", "Rendimiento = herramienta × liderazgo × autoliderazgo",
-             "Si un factor es cero, el resultado es cero."),
-        ],
-        "sources": "Fuente: MIT FutureTech, Crashing Waves vs. Rising Tides (2026).",
-    },
-    {
-        "id": "7", "label": "7 / 10", "short": "Ejemplo: gerente de compras",
-        "kicker": "LÁMINA 7 · EJEMPLO",
-        "title": "Gerente de compras: cambia quién ejecuta, no quién responde",
-        "blocks": [
-            ("table", ["Actividad", "Ejecuta", "Accountable", "Nivel"], [
-                ["Analizar cotizaciones y comparar proveedores", "IA asistida", "Gerente de compras", "L1"],
-                ["Generar órdenes de compra recurrentes", "Agente", "Gerente de compras", "L3"],
-                ["Detectar anomalías en facturas", "Agente + revisión", "Gerente de compras", "L2"],
-                ["Negociar contratos estratégicos", "Humano", "Gerente de compras", "L0"],
-                ["Definir política de proveedores", "Humano", "Director de operaciones", "L0"],
-            ], [0.42, 0.20, 0.28, 0.10]),
-            ("note", "La columna <b>Accountable</b> nunca contiene un agente. Niveles: L0 humano · L1 IA asistida · "
-                     "L2 agente con revisión · L3 agente. Ejemplo ilustrativo."),
-        ],
-    },
-    {
-        "id": "8", "label": "8 / 10", "short": "Diagnóstico: 7 dominios",
-        "kicker": "LÁMINA 8 · DIAGNÓSTICO",
-        "title": "¿Está lista la organización? Siete dominios",
-        "blocks": [
-            ("table", ["#", "Dominio", "Pregunta de diagnóstico"], [
-                ["1", "Estrategia y valor", "¿Qué resultados de negocio persigue la IA y cómo se miden?"],
-                ["2", "Gobernanza y riesgo", "¿Hay política de IA, apetito de riesgo y supervisión humana definidos?"],
-                ["3", "Liderazgo y patrocinio", "¿Un ejecutivo es dueño del programa y el liderazgo está alineado?"],
-                ["4", "Roles y ownership", "¿Cada actividad que pasa a IA tiene un responsable humano y un presupuesto?"],
-                ["5", "Personas y cultura", "¿Hay alfabetización en IA, champions y una cultura que acepte el cambio?"],
-                ["6", "Procesos y flujos de trabajo", "¿Se rediseñan los flujos de punta a punta o solo se agrega IA a lo existente?"],
-                ["7", "Datos y plataforma", "¿Los datos internos son confiables y accesibles, y hay una plataforma común?"],
-            ], [0.05, 0.27, 0.68]),
-            ("note", "Tres capas: Organización (estos 7 dominios) · Equipo (nivel L0–L3 por equipo) · Individual "
-                     "(fluidez y brecha de apalancamiento por persona). Sin patrocinio (3) y sin ownership (4), "
-                     "los otros dominios no generan valor."),
-        ],
-        "sources": "Construido a partir de DORA, NIST AI RMF, McKinsey, BCG y EU AI Act (Art. 4).",
-    },
-    {
-        "id": "9", "label": "9 / 10", "short": "Medición: uso no es valor (yield)",
-        "kicker": "LÁMINA 9 · MEDICIÓN",
-        "title": "Medir uso no es medir valor",
-        "blocks": [
-            ("pyramid", ["Resultado de negocio", "Desempeño de equipo", "Desempeño individual", "Adopción",
-                         "Engagement"]),
-            ("note", "La mayoría se queda en la base. El <b>yield</b> está arriba: costo total de IA por unidad "
-                     "de resultado."),
-        ],
-        "sources": "Fuentes: McKinsey (consultado oct 2026); Tokenomics Foundation (2026); METR vía DORA (2025).",
-    },
-    {
-        "id": "10", "label": "10 / 10", "short": "Cierre: cinco pasos",
-        "kicker": "LÁMINA 10 · CIERRE",
-        "title": "Cinco pasos, una constante: la responsabilidad humana",
-        "blocks": [
-            ("steps", [
-                ("1", "Dirección", "Gobernanza como visión; el liderazgo ejecutivo define resultados y riesgos aceptados (el ejecutivo firma)."),
-                ("2", "Descomposición", "Por rol, separar responsabilidades de actividades y elegir qué actividades van a IA."),
-                ("3", "Ownership", "Cada actividad delegada tiene un humano accountable, dueño también de su presupuesto de IA."),
-                ("4", "Personas", "Diagnóstico + gestión del cambio + liderazgo y autoliderazgo."),
-                ("5", "Yield", "Medir costo total de IA por unidad de resultado de negocio, no uso ni tokens."),
-            ]),
-            ("closing", "Hoy, con la IA, los computers somos todos."),
-        ],
-    },
+# The talk's deck: the 12 pages of the PDF rendered from the .pptx in assets/ (16:9).
+# "page" is the 0-based index in that PDF; "id" is the slide number the bot shows.
+DECK_FILE = Path(__file__).parent / "assets" / "gobernanza-quien-da-la-cara.pdf"
+_DECK_SHORT = [
+    "Portada: ¿quién da la cara?",
+    "1962: la IBM calculó; Katherine Johnson verificó",
+    "La máquina calculó; una persona dio la cara",
+    "Un patrón de 230 años",
+    "Rol = responsabilidades + actividades",
+    "El problema: 74% sin valor",
+    "Dónde está el valor: 10-20-70",
+    "¿Quién da la cara en tu área?",
+    "Ejemplo: finanzas",
+    "Autoliderazgo: Dorothy Vaughan",
+    "Tres preguntas para el lunes",
+    "Cierre: los computers somos todos",
+]
+DECK: list[dict] = [
+    {"id": str(n), "label": f"{n} / {len(_DECK_SHORT)}", "short": short, "page": n - 1}
+    for n, short in enumerate(_DECK_SHORT, 1)
+]
+
+# Annex pages are drawn here (blocks below). They are reference material after the talk.
+ANNEXES: list[dict] = [
     {
         "id": "A", "label": "Anexo A", "short": "Anexo A: gestión del cambio (OCM)",
         "kicker": "ANEXO A · GESTIÓN DEL CAMBIO",
@@ -230,6 +119,7 @@ SLIDES: list[dict] = [
         ])],
     },
 ]
+SLIDES: list[dict] = DECK + ANNEXES
 BY_ID = {s["id"]: s for s in SLIDES}
 
 _PREFIX = re.compile(r"^(l[aá]mina|lamina|slide|anexo|annex|plan)\s*", re.I)
@@ -264,8 +154,8 @@ def index_text(lang: str = "es") -> str:
 
 def caption(key: Optional[str], lang: str = "es") -> str:
     if key is None:
-        return ("📄 Láminas de la plática «Gobernanza de IA» (PDF, 13 páginas)." if lang == "es"
-                else "📄 Slides of the talk “AI Governance” (PDF, 13 pages, in Spanish).")
+        return (f"📄 Láminas de la plática «Gobernanza de IA» (PDF, {len(SLIDES)} páginas)." if lang == "es"
+                else f"📄 Slides of the talk “AI Governance” (PDF, {len(SLIDES)} pages, in Spanish).")
     s = BY_ID[key]
     head = (f"Lámina {s['id']}" if lang == "es" else f"Slide {s['id']}") if key.isdigit() else None
     text = f"{head} · {s['short']}" if head else s["short"]
@@ -564,16 +454,35 @@ def render_png(key: str, width_px: int = 1280) -> bytes:
     return out.getvalue()
 
 
-def build_slides_pdf(key: Optional[str] = None) -> bytes:
-    """PDF of the whole deck (key=None) or of one slide (id from ``resolve``)."""
-    slides = SLIDES if key is None else [BY_ID[key]]
+def _drawn_page(s: dict) -> bytes:
+    """One annex page as a one-page PDF (reportlab)."""
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=(W, H))
-    c.setTitle("Gobernanza de IA — láminas" if key is None else f"Gobernanza de IA — {BY_ID[key]['label']}")
-    c.setAuthor("Alan Estrada")
-    c.setSubject("Plática: Gobernanza de IA")
-    for s in slides:
-        _draw_slide(c, s)
-        c.showPage()
+    _draw_slide(c, s)
+    c.showPage()
     c.save()
+    return buf.getvalue()
+
+
+def build_slides_pdf(key: Optional[str] = None) -> bytes:
+    """PDF of the whole deck (key=None) or of one slide (id from ``resolve``).
+
+    Deck pages are copied from the talk's PDF, annex pages are drawn, and the
+    result keeps the slide order.
+    """
+    import pypdfium2 as pdfium
+
+    picked = SLIDES if key is None else [BY_ID[key]]
+    out = pdfium.PdfDocument.new()
+    with pdfium.PdfDocument(str(DECK_FILE)) as deck:
+        for is_deck, group in groupby(picked, key=lambda s: "page" in s):
+            group = list(group)
+            if is_deck:  # one import per run: page by page would repeat shared fonts (4 MB instead of 0.4)
+                out.import_pages(deck, [s["page"] for s in group])
+            else:
+                for s in group:
+                    with pdfium.PdfDocument(_drawn_page(s)) as page:
+                        out.import_pages(page)
+    buf = io.BytesIO()
+    out.save(buf)
     return buf.getvalue()

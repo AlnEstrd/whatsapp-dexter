@@ -65,7 +65,7 @@ def make_slide_image(slide: str, lang: str = "es") -> Doc:
     """One slide as a PNG image. Raises ValueError for an unknown slide or 'all'."""
     key = _slides.resolve(slide)
     if key is None:
-        raise ValueError("a single slide id is required for an image (1-10, A, B, 90)")
+        raise ValueError(f"a single slide id is required for an image ({', '.join(_slides.BY_ID)})")
     return Doc(_slide_png(key), _slides.filename(key, "png"), _slides.image_caption(key, lang), "image/png",
                kind="slides", slide=key)
 

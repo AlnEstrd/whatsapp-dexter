@@ -433,13 +433,14 @@ Language follows the user (ES/EN). To update content, edit the Markdown in `app/
 
 ## PDF documents
 
-The bot sends three kinds of PDF as WhatsApp **document** messages (Meta channel). They are generated in
-pure Python with reportlab and the PDF built-in fonts. Single-slide images are rendered from the same PDF page with pypdfium2 (pinned in `requirements.txt`).
+The bot sends three kinds of PDF as WhatsApp **document** messages (Meta channel). The talk's slides are the real
+presentation, exported to PDF (see **Slides** below); the other pages are generated in pure Python with reportlab and
+the PDF built-in fonts. Pages are merged, and single-slide images are rendered from the same PDF page, with pypdfium2 (pinned in `requirements.txt`).
 
 | Document | Who asks | Content |
 |---|---|---|
-| **Slides** (whole deck, 13 pages) | menu 5, `slides`, `láminas`, or the agent | 10 slides + annex A (change management) + annex B (governance frameworks) + a "first 90 days" page, 16:9 |
-| **A single slide** (sent as an **image** by default, which previews inline; add `pdf` for a PDF: `lámina 8 pdf`) | `lámina 8`, `slide A`, or the agent ("send me the slide about measurement") | The same page as in the deck. Ids: `1`–`10`, `A`, `B`, `90` |
+| **Slides** (whole deck, 15 pages) | menu 5, `slides`, `láminas`, or the agent | The talk's 12 pages (the presentation itself, 16:9) + annex A (change management) + annex B (governance frameworks) + a "first 90 days" page |
+| **A single slide** (sent as an **image** by default, which previews inline; add `pdf` for a PDF: `lámina 8 pdf`) | `lámina 8`, `slide A`, or the agent ("send me the slide about measurement") | The same page as in the deck. Ids: `1`–`12`, `A`, `B`, `90` |
 | **Topic one-pager** | the agent's `create_topic_pdf` ("send me a PDF about the 10-20-70 rule") | Claude writes title, summary, sections, key figures and sources **from the knowledge base**; the layout is fixed. Max ~520 words, ~2 pages; longer content is bounced back to the agent to shorten |
 | **Assessment report** (3 pages) | sent automatically when the quiz ends; `pdf` / `reporte` re-sends it | Level and score, position on L0–L3, strengths and priorities, every domain with the answer the person picked, next steps for the weakest domains (why it matters + what to do), a 90-day checklist |
 
@@ -450,8 +451,11 @@ gets a note; the chat keeps working. Documents sent are mirrored to the Slack th
 Twilio can't send files in this build: explicit requests get a polite text, and the automatic quiz PDF is skipped silently.
 
 Content sources and how to change them:
-- **Slides**: `SLIDES` in `app/docs/slides.py` (mirrors `app/kb/core/platica.md`). Spanish only. They are rebuilt from the
-  talk outline, not exported from your real deck: edit them when the talk changes, or swap the file for your own PDF.
+- **Slides**: the deck is `app/docs/assets/gobernanza-quien-da-la-cara.pdf`, exported from the `.pptx` next to it (the export
+  command is in the docstring of `app/docs/slides.py`). Spanish only. To change the talk's slides, edit the `.pptx`, export
+  it again, and replace the PDF. The annex pages (A, B, 90 days) are drawn in `app/docs/slides.py` (`ANNEXES`).
+- **Talk content for answers**: `app/kb/core/platica.md` is written as information to rephrase, not as the speaker's
+  script. Keep the speaker's script out of the repo and the KB; `tests/test_talk_kb.py` checks for script markers.
 - **Assessment report**: questions, levels and tips come from `app/flows/quiz.py`; the per-domain "why it matters" lines
   (`WHY`) and the 90-day list are in `app/docs/assessment.py`. Report language follows the quiz language (ES/EN).
 - **Topic one-pager**: no fixed content; the agent writes it. Limits are in `app/docs/topic.py` (`LIMITS`, `MAX_WORDS`).

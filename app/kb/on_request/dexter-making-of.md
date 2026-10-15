@@ -181,7 +181,6 @@ Qué incluye cada pieza. Cuáles ya están activas lo dice "Estado actual".
 
 ### Qué sigue (roadmap)
 - Láminas en inglés (hoy solo hay versión en español).
-- Servir el PDF real de la presentación en lugar de las láminas regeneradas.
 - Guardar los resultados del diagnóstico para darle seguimiento a quien lo pida después de la plática.
 - Trazas de cada conversación (guard, pasos del agente, herramientas) para depurar y medir costo.
 
